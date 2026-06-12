@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
 from openai import OpenAI
 
 from harness.core.config import LLMConfig
@@ -20,12 +21,19 @@ class LLMClient:
         self.config = config or LLMConfig()
         self._client: OpenAI | None = None
 
+    def _build_http_client(self) -> httpx.Client:
+        kwargs: dict[str, Any] = {}
+        if self.config.proxy:
+            kwargs["proxy"] = self.config.proxy
+        return httpx.Client(**kwargs)
+
     @property
     def client(self) -> OpenAI:
         if self._client is None:
             self._client = OpenAI(
                 api_key=self.config.api_key,
                 base_url=self.config.api_base,
+                http_client=self._build_http_client(),
                 timeout=self.config.timeout,
             )
         return self._client

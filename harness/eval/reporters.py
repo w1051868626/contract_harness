@@ -6,6 +6,7 @@ from typing import Any
 from harness.core.config import HarnessConfig
 from harness.utils.io import write_json, write_text
 
+
 class EvalReporter:
     def __init__(self, output_dir: str | Path | None = None):
         config = HarnessConfig()

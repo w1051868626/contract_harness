@@ -11,13 +11,18 @@ class LLMConfig:
     model: str = "gpt-4o"
     api_key: str = ""
     api_base: str = "https://api.openai.com/v1"
+    proxy: str | None = None
     temperature: float = 0.1
     max_tokens: int = 4096
     timeout: int = 120
 
     def __post_init__(self):
         if not self.api_key:
-            self.api_key = os.getenv("OPENAI_API_KEY", "")
+            provider_key = f"{self.provider.upper()}_API_KEY"
+            self.api_key = os.getenv(provider_key, os.getenv("OPENAI_API_KEY", ""))
+        if not self.api_base:
+            provider_base = f"{self.provider.upper()}_API_BASE"
+            self.api_base = os.getenv(provider_base, "https://api.openai.com/v1")
 
 
 @dataclass
