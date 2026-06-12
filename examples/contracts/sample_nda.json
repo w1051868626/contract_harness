@@ -1,0 +1,20 @@
+{
+  "id": "sample_nda_001",
+  "title": "保密协议（NDA）样例",
+  "content": "保密协议\n\n第一条 定义\n本协议中，「保密信息」指披露方向接收方披露的、与业务相关的所有非公开信息。\n\n第二条 保密义务\n接收方同意对保密信息严格保密，未经披露方书面同意，不得向任何第三方披露。\n\n第三条 保密期限\n本协议有效期为三年。保密义务在协议终止后继续有效五年。\n\n第四条 违约责任\n如接收方违反本协议约定，应向披露方支付违约金人民币100万元。\n\n第五条 管辖法律\n本协议适用中华人民共和国法律，争议提交上海仲裁委员会仲裁。",
+  "expected_clauses": [
+    {"clause_type": "定义条款", "risk": "info"},
+    {"clause_type": "保密义务", "risk": "medium"},
+    {"clause_type": "保密期限", "risk": "info"},
+    {"clause_type": "违约责任", "risk": "high"},
+    {"clause_type": "管辖与争议解决", "risk": "info"}
+  ],
+  "expected_risks": [
+    {"clause_type": "保密义务", "risk_level": "medium"},
+    {"clause_type": "违约责任", "risk_level": "high"}
+  ],
+  "expected_compliance": [
+    {"regulation": "中华人民共和国民法典（合同编）", "status": true}
+  ],
+  "expected_risk_level": "medium"
+}

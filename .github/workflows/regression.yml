@@ -1,0 +1,25 @@
+name: 回归测试
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - name: 运行回归测试
+        run: harness regression run examples/contracts/ --version "ci-$(date +'%Y%m%d')"
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: 上传回归报告
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-report
+          path: ~/.harness/reports/

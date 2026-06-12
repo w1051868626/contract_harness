@@ -1,0 +1,19 @@
+{
+  "id": "sample_sla_001",
+  "title": "服务等级协议（SLA）样例",
+  "content": "服务等级协议\n\n第一条 服务标准\n服务提供方承诺系统可用性不低于99.9%。如未达到，按比例退还服务费。\n\n第二条 故障响应\nP0级故障15分钟内响应，P1级故障30分钟内响应。\n\n第三条 数据安全\n服务提供方应采取合理措施保护用户数据安全。\n\n第四条 免责条款\n因不可抗力导致的服务中断，服务提供方不承担责任。不可抗力范围按相关法律规定执行。\n\n第五条 终止条款\n任何一方可提前30天书面通知终止本协议。",
+  "expected_clauses": [
+    {"clause_type": "服务标准", "risk": "info"},
+    {"clause_type": "故障响应", "risk": "info"},
+    {"clause_type": "数据安全", "risk": "medium"},
+    {"clause_type": "免责条款", "risk": "low"},
+    {"clause_type": "终止条款", "risk": "info"}
+  ],
+  "expected_risks": [
+    {"clause_type": "数据安全", "risk_level": "medium"}
+  ],
+  "expected_compliance": [
+    {"regulation": "中华人民共和国数据安全法", "status": true}
+  ],
+  "expected_risk_level": "low"
+}
