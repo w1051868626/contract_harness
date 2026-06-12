@@ -6,14 +6,6 @@ from typing import Any
 from harness.core.config import HarnessConfig
 from harness.utils.io import write_json, write_text
 
-try:
-    from jinja2 import Template
-
-    HAS_JINJA = True
-except ImportError:
-    HAS_JINJA = False
-
-
 class EvalReporter:
     def __init__(self, output_dir: str | Path | None = None):
         config = HarnessConfig()
@@ -49,7 +41,9 @@ class EvalReporter:
         return filepath
 
     def report_html(self, data: dict[str, Any], name: str = "eval_report") -> Path:
-        if not HAS_JINJA:
+        try:
+            from jinja2 import Template
+        except ImportError:
             return self.report_markdown(data, name)
 
         template = Template("""<!DOCTYPE html>
