@@ -33,8 +33,16 @@ harness regression run <dataset>
 harness regression diff <a> <b>
 ```
 
+## Conda 环境
+```bash
+conda activate contract-harness
+```
+
+环境定义在 `environment.yml`，位于项目根目录。
+
 ## 开发命令
 ```bash
+conda activate contract-harness
 pip install -e ".[dev]"
 pytest tests/ -v
 ruff check harness/ tests/
