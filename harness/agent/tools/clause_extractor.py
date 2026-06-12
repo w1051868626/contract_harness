@@ -11,11 +11,15 @@ class ClauseExtractor:
 
     def extract(self, document: ContractDocument) -> list[Clause]:
         prompt = CLAUSE_EXTRACT_PROMPT.format(contract_content=document.content)
-        resp = self._llm.chat([
-            {"role": "system",
-             "content": "你是一个合同条款提取专家。请严格按照 JSON 格式输出结果。"},
-            {"role": "user", "content": prompt},
-        ])
+        resp = self._llm.chat(
+            [
+                {
+                    "role": "system",
+                    "content": "你是一个合同条款提取专家。请严格按照 JSON 格式输出结果。",
+                },
+                {"role": "user", "content": prompt},
+            ]
+        )
         return self._parse_response(resp.content)
 
     def _parse_response(self, content: str) -> list[Clause]:
@@ -28,13 +32,16 @@ class ClauseExtractor:
 
         try:
             data = json.loads(json_str.group())
-            return [Clause(
-                clause_type=item.get("type", "unknown"),
-                content=item.get("content", ""),
-                start_pos=item.get("start_pos"),
-                end_pos=item.get("end_pos"),
-                risk=RiskLevel(item.get("risk", "info")),
-                comment=item.get("comment", ""),
-            ) for item in data]
+            return [
+                Clause(
+                    clause_type=item.get("type", "unknown"),
+                    content=item.get("content", ""),
+                    start_pos=item.get("start_pos"),
+                    end_pos=item.get("end_pos"),
+                    risk=RiskLevel(item.get("risk", "info")),
+                    comment=item.get("comment", ""),
+                )
+                for item in data
+            ]
         except (json.JSONDecodeError, ValueError):
             return []

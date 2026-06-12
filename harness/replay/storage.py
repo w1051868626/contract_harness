@@ -13,6 +13,7 @@ class ReplayStorage:
             self._dir = Path(storage_dir)
         else:
             from harness.core.config import HarnessConfig
+
             self._dir = Path(HarnessConfig().replay_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
 
@@ -39,12 +40,14 @@ class ReplayStorage:
         for f in sorted(self._dir.glob("session_*.json"), reverse=True):
             try:
                 data = read_json(f)
-                sessions.append({
-                    "session_id": data.get("session_id", f.stem),
-                    "document_title": data.get("document", {}).get("title", ""),
-                    "started_at": data.get("started_at", ""),
-                    "finished_at": data.get("finished_at", ""),
-                })
+                sessions.append(
+                    {
+                        "session_id": data.get("session_id", f.stem),
+                        "document_title": data.get("document", {}).get("title", ""),
+                        "started_at": data.get("started_at", ""),
+                        "finished_at": data.get("finished_at", ""),
+                    }
+                )
             except (json.JSONDecodeError, Exception):
                 continue
         return sessions

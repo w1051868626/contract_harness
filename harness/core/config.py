@@ -31,6 +31,11 @@ class HarnessConfig:
     verbose: bool = False
 
     def ensure_dirs(self):
-        for d in [self.data_dir, self.replay_dir, self.eval_dir,
-                  self.regression_dir, self.report_dir]:
+        for d in [
+            self.data_dir,
+            self.replay_dir,
+            self.eval_dir,
+            self.regression_dir,
+            self.report_dir,
+        ]:
             Path(d).mkdir(parents=True, exist_ok=True)

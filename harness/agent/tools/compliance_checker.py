@@ -24,11 +24,15 @@ class ComplianceChecker:
                 topic=regulation,
                 clause_content=clause.content,
             )
-            resp = self._llm.chat([
-                {"role": "system",
-                 "content": "你是一个法律合规专家。请严格按照 JSON 格式输出结果。"},
-                {"role": "user", "content": prompt},
-            ])
+            resp = self._llm.chat(
+                [
+                    {
+                        "role": "system",
+                        "content": "你是一个法律合规专家。请严格按照 JSON 格式输出结果。",
+                    },
+                    {"role": "user", "content": prompt},
+                ]
+            )
             results.append(self._parse_response(resp.content, regulation))
         return results
 

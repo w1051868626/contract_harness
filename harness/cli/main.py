@@ -97,6 +97,7 @@ def replay(ctx: click.Context, session_id: str, as_json: bool) -> None:
 
     if as_json:
         from harness.replay.recorder import SessionRecorder
+
         r = SessionRecorder()
         data = r._serialize(session)
         console.print(json.dumps(data, ensure_ascii=False, indent=2))

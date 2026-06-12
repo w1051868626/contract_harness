@@ -20,8 +20,10 @@ class TestRegression:
     def test_comparator_no_changes(self):
         def _report(risk=RiskLevel.LOW):
             return ReviewReport(
-                document_id="1", document_title="t",
-                reviewed_at="now", summary="s",
+                document_id="1",
+                document_title="t",
+                reviewed_at="now",
+                summary="s",
                 overall_risk=risk,
             )
 
@@ -38,8 +40,10 @@ class TestRegression:
     def test_comparator_risk_change(self):
         def _report(risk=RiskLevel.LOW):
             return ReviewReport(
-                document_id="1", document_title="t",
-                reviewed_at="now", summary="s",
+                document_id="1",
+                document_title="t",
+                reviewed_at="now",
+                summary="s",
                 overall_risk=risk,
             )
 

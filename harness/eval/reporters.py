@@ -8,6 +8,7 @@ from harness.utils.io import write_json, write_text
 
 try:
     from jinja2 import Template
+
     HAS_JINJA = True
 except ImportError:
     HAS_JINJA = False

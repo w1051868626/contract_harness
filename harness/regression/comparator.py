@@ -31,21 +31,15 @@ class OutputComparator:
         if report_a.overall_risk != report_b.overall_risk:
             diff["risk_level_changed"] = True
 
-        diff["clause_diffs"] = self._compare_clauses(
-            report_a.clauses, report_b.clauses
-        )
-        diff["risk_diffs"] = self._compare_risks(
-            report_a.risks, report_b.risks
-        )
+        diff["clause_diffs"] = self._compare_clauses(report_a.clauses, report_b.clauses)
+        diff["risk_diffs"] = self._compare_risks(report_a.risks, report_b.risks)
         diff["compliance_diffs"] = self._compare_compliance(
             report_a.compliance_checks, report_b.compliance_checks
         )
 
         return diff
 
-    def compare_by_session_id(
-        self, session_id_a: str, session_id_b: str
-    ) -> dict[str, Any]:
+    def compare_by_session_id(self, session_id_a: str, session_id_b: str) -> dict[str, Any]:
         session_a = self._player.load(session_id_a)
         session_b = self._player.load(session_id_b)
         if not session_a or not session_b:
@@ -72,11 +66,13 @@ class OutputComparator:
         min_len = min(len(risks_a), len(risks_b))
         for i in range(min_len):
             if risks_a[i].risk_level != risks_b[i].risk_level:
-                diffs.append({
-                    "index": i,
-                    "from": risks_a[i].risk_level.value,
-                    "to": risks_b[i].risk_level.value,
-                })
+                diffs.append(
+                    {
+                        "index": i,
+                        "from": risks_a[i].risk_level.value,
+                        "to": risks_b[i].risk_level.value,
+                    }
+                )
 
         if len(risks_a) > len(risks_b):
             for i in range(len(risks_b), len(risks_a)):
@@ -98,12 +94,14 @@ class OutputComparator:
             elif reg not in regs_b:
                 diffs.append({"regulation": reg, "change": "added"})
             elif regs_a[reg].status != regs_b[reg].status:
-                diffs.append({
-                    "regulation": reg,
-                    "change": "status_changed",
-                    "from": regs_a[reg].status,
-                    "to": regs_b[reg].status,
-                })
+                diffs.append(
+                    {
+                        "regulation": reg,
+                        "change": "status_changed",
+                        "from": regs_a[reg].status,
+                        "to": regs_b[reg].status,
+                    }
+                )
 
         return diffs
 

@@ -32,16 +32,20 @@ class EvalScorer:
 
             metrics = self._metrics.calculate(report, expected)
 
-            results.append(EvalResult(
-                dataset_name=item.document.title,
-                agent_version="0.1.0",
-                metrics=metrics,
-                detailed_results=[{
-                    "document_id": item.document.id,
-                    "metrics": {m.name: m.value for m in metrics},
-                }],
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            ))
+            results.append(
+                EvalResult(
+                    dataset_name=item.document.title,
+                    agent_version="0.1.0",
+                    metrics=metrics,
+                    detailed_results=[
+                        {
+                            "document_id": item.document.id,
+                            "metrics": {m.name: m.value for m in metrics},
+                        }
+                    ],
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                )
+            )
 
         return results
 

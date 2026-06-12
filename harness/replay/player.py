@@ -58,12 +58,14 @@ class SessionPlayer:
                 )
                 for tc in s.get("tool_calls", [])
             ]
-            steps.append(AgentStep(
-                step_index=s["step_index"],
-                agent_message=s.get("agent_message", ""),
-                tool_calls=tool_calls,
-                timestamp=s.get("timestamp", ""),
-            ))
+            steps.append(
+                AgentStep(
+                    step_index=s["step_index"],
+                    agent_message=s.get("agent_message", ""),
+                    tool_calls=tool_calls,
+                    timestamp=s.get("timestamp", ""),
+                )
+            )
 
         report_data = data.get("report")
         report = self._deserialize_report(report_data) if report_data else None

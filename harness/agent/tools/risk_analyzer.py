@@ -14,11 +14,15 @@ class RiskAnalyzer:
             clause_type=clause.clause_type,
             clause_content=clause.content,
         )
-        resp = self._llm.chat([
-            {"role": "system",
-             "content": "你是一个合同风险分析专家。请严格按照 JSON 格式输出结果。"},
-            {"role": "user", "content": prompt},
-        ])
+        resp = self._llm.chat(
+            [
+                {
+                    "role": "system",
+                    "content": "你是一个合同风险分析专家。请严格按照 JSON 格式输出结果。",
+                },
+                {"role": "user", "content": prompt},
+            ]
+        )
         return self._parse_response(resp.content, clause)
 
     def _parse_response(self, content: str, clause: Clause) -> RiskAssessment:

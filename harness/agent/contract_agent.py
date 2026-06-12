@@ -128,8 +128,10 @@ class ContractAgent:
             risks_summary=risks_summary,
             compliance_summary=compliance_summary,
         )
-        resp = self._llm.chat([
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ])
+        resp = self._llm.chat(
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ]
+        )
         return resp.content

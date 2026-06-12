@@ -14,11 +14,13 @@ class TestReplay:
             started_at=datetime.now(timezone.utc).isoformat(),
         )
         step = AgentStep(step_index=1, agent_message="测试步骤")
-        step.tool_calls.append(ToolCall(
-            tool_name="test_tool",
-            input={"key": "value"},
-            output={"result": "ok"},
-        ))
+        step.tool_calls.append(
+            ToolCall(
+                tool_name="test_tool",
+                input={"key": "value"},
+                output={"result": "ok"},
+            )
+        )
         session.steps.append(step)
 
         recorder = SessionRecorder()
