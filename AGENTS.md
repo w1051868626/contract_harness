@@ -61,6 +61,7 @@ ruff check harness/ tests/
 
 ## 规则
 - 每次更改后都必须提交（commit）并推送（push）到远程仓库
+- 每次更新后同步更新 README.md
 
 ## 目标
 构建一套合同审查 Agent 的 Harness Engineering 体系，确保 Agent 可回放、可评测、可回归。
