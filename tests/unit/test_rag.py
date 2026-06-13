@@ -12,6 +12,7 @@ from harness.rag.embedding import (
     create_embedding_provider,
 )
 from harness.rag.knowledge_base import KnowledgeBase
+from harness.rag.reranker import LocalReranker, OpenAIReranker, Reranker, create_reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore
 
 
@@ -247,3 +248,90 @@ class TestFileParsing:
                 assert content is not None
         finally:
             Path(path).unlink(missing_ok=True)
+
+
+class _MockReranker(Reranker):
+    """模拟重排序器，反转候选顺序。"""
+
+    def rerank(self, query: str, candidates: list[Chunk], top_k: int = 5) -> list[Chunk]:
+        candidates.reverse()
+        return candidates[:top_k]
+
+
+class TestReranker:
+    """重排序器单元测试。"""
+
+    def test_create_openai_reranker(self):
+        """create_reranker 应返回 OpenAIReranker 实例。"""
+        r = create_reranker("openai", api_key="sk-test")
+        assert isinstance(r, OpenAIReranker)
+        assert r.model == "rerank-v1"
+
+    def test_create_reranker_none(self):
+        """provider 为空时应返回 None。"""
+        assert create_reranker("") is None
+
+    def test_create_reranker_invalid(self):
+        """不支持的 provider 应抛出 ValueError。"""
+        try:
+            create_reranker("unknown")
+            assert False, "expected ValueError"
+        except ValueError:
+            pass
+
+    def test_local_reranker_init(self):
+        """LocalReranker 应正确保存模型名称。"""
+        r = LocalReranker("test-model")
+        assert r.model_name == "test-model"
+
+    def test_reranker_empty_candidates(self):
+        """空候选列表应返回空列表。"""
+        r = _MockReranker()
+        assert r.rerank("query", []) == []
+
+    def test_reranker_reorders(self):
+        """重排序器应调整候选顺序。"""
+        r = _MockReranker()
+        chunks = [
+            Chunk(id="c1", document_id="d1", content="a", chunk_index=0),
+            Chunk(id="c2", document_id="d1", content="b", chunk_index=1),
+        ]
+        result = r.rerank("query", chunks, top_k=2)
+        assert result[0].id == "c2"
+        assert result[1].id == "c1"
+
+    def test_query_with_reranker(self):
+        """使用 reranker 时 query 应通过 reranker 返回结果。"""
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+        try:
+            store = VectorStore(db_path)
+            store.add_document(Document(id="d1", title="条款"))
+            store.add_chunks(
+                [
+                    Chunk(
+                        id="c1",
+                        document_id="d1",
+                        content="保密",
+                        embedding=[1.0, 0.0],
+                        chunk_index=0,
+                    ),
+                    Chunk(
+                        id="c2",
+                        document_id="d1",
+                        content="违约",
+                        embedding=[0.0, 1.0],
+                        chunk_index=1,
+                    ),
+                ]
+            )
+            emb = _MockEmbeddingProvider()
+            kb = KnowledgeBase(store, emb, reranker=_MockReranker())
+            results = kb.query("保密", top_k=2)
+            # _MockReranker 反转了顺序，结果应与原始搜索顺序不同
+            raw = store.search(emb.embed("保密"), top_k=4)
+            assert len(results) == 2
+            assert results[0].id != raw[0].id
+            store.close()
+        finally:
+            Path(db_path).unlink(missing_ok=True)

@@ -43,6 +43,11 @@ class EmbeddingConfig:
     api_base: str = ""
     proxy: str | None = None
 
+    rerank_provider: str = ""
+    rerank_model: str = ""
+    rerank_api_key: str = ""
+    rerank_api_base: str = ""
+
     def __post_init__(self):
         """从环境变量自动补充嵌入 API 密钥与地址。"""
         self.provider = os.getenv("EMBEDDING_PROVIDER", self.provider)
@@ -52,6 +57,16 @@ class EmbeddingConfig:
             self.api_base = os.getenv("EMBEDDING_API_BASE", os.getenv("OPENAI_API_BASE", ""))
         if self.proxy is None:
             self.proxy = os.getenv("EMBEDDING_PROXY", os.getenv("HTTP_PROXY", "")) or None
+
+        self.rerank_provider = os.getenv("RERANK_PROVIDER", self.rerank_provider)
+        if not self.rerank_api_key:
+            self.rerank_api_key = os.getenv("RERANK_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+        if not self.rerank_api_base:
+            self.rerank_api_base = os.getenv(
+                "RERANK_API_BASE", os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
+            )
+        if not self.rerank_model:
+            self.rerank_model = os.getenv("RERANK_MODEL", "rerank-v1")
 
 
 @dataclass

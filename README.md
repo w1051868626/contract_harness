@@ -143,6 +143,7 @@ agent = ContractAgent(llm, knowledge_base=kb)
 - **向量存储**：SQLite 持久化，余弦相似度搜索
 - **文档解析**：支持 TXT / JSON / PDF / DOCX 格式
 - **分块策略**：AI 智能分块（可选 LLM 驱动）→ 段落级 → 句子级 → 字符回退
+- **重排序**：支持 Reranker 精排，在向量检索后对候选结果重新打分排序（OpenAI API / local cross-encoder）
 
 ## 自定义 LLM 供应商
 
@@ -178,6 +179,10 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `EMBEDDING_API_KEY` | Embedding API 密钥 | 同 `OPENAI_API_KEY` |
 | `EMBEDDING_API_BASE` | Embedding API 地址 | 同 `OPENAI_API_BASE` |
 | `EMBEDDING_PROXY` | Embedding 代理地址 | 同 `HTTP_PROXY` |
+| `RERANK_PROVIDER` | Reranker 供应商（openai / local） | 无 |
+| `RERANK_API_KEY` | Reranker API 密钥 | 同 `OPENAI_API_KEY` |
+| `RERANK_API_BASE` | Reranker API 地址 | 同 `OPENAI_API_BASE` |
+| `RERANK_MODEL` | Reranker 模型 | `rerank-v1` |
 | `HTTP_PROXY` | 通用代理（回退） | - |
 
 ## 开发

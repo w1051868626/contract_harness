@@ -10,6 +10,7 @@ from typing import Any
 
 from harness.agent.llm import LLMClient, LLMResponse
 from harness.rag.embedding import EmbeddingProvider
+from harness.rag.reranker import Reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore
 
 CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑结构拆分成有意义的片段。
@@ -28,11 +29,13 @@ class KnowledgeBase:
         store: VectorStore,
         embedding: EmbeddingProvider,
         llm: LLMClient | None = None,
+        reranker: Reranker | None = None,
     ):
         """初始化知识库。"""
         self._store = store
         self._embedding = embedding
         self._llm = llm
+        self._reranker = reranker
 
     @property
     def store(self) -> VectorStore:
@@ -166,9 +169,12 @@ class KnowledgeBase:
         return path.read_text(encoding="utf-8")
 
     def query(self, text: str, top_k: int = 5) -> list[Chunk]:
-        """语义检索最相关的文本块。"""
+        """语义检索最相关的文本块（支持可选的 rerank 精排）。"""
         query_emb = self._embedding.embed(text)
-        return self._store.search(query_emb, top_k=top_k)
+        candidates = self._store.search(query_emb, top_k=top_k * 2 if self._reranker else top_k)
+        if self._reranker and len(candidates) > 1:
+            return self._reranker.rerank(text, candidates, top_k=top_k)
+        return candidates[:top_k]
 
     def list_documents(self) -> list[Document]:
         """列出所有文档。"""
