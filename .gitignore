@@ -8,6 +8,7 @@ build/
 .venv/
 venv/
 env/
+.pytest_cache/
 
 # IDE
 .vscode/
@@ -24,3 +25,5 @@ Thumbs.db
 .output/
 *.local.yaml
 .harness/
+.coverage
+coverage.xml
