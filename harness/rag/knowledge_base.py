@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""知识库模块，支持文档管理、智能分块与语义检索。"""
+
 import json
 import re
 import uuid
@@ -19,18 +21,22 @@ CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑�
 
 
 class KnowledgeBase:
+    """知识库，管理文档的添加、分块、嵌入与检索。"""
+
     def __init__(
         self,
         store: VectorStore,
         embedding: EmbeddingProvider,
         llm: LLMClient | None = None,
     ):
+        """初始化知识库。"""
         self._store = store
         self._embedding = embedding
         self._llm = llm
 
     @property
     def store(self) -> VectorStore:
+        """返回底层向量存储。"""
         return self._store
 
     def add_text(
@@ -43,6 +49,7 @@ class KnowledgeBase:
         chunk_overlap: int = 64,
         use_ai_chunking: bool = True,
     ) -> str:
+        """将文本添加到知识库。"""
         doc_id = uuid.uuid4().hex[:12]
         doc = Document(
             id=doc_id,
@@ -68,6 +75,7 @@ class KnowledgeBase:
         chunk_overlap: int,
         use_ai: bool,
     ) -> list[Chunk]:
+        """根据配置选择 AI 分块或传统分块。"""
         if use_ai and self._llm is not None:
             try:
                 return self._chunk_with_ai(content, doc_id)
@@ -76,6 +84,7 @@ class KnowledgeBase:
         return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
 
     def _chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
+        """使用 LLM 对文本进行智能分块。"""
         assert self._llm is not None
         prompt = CHUNK_PROMPT.format(text=text[:8000])
         resp: LLMResponse = self._llm.chat(
@@ -113,6 +122,7 @@ class KnowledgeBase:
         chunk_overlap: int = 64,
         use_ai_chunking: bool = True,
     ) -> str:
+        """添加文件到知识库。"""
         path = Path(file_path)
         content = self._parse_file(path)
         return self.add_text(
@@ -126,6 +136,7 @@ class KnowledgeBase:
 
     @staticmethod
     def _parse_file(path: Path) -> str:
+        """解析文件内容（支持 txt/md/json/pdf/docx）。"""
         suffix = path.suffix.lower()
         if suffix in (".txt", ".md"):
             return path.read_text(encoding="utf-8")
@@ -155,13 +166,16 @@ class KnowledgeBase:
         return path.read_text(encoding="utf-8")
 
     def query(self, text: str, top_k: int = 5) -> list[Chunk]:
+        """语义检索最相关的文本块。"""
         query_emb = self._embedding.embed(text)
         return self._store.search(query_emb, top_k=top_k)
 
     def list_documents(self) -> list[Document]:
+        """列出所有文档。"""
         return self._store.list_documents()
 
     def delete_document(self, document_id: str):
+        """删除指定文档及其分块。"""
         self._store.delete_document(document_id)
 
     @staticmethod
@@ -171,6 +185,7 @@ class KnowledgeBase:
         chunk_size: int,
         overlap: int,
     ) -> list[Chunk]:
+        """基于段落滑动窗口的传统分块算法。"""
         if not text.strip():
             return []
 
@@ -231,11 +246,13 @@ class KnowledgeBase:
 
     @staticmethod
     def _split_segments(text: str) -> list[str]:
+        """按空行将文本分割为段落。"""
         raw = re.split(r"\n\s*\n", text.strip())
         return [s.strip() for s in raw if s.strip()]
 
     @staticmethod
     def _split_long(text: str, chunk_size: int) -> list[str]:
+        """将长文本按句子切分。"""
         sentences = re.split(r"(?<=[。！？；.!?;])\s*", text)
         chunks: list[str] = []
         buf = ""
@@ -257,6 +274,7 @@ class KnowledgeBase:
 
     @staticmethod
     def _carry_overlap(buffer: list[str], overlap_chars: int) -> list[str]:
+        """计算窗口重叠部分。"""
         carry: list[str] = []
         carry_len = 0
         for seg in reversed(buffer):
@@ -269,6 +287,7 @@ class KnowledgeBase:
 
     @staticmethod
     def _make_chunk(segments: list[str], doc_id: str, idx: int) -> Chunk:
+        """创建 Chunk 对象。"""
         return Chunk(
             id=uuid.uuid4().hex[:12],
             document_id=doc_id,

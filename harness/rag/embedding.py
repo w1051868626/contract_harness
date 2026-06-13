@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""嵌入提供者模块，封装文本向量化接口。"""
+
 import os
 from abc import ABC, abstractmethod
 from typing import Any
@@ -8,14 +10,18 @@ import httpx
 
 
 class EmbeddingProvider(ABC):
+    """嵌入提供者抽象基类。"""
     @abstractmethod
-    def embed(self, text: str) -> list[float]: ...
+    def embed(self, text: str) -> list[float]:
+        """将单段文本转为向量。"""
 
     @abstractmethod
-    def embed_batch(self, texts: list[str]) -> list[list[float]]: ...
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """批量将多段文本转为向量。"""
 
 
 class OpenAIEmbeddingProvider(EmbeddingProvider):
+    """基于 OpenAI API 的嵌入实现。"""
     def __init__(
         self,
         api_key: str = "",
@@ -23,6 +29,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         model: str = "text-embedding-3-small",
         proxy: str | None = None,
     ):
+        """初始化 OpenAI 嵌入客户端。"""
         if not api_key:
             api_key = os.getenv("OPENAI_API_KEY", "")
         self.api_key = api_key
@@ -31,9 +38,11 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         self._http_client = httpx.Client(proxy=proxy) if proxy else httpx.Client()
 
     def embed(self, text: str) -> list[float]:
+        """将单段文本转为向量。"""
         return self.embed_batch([text])[0]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """批量调用 OpenAI 嵌入 API。"""
         resp = self._http_client.post(
             f"{self.api_base}/embeddings",
             json={"model": self.model, "input": texts},
@@ -46,12 +55,16 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
 
 class LocalEmbeddingProvider(EmbeddingProvider):
+    """基于本地模型的嵌入实现（sentence-transformers）。"""
+
     def __init__(self, model_name: str = "BAAI/bge-small-zh-v1.5"):
+        """初始化本地嵌入模型名称。"""
         self.model_name = model_name
         self._model: Any = None
         self._loaded = False
 
     def _load(self):
+        """惰性加载本地嵌入模型。"""
         if self._loaded:
             return
         try:
@@ -65,9 +78,11 @@ class LocalEmbeddingProvider(EmbeddingProvider):
             )
 
     def embed(self, text: str) -> list[float]:
+        """将单段文本转为向量。"""
         return self.embed_batch([text])[0]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """批量使用本地模型编码文本。"""
         self._load()
         assert self._model is not None
         return self._model.encode(texts).tolist()
@@ -80,6 +95,7 @@ def create_embedding_provider(
     model: str = "",
     proxy: str | None = None,
 ) -> EmbeddingProvider:
+    """工厂函数，创建嵌入提供者实例。"""
     if provider == "openai":
         return OpenAIEmbeddingProvider(
             api_key=api_key,

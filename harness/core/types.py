@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+"""核心数据模型与类型定义。"""
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
 
 class RiskLevel(str, Enum):
+    """风险等级枚举。"""
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -15,6 +18,7 @@ class RiskLevel(str, Enum):
 
 @dataclass
 class ContractDocument:
+    """合同文档。"""
     id: str
     title: str
     content: str
@@ -24,6 +28,7 @@ class ContractDocument:
 
 @dataclass
 class Clause:
+    """合同条款识别结果。"""
     clause_type: str
     content: str
     start_pos: int | None = None
@@ -34,6 +39,7 @@ class Clause:
 
 @dataclass
 class RiskAssessment:
+    """单个条款的风险评估。"""
     clause: Clause
     risk_level: RiskLevel
     reason: str
@@ -42,6 +48,7 @@ class RiskAssessment:
 
 @dataclass
 class ComplianceCheck:
+    """合规检查结果。"""
     regulation: str
     status: bool
     detail: str = ""
@@ -49,6 +56,7 @@ class ComplianceCheck:
 
 @dataclass
 class ReviewReport:
+    """合同审查报告，包含条款、风险、合规检查等。"""
     document_id: str
     document_title: str
     reviewed_at: str
@@ -63,6 +71,7 @@ class ReviewReport:
 
 @dataclass
 class ToolCall:
+    """Agent 工具调用记录。"""
     tool_name: str
     input: dict[str, Any]
     output: Any = None
@@ -73,6 +82,7 @@ class ToolCall:
 
 @dataclass
 class AgentStep:
+    """Agent 单步执行记录。"""
     step_index: int
     agent_message: str = ""
     tool_calls: list[ToolCall] = field(default_factory=list)
@@ -81,6 +91,7 @@ class AgentStep:
 
 @dataclass
 class AgentSession:
+    """Agent 会话记录，包含文档、步骤与审查报告。"""
     session_id: str
     document: ContractDocument
     started_at: str
@@ -92,6 +103,7 @@ class AgentSession:
 
 @dataclass
 class EvalMetric:
+    """评测指标（名称、数值、权重）。"""
     name: str
     value: float
     weight: float = 1.0
@@ -99,6 +111,7 @@ class EvalMetric:
 
 @dataclass
 class EvalResult:
+    """单次评测的结果数据。"""
     dataset_name: str
     agent_version: str
     metrics: list[EvalMetric] = field(default_factory=list)
@@ -108,6 +121,7 @@ class EvalResult:
 
 @dataclass
 class RegressionResult:
+    """回归测试对比结果。"""
     baseline_version: str
     current_version: str
     metrics_diff: dict[str, float] = field(default_factory=dict)

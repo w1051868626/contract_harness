@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""评测评分引擎，驱动 Agent 执行评测并聚合指标。"""
+
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,6 +12,7 @@ from harness.eval.metrics import MetricsCalculator
 
 
 class EvalScorer:
+    """评测评分器，驱动 Agent 对数据集逐项审查并计算指标。"""
     def __init__(
         self,
         agent: ContractAgent | None = None,
@@ -19,6 +22,7 @@ class EvalScorer:
         self._metrics = metrics_calc or MetricsCalculator()
 
     def run(self, dataset: EvalDataset) -> list[EvalResult]:
+        """对数据集逐项运行审查，返回各评测结果。"""
         results: list[EvalResult] = []
         for item in dataset.items:
             report, _ = self._agent.review(item.document)
@@ -50,6 +54,7 @@ class EvalScorer:
         return results
 
     def score(self, dataset: EvalDataset) -> dict[str, Any]:
+        """运行评测并返回聚合后的评分结果。"""
         results = self.run(dataset)
         aggregated = self._metrics.aggregate(results)
 

@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+"""评测指标计算器。"""
+
 from typing import Any
 
 from harness.core.types import EvalMetric, EvalResult, ReviewReport
 
 
 class MetricsCalculator:
+    """指标计算器，计算条款覆盖率、风险准确率等。"""
     def calculate(
         self,
         report: ReviewReport,
         expected: dict[str, Any],
     ) -> list[EvalMetric]:
+        """计算单份审查报告的各项指标。"""
         return [
             self._clause_coverage(report, expected),
             self._risk_accuracy(report, expected),
@@ -19,6 +23,7 @@ class MetricsCalculator:
         ]
 
     def aggregate(self, results: list[EvalResult]) -> dict[str, float]:
+        """聚合多个评测结果为平均指标。"""
         if not results:
             return {}
 
@@ -30,6 +35,7 @@ class MetricsCalculator:
         return {name: sum(values) / len(values) for name, values in all_metrics.items()}
 
     def _clause_coverage(self, report: ReviewReport, expected: dict) -> EvalMetric:
+        """计算条款类型覆盖比例。"""
         expected_types = {c.get("clause_type") for c in expected.get("clauses", [])}
         actual_types = {c.clause_type for c in report.clauses}
 
@@ -41,6 +47,7 @@ class MetricsCalculator:
         return EvalMetric(name="clause_coverage", value=round(value, 4))
 
     def _risk_accuracy(self, report: ReviewReport, expected: dict) -> EvalMetric:
+        """计算风险识别匹配准确率。"""
         expected_risks = expected.get("risks", [])
         if not expected_risks:
             return EvalMetric(name="risk_accuracy", value=1.0)
@@ -59,6 +66,7 @@ class MetricsCalculator:
         return EvalMetric(name="risk_accuracy", value=round(value, 4))
 
     def _compliance_accuracy(self, report: ReviewReport, expected: dict) -> EvalMetric:
+        """计算合规检查匹配准确率。"""
         expected_checks = expected.get("compliance", [])
         if not expected_checks:
             return EvalMetric(name="compliance_accuracy", value=1.0)
@@ -77,6 +85,7 @@ class MetricsCalculator:
         return EvalMetric(name="compliance_accuracy", value=round(value, 4))
 
     def _risk_level_accuracy(self, report: ReviewReport, expected: dict) -> EvalMetric:
+        """计算整体风险等级判断准确率。"""
         expected_level = expected.get("overall_risk", "info")
         actual_level = report.overall_risk.value
         value = 1.0 if expected_level == actual_level else 0.0

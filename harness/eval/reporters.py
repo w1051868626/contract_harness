@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""评测报告生成器（JSON / Markdown / HTML）。"""
+
 from pathlib import Path
 from typing import Any
 
@@ -8,17 +10,21 @@ from harness.utils.io import write_json, write_text
 
 
 class EvalReporter:
+    """评测报告生成器，支持 JSON / Markdown / HTML 格式。"""
+
     def __init__(self, output_dir: str | Path | None = None):
         config = HarnessConfig()
         self._dir = Path(output_dir) if output_dir else Path(config.report_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
 
     def report_json(self, data: dict[str, Any], name: str = "eval_report") -> Path:
+        """生成 JSON 格式报告。"""
         filepath = self._dir / f"{name}.json"
         write_json(filepath, data)
         return filepath
 
     def report_markdown(self, data: dict[str, Any], name: str = "eval_report") -> Path:
+        """生成 Markdown 格式报告。"""
         lines = [
             "# 评测报告\n",
             f"- **时间**: {data.get('timestamp', 'N/A')}",
@@ -42,6 +48,7 @@ class EvalReporter:
         return filepath
 
     def report_html(self, data: dict[str, Any], name: str = "eval_report") -> Path:
+        """生成 HTML 格式报告（依赖 jinja2，否则回退为 Markdown）。"""
         try:
             from jinja2 import Template
         except ImportError:

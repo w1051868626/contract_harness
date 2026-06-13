@@ -1,3 +1,5 @@
+"""回归比较器单元测试。"""
+
 from harness.core.types import (
     AgentSession,
     ContractDocument,
@@ -17,7 +19,10 @@ def _make_session(report: ReviewReport) -> AgentSession:
 
 
 class TestRegression:
+    """OutputComparator 差异对比功能测试。"""
+
     def test_comparator_no_changes(self):
+        """两个相同报告应无差异。"""
         def _report(risk=RiskLevel.LOW):
             return ReviewReport(
                 document_id="1",
@@ -38,6 +43,7 @@ class TestRegression:
         assert result["summary_changed"] is False
 
     def test_comparator_risk_change(self):
+        """风险等级不同时应被检测到。"""
         def _report(risk=RiskLevel.LOW):
             return ReviewReport(
                 document_id="1",

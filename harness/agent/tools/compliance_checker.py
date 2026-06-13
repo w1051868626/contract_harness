@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+"""基于 LLM 的合规检查工具，对照多部法规逐条审查合同合规性。"""
+
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import COMPLIANCE_CHECK_PROMPT
 from harness.core.types import Clause, ComplianceCheck
 
 
 class ComplianceChecker:
+    """合规检查器，逐条对照法规库对条款进行合规审查。"""
+
     REGULATIONS = [
         "中华人民共和国民法典（合同编）",
         "中华人民共和国劳动合同法",
@@ -15,9 +19,11 @@ class ComplianceChecker:
     ]
 
     def __init__(self, llm: LLMClient):
+        """注入 LLM 客户端。"""
         self._llm = llm
 
     def check(self, clause: Clause) -> list[ComplianceCheck]:
+        """对单一条款执行多法规合规检查。"""
         results: list[ComplianceCheck] = []
         for regulation in self.REGULATIONS:
             prompt = COMPLIANCE_CHECK_PROMPT.format(
@@ -37,6 +43,7 @@ class ComplianceChecker:
         return results
 
     def _parse_response(self, content: str, regulation: str) -> ComplianceCheck:
+        """解析 LLM 返回的 JSON 响应为 ComplianceCheck 对象。"""
         import json
         import re
 

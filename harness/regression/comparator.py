@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""两份审查报告的差异对比工具。"""
+
 from pathlib import Path
 from typing import Any
 
@@ -9,10 +11,13 @@ from harness.utils.io import write_text
 
 
 class OutputComparator:
+    """比较两个会话的输出差异，支持条款、风险、合规三个维度。"""
     def __init__(self, player: SessionPlayer | None = None):
+        """注入 SessionPlayer，用于按 ID 加载会话。"""
         self._player = player or SessionPlayer()
 
     def compare(self, session_a: AgentSession, session_b: AgentSession) -> dict[str, Any]:
+        """对比两个会话的审查结果，返回差异字典。"""
         diff = {
             "summary_changed": False,
             "risk_level_changed": False,
@@ -40,6 +45,7 @@ class OutputComparator:
         return diff
 
     def compare_by_session_id(self, session_id_a: str, session_id_b: str) -> dict[str, Any]:
+        """通过会话 ID 加载并对比。"""
         session_a = self._player.load(session_id_a)
         session_b = self._player.load(session_id_b)
         if not session_a or not session_b:
@@ -47,6 +53,7 @@ class OutputComparator:
         return self.compare(session_a, session_b)
 
     def _compare_clauses(self, clauses_a: list, clauses_b: list) -> list[dict]:
+        """对比条款列表，返回增删改差异。"""
         diffs = []
         types_a = {c.clause_type: c for c in clauses_a}
         types_b = {c.clause_type: c for c in clauses_b}
@@ -62,6 +69,7 @@ class OutputComparator:
         return diffs
 
     def _compare_risks(self, risks_a: list, risks_b: list) -> list[dict]:
+        """对比风险评估列表，返回等级变化与增删差异。"""
         diffs = []
         min_len = min(len(risks_a), len(risks_b))
         for i in range(min_len):
@@ -84,6 +92,7 @@ class OutputComparator:
         return diffs
 
     def _compare_compliance(self, comp_a: list, comp_b: list) -> list[dict]:
+        """对比合规检查列表，返回状态变化与增删差异。"""
         diffs = []
         regs_a = {c.regulation: c for c in comp_a}
         regs_b = {c.regulation: c for c in comp_b}
@@ -108,6 +117,7 @@ class OutputComparator:
     def generate_diff_report(
         self, diff: dict[str, Any], output_path: str | Path | None = None
     ) -> str:
+        """生成可读的 Markdown 差异报告，可选写入文件。"""
         lines = ["# 回归对比报告\n"]
 
         if diff.get("risk_level_changed"):

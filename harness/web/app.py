@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""FastAPI Web 应用，提供合同审查、会话浏览等功能。"""
+
 import uuid
 from pathlib import Path
 from typing import Any
@@ -28,6 +30,7 @@ templates = Jinja2Templates(directory=str(HERE / "templates"))
 
 
 def _run_review(content: str, title: str) -> dict[str, Any]:
+    """执行合同审查并记录会话，返回结构化结果。"""
     doc = ContractDocument(
         id=uuid.uuid4().hex[:12],
         title=title,
@@ -68,11 +71,13 @@ def _run_review(content: str, title: str) -> dict[str, Any]:
 
 
 def _render(name: str, request: Request, **context: Any) -> HTMLResponse:
+    """渲染 Jinja2 模板并返回 HTML 响应。"""
     return templates.TemplateResponse(request, name, context)
 
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    """首页：显示会话统计数据。"""
     replay_dir = Path(config.replay_dir)
     session_count = len(list(replay_dir.glob("*.json"))) if replay_dir.exists() else 0
     return _render("index.html", request, session_count=session_count)
@@ -80,6 +85,7 @@ async def index(request: Request):
 
 @app.get("/review", response_class=HTMLResponse)
 async def review_form(request: Request):
+    """显示合同审查表单页面。"""
     return _render("review.html", request)
 
 
@@ -89,6 +95,7 @@ async def review_submit(
     content: str = Form(""),
     file: UploadFile | None = None,
 ):
+    """处理合同审查提交：接受文本或文件上传，返回审查结果。"""
     if file and file.filename:
         raw = (await file.read()).decode("utf-8")
         title = file.filename
@@ -108,6 +115,7 @@ async def review_submit(
 
 @app.get("/sessions", response_class=HTMLResponse)
 async def sessions_list(request: Request):
+    """列出所有回放会话。"""
     player = SessionPlayer(ReplayStorage(config.replay_dir))
     sessions_list = player.list_sessions()
     return _render("sessions.html", request, sessions=sessions_list)
@@ -115,6 +123,7 @@ async def sessions_list(request: Request):
 
 @app.get("/sessions/{session_id}", response_class=HTMLResponse)
 async def session_detail(request: Request, session_id: str):
+    """查看指定会话的详细回放信息。"""
     player = SessionPlayer(ReplayStorage(config.replay_dir))
     session = player.load(session_id)
     if session is None:

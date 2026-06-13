@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""回归测试套件，用于对比基线指标与当前评测结果。"""
+
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -11,17 +13,20 @@ from harness.utils.io import read_json, write_json
 
 
 class RegressionSuite:
+    """回归测试套件，管理基线保存、加载与指标对比。"""
     def __init__(
         self,
         baseline_dir: str | Path | None = None,
         scorer: EvalScorer | None = None,
     ):
+        """初始化回归套件，指定基线目录与评分器。"""
         default_dir = Path.cwd() / ".regression_baseline"
         self._baseline_dir = Path(baseline_dir) if baseline_dir else default_dir
         self._baseline_dir.mkdir(parents=True, exist_ok=True)
         self._scorer = scorer or EvalScorer()
 
     def run(self, dataset: EvalDataset, version: str = "") -> RegressionResult:
+        """运行回归测试：评分、对比基线、返回结果。"""
         results = self._scorer.run(dataset)
         current_metrics: dict[str, float] = {}
         for r in results:
@@ -58,6 +63,7 @@ class RegressionSuite:
         return result
 
     def save_baseline(self, dataset: EvalDataset, version: str) -> Path:
+        """手动保存当前评测结果作为基线。"""
         results = self._scorer.run(dataset)
         metrics: dict[str, float] = {}
         for r in results:
@@ -70,12 +76,14 @@ class RegressionSuite:
         return self._save_baseline(metrics, version)
 
     def _load_baseline(self) -> dict[str, Any] | None:
+        """从磁盘加载基线 JSON。"""
         filepath = self._baseline_dir / "baseline.json"
         if not filepath.exists():
             return None
         return read_json(filepath)
 
     def _save_baseline(self, metrics: dict[str, float], version: str) -> Path:
+        """将指标与版本写入基线文件。"""
         data = {
             "version": version,
             "timestamp": datetime.now(timezone.utc).isoformat(),

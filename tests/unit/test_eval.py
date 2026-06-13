@@ -1,3 +1,5 @@
+"""评测系统指标计算单元测试。"""
+
 from harness.core.types import (
     Clause,
     ReviewReport,
@@ -7,7 +9,10 @@ from harness.eval.metrics import MetricsCalculator
 
 
 class TestEval:
+    """评测指标计算器测试。"""
+
     def test_metrics_calculator_clause_coverage(self):
+        """条款覆盖率应正确计算实际与预期条款的比例。"""
         report = ReviewReport(
             document_id="1",
             document_title="t",
@@ -32,6 +37,7 @@ class TestEval:
         assert pytest.approx(metrics.value, 0.001) == 2 / 3
 
     def test_metrics_calculator_risk_level_accuracy(self):
+        """风险等级准确率应正确匹配预期值。"""
         report = ReviewReport(
             document_id="1",
             document_title="t",

@@ -1,15 +1,21 @@
 from __future__ import annotations
 
+"""基于 LLM 的风险分析工具，评估合同条款的风险等级并提供建议。"""
+
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import RISK_ANALYSIS_PROMPT
 from harness.core.types import Clause, RiskAssessment, RiskLevel
 
 
 class RiskAnalyzer:
+    """风险分析器，调用 LLM 评估条款风险等级及给出修改建议。"""
+
     def __init__(self, llm: LLMClient):
+        """注入 LLM 客户端。"""
         self._llm = llm
 
     def analyze(self, clause: Clause) -> RiskAssessment:
+        """对单一条款进行风险分析。"""
         prompt = RISK_ANALYSIS_PROMPT.format(
             clause_type=clause.clause_type,
             clause_content=clause.content,
@@ -26,6 +32,7 @@ class RiskAnalyzer:
         return self._parse_response(resp.content, clause)
 
     def _parse_response(self, content: str, clause: Clause) -> RiskAssessment:
+        """解析 LLM 返回的 JSON 响应为 RiskAssessment 对象。"""
         import json
         import re
 

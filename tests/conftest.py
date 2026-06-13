@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""测试全局配置，包含 MockLLMClient 与通用 fixture。"""
+
 from typing import Any
 
 import pytest
@@ -8,12 +10,15 @@ from harness.agent.llm import LLMResponse
 
 
 class MockLLMClient:
+    """模拟 LLM 客户端，返回预设响应列表。"""
+
     def __init__(self, responses: list[LLMResponse] | None = None):
         self.responses = responses or []
         self.call_count = 0
         self.calls: list[dict[str, Any]] = []
 
     def chat(self, messages, tools=None, **kwargs):
+        """记录调用并返回下一个预设响应，不足则返回空响应。"""
         self.calls.append({"messages": messages, "tools": tools, "kwargs": kwargs})
         if self.call_count < len(self.responses):
             resp = self.responses[self.call_count]
@@ -24,6 +29,7 @@ class MockLLMClient:
 
 @pytest.fixture
 def clause_extract_response() -> str:
+    """返回模拟的条款提取 JSON 响应。"""
     return """[
         {"type": "保密", "content": "双方应对本合同内容保密", "risk": "low"},
         {"type": "违约责任", "content": "违约方应赔偿守约方全部损失", "risk": "medium"}
@@ -32,16 +38,19 @@ def clause_extract_response() -> str:
 
 @pytest.fixture
 def risk_analysis_response() -> str:
+    """返回模拟的风险分析 JSON 响应。"""
     return '{"risk_level": "medium", "reason": "赔偿范围不明确", "suggestion": "建议明确赔偿上限"}'
 
 
 @pytest.fixture
 def compliance_response() -> str:
+    """返回模拟的合规检查 JSON 响应。"""
     return '{"status": true, "detail": "符合相关法律规定"}'
 
 
 @pytest.fixture
 def summary_response() -> str:
+    """返回模拟的摘要 JSON 响应。"""
     return "审查完成，共发现2个条款，1个中风险项，0个不合规项。"
 
 

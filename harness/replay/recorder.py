@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""录制模块，将 Agent 会话序列化为 JSON 文件。"""
+
 from pathlib import Path
 
 from harness.core.types import AgentSession
@@ -7,10 +9,13 @@ from harness.utils.io import write_json
 
 
 class SessionRecorder:
+    """会话录制器，将 AgentSession 序列化保存。"""
     def __init__(self, replay_dir: str = ""):
+        """初始化录制器。"""
         self._replay_dir = Path(replay_dir or "")
 
     def record(self, session: AgentSession, output_dir: str | Path | None = None) -> Path:
+        """录制会话到 JSON 文件。"""
         target = Path(output_dir) if output_dir else self._replay_dir
         target.mkdir(parents=True, exist_ok=True)
 
@@ -20,6 +25,7 @@ class SessionRecorder:
         return filepath
 
     def _serialize(self, session: AgentSession) -> dict:
+        """将 AgentSession 序列化为字典。"""
         return {
             "session_id": session.session_id,
             "document": {
@@ -55,6 +61,7 @@ class SessionRecorder:
         }
 
     def _serialize_report(self, report) -> dict | None:
+        """将 ReviewReport 序列化为字典。"""
         if report is None:
             return None
         return {

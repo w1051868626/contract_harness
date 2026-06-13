@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""合同审查 Agent 主流程编排，协调各工具完成条款提取、风险分析、合规检查及报告生成。"""
+
 import uuid
 from datetime import datetime, timezone
 
@@ -21,7 +23,10 @@ from harness.rag.knowledge_base import KnowledgeBase
 
 
 class ContractAgent:
+    """合同审查 Agent，串联 LLM 与各分析工具执行完整审查流程。"""
+
     def __init__(self, llm: LLMClient | None = None, knowledge_base: KnowledgeBase | None = None):
+        """初始化 Agent，注入 LLM 客户端与知识库实例。"""
         self._llm = llm or LLMClient()
         self._kb = knowledge_base
         self._clause_extractor = ClauseExtractor(self._llm)
@@ -30,6 +35,7 @@ class ContractAgent:
         self._knowledge_retriever = KnowledgeRetriever(knowledge_base)
 
     def review(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
+        """执行合同审查全流程，返回审查报告和会话记录。"""
         session = AgentSession(
             session_id=uuid.uuid4().hex[:12],
             document=document,
@@ -123,6 +129,7 @@ class ContractAgent:
         return report, session
 
     def _compute_overall_risk(self, risks: list) -> RiskLevel:
+        """根据所有风险项计算综合风险等级。"""
         if not risks:
             return RiskLevel.INFO
         levels = [r.risk_level for r in risks]
@@ -137,6 +144,7 @@ class ContractAgent:
         return RiskLevel.INFO
 
     def _generate_summary(self, clauses, risks, compliance, kb_context: str = "") -> str:
+        """调用 LLM 生成审查报告摘要文本。"""
         clauses_summary = f"共发现 {len(clauses)} 个条款"
         high_risks = [r for r in risks if r.risk_level in (RiskLevel.CRITICAL, RiskLevel.HIGH)]
         risks_summary = f"高风险项: {len(high_risks)} 个"

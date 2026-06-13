@@ -1,3 +1,5 @@
+"""回放系统（录制器与存储）单元测试。"""
+
 from datetime import datetime, timezone
 
 from harness.core.types import AgentSession, AgentStep, ContractDocument, ToolCall
@@ -6,7 +8,10 @@ from harness.replay.storage import ReplayStorage
 
 
 class TestReplay:
+    """会话录制、序列化、保存与加载测试。"""
+
     def test_recorder_serialization(self, tmp_path):
+        """会话对象应能正确序列化为字典。"""
         doc = ContractDocument(id="test", title="测试合同", content="内容")
         session = AgentSession(
             session_id="abc123",

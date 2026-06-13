@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""contract-harness 命令行入口，支持审查、回放、评测、回归与 Web 服务。"""
+
 import json
 from pathlib import Path
 
@@ -29,7 +31,7 @@ console = Console()
 @click.option("--verbose", "-v", is_flag=True, help="启用详细输出")
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool) -> None:
-    """contract-harness: 可回放、可评测、可回归的合同审查 Agent 系统"""
+    """合同审查 Agent 系统 CLI。"""
     ctx.ensure_object(dict)
     config = HarnessConfig()
     config.verbose = verbose
@@ -44,7 +46,7 @@ def cli(ctx: click.Context, verbose: bool) -> None:
 @click.option("--model", default="", help="LLM 模型名称")
 @click.pass_context
 def review(ctx: click.Context, contract_file: str, save: bool, model: str) -> None:
-    """审查一份合同文件"""
+    """审查一份合同并展示结果。"""
     config: HarnessConfig = ctx.obj["config"]
     filepath = Path(contract_file)
     content = read_text(filepath)
@@ -87,7 +89,7 @@ def review(ctx: click.Context, contract_file: str, save: bool, model: str) -> No
 @click.option("--json", "as_json", is_flag=True, help="以 JSON 格式输出")
 @click.pass_context
 def replay(ctx: click.Context, session_id: str, as_json: bool) -> None:
-    """回放指定的审查会话"""
+    """回放指定审查会话。"""
     config: HarnessConfig = ctx.obj["config"]
     player = SessionPlayer(ReplayStorage(config.replay_dir))
     session = player.load(session_id)
@@ -118,7 +120,7 @@ def replay(ctx: click.Context, session_id: str, as_json: bool) -> None:
 @click.option("--limit", default=20, help="显示最近的会话数量")
 @click.pass_context
 def sessions(ctx: click.Context, limit: int) -> None:
-    """列出所有回放会话"""
+    """列出所有回放会话。"""
     config: HarnessConfig = ctx.obj["config"]
     player = SessionPlayer(ReplayStorage(config.replay_dir))
     sessions_list = player.list_sessions()
@@ -139,14 +141,14 @@ def sessions(ctx: click.Context, limit: int) -> None:
 
 @cli.group()
 def eval() -> None:
-    """评测子系统"""
+    """评测命令组。"""
 
 
 @eval.command()
 @click.argument("dataset", type=click.Path(exists=True))
 @click.pass_context
 def run(ctx: click.Context, dataset: str) -> None:
-    """在数据集上运行评测"""
+    """在指定数据集上运行评测并生成报告。"""
     config: HarnessConfig = ctx.obj["config"]
     ds = EvalDataset()
     ds.load(dataset)
@@ -173,7 +175,7 @@ def run(ctx: click.Context, dataset: str) -> None:
 @click.option("--output", default="eval_report", help="报告文件名")
 @click.pass_context
 def report(ctx: click.Context, output: str) -> None:
-    """生成评测报告"""
+    """展示评测报告相关信息。"""
     config: HarnessConfig = ctx.obj["config"]
     console.print(f"[yellow]报告目录: {config.report_dir}[/yellow]")
     console.print("[yellow]使用 'eval run' 运行评测后会自动生成报告[/yellow]")
@@ -181,7 +183,7 @@ def report(ctx: click.Context, output: str) -> None:
 
 @cli.group()
 def regression() -> None:
-    """回归测试子系统"""
+    """回归测试命令组。"""
 
 
 @regression.command(name="run")
@@ -189,7 +191,7 @@ def regression() -> None:
 @click.option("--version", default="", help="当前版本标识")
 @click.pass_context
 def regression_run(ctx: click.Context, dataset: str, version: str) -> None:
-    """运行回归测试"""
+    """运行回归测试并与基线对比。"""
     ds = EvalDataset()
     ds.load(dataset)
 
@@ -222,7 +224,7 @@ def regression_run(ctx: click.Context, dataset: str, version: str) -> None:
 @click.argument("session_b")
 @click.pass_context
 def diff(ctx: click.Context, session_a: str, session_b: str) -> None:
-    """对比两个会话的审查结果"""
+    """对比两个会话的审查差异。"""
     config: HarnessConfig = ctx.obj["config"]
     comparator = OutputComparator(SessionPlayer(ReplayStorage(config.replay_dir)))
 
@@ -247,7 +249,7 @@ def diff(ctx: click.Context, session_a: str, session_b: str) -> None:
 @click.option("--port", default=8000, help="监听端口")
 @click.option("--reload", is_flag=True, help="热重载")
 def serve(host: str, port: int, reload: bool) -> None:
-    """启动 Web 界面"""
+    """启动 FastAPI Web 界面。"""
     from harness.web.app import app
 
     console.print(f"[green]正在启动 Web 界面:[/green] http://{host}:{port}")

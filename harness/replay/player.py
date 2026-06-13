@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""回放模块，反序列化并逐步骤播放录制会话。"""
+
 from typing import Any
 
 from harness.core.types import (
@@ -17,19 +19,24 @@ from harness.replay.storage import ReplayStorage
 
 
 class SessionPlayer:
+    """会话播放器，加载和遍历录制会话。"""
     def __init__(self, storage: ReplayStorage | None = None):
+        """初始化播放器。"""
         self._storage = storage or ReplayStorage()
 
     def load(self, session_id: str) -> AgentSession | None:
+        """加载指定会话。"""
         data = self._storage.load(session_id)
         if data is None:
             return None
         return self._deserialize(data)
 
     def list_sessions(self) -> list[dict[str, Any]]:
+        """列出所有录制会话。"""
         return self._storage.list_sessions()
 
     def step_through(self, session_id: str):
+        """逐步骤生成器，遍历会话步骤。"""
         session = self.load(session_id)
         if session is None:
             raise ValueError(f"会话 {session_id} 不存在")
@@ -37,6 +44,7 @@ class SessionPlayer:
             yield step
 
     def _deserialize(self, data: dict) -> AgentSession:
+        """将字典反序列化为 AgentSession。"""
         doc = ContractDocument(
             id=data["document"]["id"],
             title=data["document"]["title"],
@@ -81,6 +89,7 @@ class SessionPlayer:
         )
 
     def _deserialize_report(self, data: dict) -> ReviewReport:
+        """将字典反序列化为 ReviewReport。"""
         return ReviewReport(
             document_id=data["document_id"],
             document_title=data["document_title"],
