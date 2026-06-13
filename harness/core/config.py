@@ -26,9 +26,24 @@ class LLMConfig:
 
 
 @dataclass
+class EmbeddingConfig:
+    provider: str = "openai"
+    model: str = "text-embedding-3-small"
+    api_key: str = ""
+    api_base: str = ""
+    proxy: str | None = None
+
+    def __post_init__(self):
+        if not self.api_key:
+            self.api_key = os.getenv("EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+
+
+@dataclass
 class HarnessConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
+    embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     data_dir: str = str(Path.home() / ".harness" / "data")
+    kb_dir: str = str(Path.home() / ".harness" / "knowledge")
     replay_dir: str = str(Path.home() / ".harness" / "replays")
     eval_dir: str = str(Path.home() / ".harness" / "evals")
     regression_dir: str = str(Path.home() / ".harness" / "regression")
@@ -38,6 +53,7 @@ class HarnessConfig:
     def ensure_dirs(self):
         for d in [
             self.data_dir,
+            self.kb_dir,
             self.replay_dir,
             self.eval_dir,
             self.regression_dir,

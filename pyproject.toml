@@ -40,6 +40,9 @@ dev = [
     "ruff>=0.4",
     "pyright>=1.1",
 ]
+local = [
+    "sentence-transformers>=3.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

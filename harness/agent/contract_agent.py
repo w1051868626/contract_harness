@@ -7,6 +7,7 @@ from harness.agent.llm import LLMClient
 from harness.agent.prompts import REVIEW_SUMMARY_PROMPT, SYSTEM_PROMPT
 from harness.agent.tools.clause_extractor import ClauseExtractor
 from harness.agent.tools.compliance_checker import ComplianceChecker
+from harness.agent.tools.knowledge_retriever import KnowledgeRetriever
 from harness.agent.tools.risk_analyzer import RiskAnalyzer
 from harness.core.types import (
     AgentSession,
@@ -16,14 +17,17 @@ from harness.core.types import (
     RiskLevel,
     ToolCall,
 )
+from harness.rag.knowledge_base import KnowledgeBase
 
 
 class ContractAgent:
-    def __init__(self, llm: LLMClient | None = None):
+    def __init__(self, llm: LLMClient | None = None, knowledge_base: KnowledgeBase | None = None):
         self._llm = llm or LLMClient()
+        self._kb = knowledge_base
         self._clause_extractor = ClauseExtractor(self._llm)
         self._risk_analyzer = RiskAnalyzer(self._llm)
         self._compliance_checker = ComplianceChecker(self._llm)
+        self._knowledge_retriever = KnowledgeRetriever(knowledge_base)
 
     def review(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
         session = AgentSession(
@@ -31,6 +35,22 @@ class ContractAgent:
             document=document,
             started_at=datetime.now(timezone.utc).isoformat(),
         )
+
+        # Step 0: 知识库检索（可选）
+        kb_context = ""
+        if self._knowledge_retriever.available:
+            step0 = AgentStep(step_index=0, timestamp=datetime.now(timezone.utc).isoformat())
+            step0.agent_message = "正在检索知识库..."
+            tc = ToolCall(
+                tool_name="knowledge_retriever",
+                input={"query": document.content[:500]},
+                started_at=datetime.now(timezone.utc).isoformat(),
+            )
+            kb_context = self._knowledge_retriever.retrieve(document.content)
+            tc.output = kb_context
+            tc.finished_at = datetime.now(timezone.utc).isoformat()
+            step0.tool_calls.append(tc)
+            session.steps.append(step0)
 
         # Step 1: 条款提取
         step1 = AgentStep(step_index=1, timestamp=datetime.now(timezone.utc).isoformat())
@@ -84,7 +104,7 @@ class ContractAgent:
         step4 = AgentStep(step_index=4, timestamp=datetime.now(timezone.utc).isoformat())
         step4.agent_message = "正在生成审查报告..."
         overall_risk = self._compute_overall_risk(risks)
-        summary = self._generate_summary(clauses, risks, all_compliance)
+        summary = self._generate_summary(clauses, risks, all_compliance, kb_context)
         session.steps.append(step4)
 
         report = ReviewReport(
@@ -116,22 +136,24 @@ class ContractAgent:
             return RiskLevel.LOW
         return RiskLevel.INFO
 
-    def _generate_summary(self, clauses, risks, compliance) -> str:
+    def _generate_summary(self, clauses, risks, compliance, kb_context: str = "") -> str:
         clauses_summary = f"共发现 {len(clauses)} 个条款"
         high_risks = [r for r in risks if r.risk_level in (RiskLevel.CRITICAL, RiskLevel.HIGH)]
         risks_summary = f"高风险项: {len(high_risks)} 个"
         non_compliant = [c for c in compliance if not c.status]
         compliance_summary = f"不合规项: {len(non_compliant)} 个"
 
-        prompt = REVIEW_SUMMARY_PROMPT.format(
+        kb_section = f"\n\n## 知识库参考\n{kb_context}" if kb_context else ""
+        summary_prompt = REVIEW_SUMMARY_PROMPT.format(
             clauses_summary=clauses_summary,
             risks_summary=risks_summary,
             compliance_summary=compliance_summary,
         )
+        user_content = summary_prompt + kb_section
         resp = self._llm.chat(
             [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": user_content},
             ]
         )
         return resp.content
