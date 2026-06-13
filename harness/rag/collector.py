@@ -29,8 +29,13 @@ class SeedLawSource(LawSource):
 
     def fetch(self, query: str = "") -> list[dict[str, str]]:
         laws = get_seed_laws()
-        if query:
-            laws = [law for law in laws if query in law["title"] or query in law["content"]]
+        queries = [q.strip() for q in query.split(",") if q.strip()] if query else []
+        if queries:
+            laws = [
+                law
+                for law in laws
+                if any(q in law["title"] or q in law["content"] for q in queries)
+            ]
         return laws
 
 
@@ -64,24 +69,31 @@ class NPCLawSource(LawSource):
 
     def fetch(self, query: str = "") -> list[dict[str, str]]:
         """从 NPC 数据库搜索并获取法律全文。"""
+        queries = [q.strip() for q in query.split(",") if q.strip()] if query else [""]
+        seen_titles: set[str] = set()
         results: list[dict[str, str]] = []
-        page_num = 1
-        while len(results) < self.page_size:
-            try:
-                items = self._search_page(query, page_num)
-                if not items:
-                    break
-                for item in items:
-                    detail = self._fetch_detail(item.get("id", ""))
-                    if detail:
-                        results.append(detail)
-                    if len(results) >= self.page_size:
+        for q in queries:
+            page_num = 1
+            while len(results) < self.page_size:
+                try:
+                    items = self._search_page(q or "民法典", page_num)
+                    if not items:
                         break
-                    time.sleep(self.delay)
-                page_num += 1
-            except Exception as e:
-                print(f"  [采集异常] 第 {page_num} 页: {e}")
-                break
+                    for item in items:
+                        title = item.get("title", "")
+                        if title in seen_titles:
+                            continue
+                        seen_titles.add(title)
+                        detail = self._fetch_detail(item.get("id", ""))
+                        if detail:
+                            results.append(detail)
+                        if len(results) >= self.page_size:
+                            break
+                        time.sleep(self.delay)
+                    page_num += 1
+                except Exception as e:
+                    print(f"  [采集异常] query={q!r}, 第 {page_num} 页: {e}")
+                    break
         return results
 
     def _search_page(self, query: str, page: int) -> list[dict[str, Any]]:
