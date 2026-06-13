@@ -44,6 +44,7 @@ harness kb search <query>          # 检索
 # 采集
 harness collect --source seed      # 从内置种子采集
 harness collect --source npc       # 从国家法律法规数据库采集
+harness collect --source pw-npc    # 通过 Playwright 采集（绕过反爬）
 ```
 
 ## Conda 环境

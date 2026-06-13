@@ -389,3 +389,24 @@ class TestCollector:
             assert False, "expected ValueError"
         except ValueError:
             pass
+
+    def test_playwright_source_check(self):
+        """PlaywrightNPCSource 未安装 playwright 时应抛出 ImportError。"""
+        from harness.rag.collector import PlaywrightNPCSource
+
+        src = PlaywrightNPCSource()
+        try:
+            src.fetch()
+            assert False, "expected ImportError"
+        except ImportError as e:
+            assert "Playwright" in str(e)
+
+    def test_pw_npc_in_collect_sources(self):
+        """pw-npc 应出现在 collect() 支持的 source 列表中。"""
+        # 验证 pw-npc 在工厂中已注册
+        try:
+            collect(source="pw-npc")
+        except ImportError:
+            pass  # 未安装 playwright 是预期行为
+        except Exception:
+            raise

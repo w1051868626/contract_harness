@@ -135,6 +135,110 @@ class NPCLawSource(LawSource):
         return {"title": title, "content": content}
 
 
+class PlaywrightNPCSource(LawSource):
+    """基于 Playwright 的国家法律法规数据库采集器，绕过反爬保护。"""
+
+    SEARCH_URL = "https://flk.npc.gov.cn/api/"
+    DETAIL_URL = "https://flk.npc.gov.cn/api/detail"
+
+    def __init__(
+        self,
+        page_size: int = 10,
+        delay: float = 1.0,
+        headless: bool = True,
+    ):
+        self.page_size = page_size
+        self.delay = delay
+        self.headless = headless
+
+    def _ensure_playwright(self):
+        """检查 Playwright 是否可用。"""
+        try:
+            import playwright  # noqa: F401
+        except ImportError:
+            raise ImportError(
+                "Playwright 未安装。运行: pip install playwright && playwright install chromium"
+            )
+
+    def fetch(self, query: str = "") -> list[dict[str, str]]:
+        """通过浏览器环境访问 NPC API 采集法律条文。"""
+        self._ensure_playwright()
+        from playwright.sync_api import sync_playwright
+
+        queries = [q.strip() for q in query.split(",") if q.strip()] if query else [""]
+        seen_titles: set[str] = set()
+        results: list[dict[str, str]] = []
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=self.headless)
+            context = browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                locale="zh-CN",
+            )
+            page = context.new_page()
+            page.goto("https://flk.npc.gov.cn", wait_until="networkidle")
+
+            for q in queries:
+                page_num = 1
+                while len(results) < self.page_size:
+                    try:
+                        items = self._search_page_playwright(page, q or "民法典", page_num)
+                        if not items:
+                            break
+                        for item in items:
+                            title = item.get("title", "")
+                            if title in seen_titles:
+                                continue
+                            seen_titles.add(title)
+                            detail = self._fetch_detail_playwright(page, item.get("id", ""))
+                            if detail:
+                                results.append(detail)
+                            if len(results) >= self.page_size:
+                                break
+                            time.sleep(self.delay)
+                        page_num += 1
+                    except Exception as e:
+                        print(f"  [采集异常] query={q!r}, 第 {page_num} 页: {e}")
+                        break
+
+            browser.close()
+
+        return results
+
+    def _search_page_playwright(self, page, query: str, page_num: int) -> list[dict[str, Any]]:
+        resp = page.request.get(
+            self.SEARCH_URL,
+            params={
+                "page": str(page_num),
+                "size": "10",
+                "type": "flfg",
+                "searchType": "title;accurate",
+                "sortTr": "f_bbrq_s;desc",
+                "gbrqStart": "",
+                "gbrqEnd": "",
+                "sxrqStart": "",
+                "sxrqEnd": "",
+                "sort": "true",
+                "searchWord": query,
+            },
+        )
+        data = resp.json()
+        return data.get("result", [])
+
+    def _fetch_detail_playwright(self, page, law_id: str) -> dict[str, str] | None:
+        resp = page.request.post(self.DETAIL_URL, data={"id": law_id})
+        data = resp.json().get("result", {})
+        title = data.get("title", "")
+        content = data.get("body", "") or data.get("bodyText", "") or data.get("content", "")
+        if not title or not content:
+            return None
+        return {"title": title, "content": content}
+
+
 class LocalFileSource(LawSource):
     """从本地 JSON 文件读取已采集的法律条文。"""
 
@@ -160,6 +264,7 @@ def collect(
     sources: dict[str, LawSource] = {
         "seed": SeedLawSource(),
         "npc": NPCLawSource(proxy=proxy),
+        "pw-npc": PlaywrightNPCSource(),
     }
     src = sources.get(source)
     if src is None:

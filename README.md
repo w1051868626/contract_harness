@@ -81,9 +81,12 @@ harness kb search <query>          # 检索知识库
 
 ```bash
 harness collect --source seed               # 从内置种子采集
-harness collect --source npc --query 民法典  # 从国家法律法规数据库采集
+harness collect --source npc --query 民法典  # 从国家法律法规数据库采集（需浏览器环境）
+harness collect --source pw-npc --query 民法典,劳动合同法  # 通过 Playwright 采集（绕过反爬）
 harness collect --source npc --no-import    # 只保存文件，不导入知识库
 ```
+
+> `pw-npc` 源需要安装 Playwright：`pip install playwright && playwright install chromium`
 
 ## 架构
 
