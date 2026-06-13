@@ -64,6 +64,7 @@ class NPCLawSource(LawSource):
                 ),
                 "Referer": "https://flk.npc.gov.cn/",
                 "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "zh-CN,zh;q=0.9",
             },
         )
 
@@ -97,27 +98,38 @@ class NPCLawSource(LawSource):
         return results
 
     def _search_page(self, query: str, page: int) -> list[dict[str, Any]]:
-        resp = self._client.post(
+        resp = self._client.get(
             self.SEARCH_URL,
-            json={
-                "pageNum": page,
-                "pageSize": 10,
-                "searchType": "title",
-                "sortType": "2",
+            params={
+                "page": page,
+                "size": 10,
+                "type": "flfg",
+                "searchType": "title;accurate",
+                "sortTr": "f_bbrq_s;desc",
+                "gbrqStart": "",
+                "gbrqEnd": "",
+                "sxrqStart": "",
+                "sxrqEnd": "",
+                "sort": "true",
                 "searchWord": query or "民法典",
-                "timeType": "0",
             },
         )
         resp.raise_for_status()
-        data = resp.json()
-        return data.get("result", [])
+        ct = resp.headers.get("content-type", "")
+        if "text/html" in ct:
+            raise RuntimeError(
+                "国家法律法规数据库 API 需要浏览器环境，无法直接通过 HTTP 请求采集。"
+                "建议使用 --source seed 使用内置种子数据。"
+            )
+        return resp.json().get("result", [])
 
     def _fetch_detail(self, law_id: str) -> dict[str, str] | None:
-        resp = self._client.post(self.DETAIL_URL, json={"id": law_id})
+        resp = self._client.post(self.DETAIL_URL, data={"id": law_id})
         resp.raise_for_status()
         data = resp.json().get("result", {})
         title = data.get("title", "")
-        content = data.get("body", "") or data.get("content", "")
+        # body/bodyText/content 字段名因 API 版本而异
+        content = data.get("body", "") or data.get("bodyText", "") or data.get("content", "")
         if not title or not content:
             return None
         return {"title": title, "content": content}
