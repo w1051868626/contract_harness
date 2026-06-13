@@ -41,9 +41,11 @@ class EmbeddingConfig:
     proxy: str | None = None
 
     def __post_init__(self):
-        """从环境变量自动补充嵌入 API 密钥。"""
+        """从环境变量自动补充嵌入 API 密钥与地址。"""
         if not self.api_key:
             self.api_key = os.getenv("EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+        if not self.api_base:
+            self.api_base = os.getenv("EMBEDDING_API_BASE", os.getenv("OPENAI_API_BASE", ""))
 
 
 @dataclass

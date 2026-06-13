@@ -172,6 +172,7 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `{PROVIDER}_API_KEY` | 自定义供应商密钥 | 同 `OPENAI_API_KEY` |
 | `{PROVIDER}_API_BASE` | 自定义供应商地址 | `https://api.openai.com/v1` |
 | `EMBEDDING_API_KEY` | Embedding API 密钥 | 同 `OPENAI_API_KEY` |
+| `EMBEDDING_API_BASE` | Embedding API 地址 | 同 `OPENAI_API_BASE` |
 
 ## 开发
 

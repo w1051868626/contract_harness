@@ -33,7 +33,9 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
     ):
         """初始化 OpenAI 嵌入客户端。"""
         if not api_key:
-            api_key = os.getenv("OPENAI_API_KEY", "")
+            api_key = os.getenv("EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", ""))
+        if not api_base:
+            api_base = os.getenv("EMBEDDING_API_BASE", os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1"))
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
         self.model = model
