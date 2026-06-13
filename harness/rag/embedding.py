@@ -55,7 +55,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
         if self._loaded:
             return
         try:
-            from sentence_transformers import SentenceTransformer
+            from sentence_transformers import SentenceTransformer  # noqa: I001  # pyright: ignore[reportMissingImports]
 
             self._model = SentenceTransformer(self.model_name)
             self._loaded = True
