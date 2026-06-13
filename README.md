@@ -69,6 +69,7 @@ harness/
 ├── eval/         评测系统（数据集 + 指标 + 评分流水线）
 ├── regression/   回归系统（测试套件 + 对比器）
 ├── rag/          知识库（Embedding + 向量存储 + 检索）
+├── web/          FastAPI Web 界面（审查 + 会话）
 ├── cli/          命令行入口（click + rich）
 ├── core/         核心类型（pydantic）、配置、异常
 └── utils/        工具函数
