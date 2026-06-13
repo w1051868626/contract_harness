@@ -195,6 +195,7 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `RERANK_API_BASE` | Reranker API 地址 | 同 `OPENAI_API_BASE` |
 | `RERANK_MODEL` | Reranker 模型 | `rerank-v1` |
 | `HTTP_PROXY` | 通用代理（回退） | - |
+| `HARNESS_DATA_DIR` | 数据根目录（知识库、回放等） | 项目下 `.harness/` |
 
 ## 开发
 

@@ -23,5 +23,7 @@ Thumbs.db
 *.log
 .output/
 *.local.yaml
+.harness/
+
 *.env
 !example.env
