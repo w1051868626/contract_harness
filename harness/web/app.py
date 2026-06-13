@@ -67,19 +67,20 @@ def _run_review(content: str, title: str) -> dict[str, Any]:
     }
 
 
+def _render(name: str, request: Request, **context: Any) -> HTMLResponse:
+    return templates.TemplateResponse(request, name, context)
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     replay_dir = Path(config.replay_dir)
     session_count = len(list(replay_dir.glob("*.json"))) if replay_dir.exists() else 0
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request, "session_count": session_count},
-    )
+    return _render("index.html", request, session_count=session_count)
 
 
 @app.get("/review", response_class=HTMLResponse)
 async def review_form(request: Request):
-    return templates.TemplateResponse("review.html", {"request": request})
+    return _render("review.html", request)
 
 
 @app.post("/review", response_class=HTMLResponse)
@@ -96,32 +97,20 @@ async def review_submit(
         title = "paste.txt"
 
     if not raw.strip():
-        return templates.TemplateResponse(
-            "review.html",
-            {"request": request, "error": "请输入合同内容或上传文件"},
-        )
+        return _render("review.html", request, error="请输入合同内容或上传文件")
 
     try:
         result = _run_review(raw, title)
-        return templates.TemplateResponse(
-            "review.html",
-            {"request": request, "result": result},
-        )
+        return _render("review.html", request, result=result)
     except Exception as e:
-        return templates.TemplateResponse(
-            "review.html",
-            {"request": request, "error": str(e)},
-        )
+        return _render("review.html", request, error=str(e))
 
 
 @app.get("/sessions", response_class=HTMLResponse)
 async def sessions_list(request: Request):
     player = SessionPlayer(ReplayStorage(config.replay_dir))
     sessions_list = player.list_sessions()
-    return templates.TemplateResponse(
-        "sessions.html",
-        {"request": request, "sessions": sessions_list},
-    )
+    return _render("sessions.html", request, sessions=sessions_list)
 
 
 @app.get("/sessions/{session_id}", response_class=HTMLResponse)
@@ -129,11 +118,5 @@ async def session_detail(request: Request, session_id: str):
     player = SessionPlayer(ReplayStorage(config.replay_dir))
     session = player.load(session_id)
     if session is None:
-        return templates.TemplateResponse(
-            "sessions.html",
-            {"request": request, "error": f"会话 {session_id} 不存在"},
-        )
-    return templates.TemplateResponse(
-        "session_detail.html",
-        {"request": request, "session": session},
-    )
+        return _render("sessions.html", request, error=f"会话 {session_id} 不存在")
+    return _render("session_detail.html", request, session=session)

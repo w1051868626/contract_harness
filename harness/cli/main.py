@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import click
+import uvicorn
 from rich.console import Console
 from rich.table import Table
 
@@ -20,13 +21,6 @@ from harness.replay.player import SessionPlayer
 from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
 from harness.utils.io import read_text
-
-try:
-    import uvicorn
-
-    HAS_UVICORN = True
-except ImportError:
-    HAS_UVICORN = False
 
 console = Console()
 
@@ -254,10 +248,6 @@ def diff(ctx: click.Context, session_a: str, session_b: str) -> None:
 @click.option("--reload", is_flag=True, help="热重载")
 def serve(host: str, port: int, reload: bool) -> None:
     """启动 Web 界面"""
-    if not HAS_UVICORN:
-        console.print("[red]请安装 uvicorn: pip install uvicorn[/red]")
-        raise SystemExit(1)
-
     from harness.web.app import app
 
     console.print(f"[green]正在启动 Web 界面:[/green] http://{host}:{port}")

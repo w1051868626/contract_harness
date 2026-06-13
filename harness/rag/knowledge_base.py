@@ -76,6 +76,7 @@ class KnowledgeBase:
         return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
 
     def _chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
+        assert self._llm is not None
         prompt = CHUNK_PROMPT.format(text=text[:8000])
         resp: LLMResponse = self._llm.chat(
             [
