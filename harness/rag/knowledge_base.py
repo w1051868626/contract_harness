@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from pathlib import Path
 from typing import Any
@@ -110,7 +111,12 @@ class KnowledgeBase:
         chunk_size: int,
         overlap: int,
     ) -> list[Chunk]:
-        if len(text) <= chunk_size:
+        if not text.strip():
+            return []
+
+        segments = KnowledgeBase._split_segments(text)
+
+        if len(segments) == 1 and len(text) <= chunk_size:
             return [
                 Chunk(
                     id=uuid.uuid4().hex[:12],
@@ -121,20 +127,91 @@ class KnowledgeBase:
             ]
 
         chunks: list[Chunk] = []
-        start = 0
         idx = 0
-        while start < len(text):
-            end = min(start + chunk_size, len(text))
-            chunks.append(
-                Chunk(
-                    id=uuid.uuid4().hex[:12],
-                    document_id=doc_id,
-                    content=text[start:end],
-                    chunk_index=idx,
-                )
-            )
-            idx += 1
-            if end >= len(text):
-                break
-            start = end - overlap
+        buffer: list[str] = []
+        buffer_len = 0
+
+        for seg in segments:
+            seg_len = len(seg)
+            if buffer_len + seg_len <= chunk_size:
+                buffer.append(seg)
+                buffer_len += seg_len
+            else:
+                if buffer:
+                    chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx))
+                    idx += 1
+                    carry = KnowledgeBase._carry_overlap(buffer, overlap)
+                    buffer = carry
+                    buffer_len = sum(len(s) for s in carry)
+
+                if seg_len > chunk_size:
+                    sub_segments = KnowledgeBase._split_long(seg, chunk_size)
+                    for i, sub in enumerate(sub_segments):
+                        chunks.append(
+                            Chunk(
+                                id=uuid.uuid4().hex[:12],
+                                document_id=doc_id,
+                                content=sub,
+                                chunk_index=idx,
+                            )
+                        )
+                        idx += 1
+                        if i < len(sub_segments) - 1 and sub_segments[i + 1] == "":
+                            break
+                    buffer = []
+                    buffer_len = 0
+                else:
+                    buffer = [seg]
+                    buffer_len = seg_len
+
+        if buffer:
+            chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx))
+
         return chunks
+
+    @staticmethod
+    def _split_segments(text: str) -> list[str]:
+        raw = re.split(r"\n\s*\n", text.strip())
+        return [s.strip() for s in raw if s.strip()]
+
+    @staticmethod
+    def _split_long(text: str, chunk_size: int) -> list[str]:
+        sentences = re.split(r"(?<=[。！？；.!?;])\s*", text)
+        chunks: list[str] = []
+        buf = ""
+        for s in sentences:
+            if not s.strip():
+                continue
+            if len(buf) + len(s) <= chunk_size:
+                buf += s
+            else:
+                if buf:
+                    chunks.append(buf.strip())
+                buf = s
+        if buf:
+            chunks.append(buf.strip())
+
+        if len(chunks) <= 1 and len(text) > chunk_size:
+            return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+        return chunks if chunks else [text]
+
+    @staticmethod
+    def _carry_overlap(buffer: list[str], overlap_chars: int) -> list[str]:
+        carry: list[str] = []
+        carry_len = 0
+        for seg in reversed(buffer):
+            if carry_len + len(seg) <= overlap_chars:
+                carry.insert(0, seg)
+                carry_len += len(seg)
+            else:
+                break
+        return carry
+
+    @staticmethod
+    def _make_chunk(segments: list[str], doc_id: str, idx: int) -> Chunk:
+        return Chunk(
+            id=uuid.uuid4().hex[:12],
+            document_id=doc_id,
+            content="\n\n".join(segments),
+            chunk_index=idx,
+        )
