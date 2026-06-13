@@ -6,6 +6,7 @@ import tempfile
 import unittest.mock
 from pathlib import Path
 
+from harness.rag.collector import LawSource, SeedLawSource, collect
 from harness.rag.embedding import (
     EmbeddingProvider,
     OpenAIEmbeddingProvider,
@@ -335,3 +336,56 @@ class TestReranker:
             store.close()
         finally:
             Path(db_path).unlink(missing_ok=True)
+
+
+class TestCollector:
+    """法律条文采集器单元测试。"""
+
+    def test_seed_source_fetch_all(self):
+        """SeedLawSource 应返回所有内置法律。"""
+        src = SeedLawSource()
+        laws = src.fetch()
+        assert len(laws) == 7
+        assert any("民法典" in law["title"] for law in laws)
+
+    def test_seed_source_fetch_with_query(self):
+        """SeedLawSource 应支持单关键词过滤。"""
+        src = SeedLawSource()
+        laws = src.fetch(query="劳动合同")
+        assert len(laws) == 1
+        assert "劳动合同" in laws[0]["title"]
+
+    def test_seed_source_fetch_multi_query(self):
+        """SeedLawSource 应支持逗号分隔多关键词。"""
+        src = SeedLawSource()
+        laws = src.fetch(query="民法典,商标")
+        assert len(laws) == 2
+
+    def test_seed_source_fetch_no_match(self):
+        """无匹配关键词时应返回空列表。"""
+        src = SeedLawSource()
+        laws = src.fetch(query="不存在的法律xxxx")
+        assert laws == []
+
+    def test_seed_source_is_law_source(self):
+        """SeedLawSource 应实现 LawSource 接口。"""
+        assert isinstance(SeedLawSource(), LawSource)
+
+    def test_collect_seed(self):
+        """collect() 使用 seed 源应返回内置法律。"""
+        laws = collect(source="seed")
+        assert len(laws) == 7
+
+    def test_collect_seed_with_query(self):
+        """collect() 应支持 query 过滤。"""
+        laws = collect(source="seed", query="数据安全")
+        assert len(laws) == 1
+        assert "数据安全" in laws[0]["title"]
+
+    def test_collect_invalid_source(self):
+        """不支持的 source 应抛出 ValueError。"""
+        try:
+            collect(source="invalid")
+            assert False, "expected ValueError"
+        except ValueError:
+            pass
