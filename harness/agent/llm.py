@@ -26,10 +26,6 @@ class LLMClient:
     def __init__(self, config: LLMConfig | None = None):
         """初始化客户端配置，延迟创建 OpenAI 连接。"""
         self.config = config or LLMConfig()
-        if not self.config.api_key:
-            raise ValueError(
-                "未设置 API 密钥。请通过环境变量 OPENAI_API_KEY 或 LLMConfig.api_key 配置。"
-            )
         self._client: OpenAI | None = None
 
     def _build_http_client(self) -> httpx.Client:
@@ -43,6 +39,10 @@ class LLMClient:
     def client(self) -> OpenAI:
         """懒加载 OpenAI 客户端实例。"""
         if self._client is None:
+            if not self.config.api_key:
+                raise ValueError(
+                    "未设置 API 密钥。请通过环境变量 OPENAI_API_KEY 或 LLMConfig.api_key 配置。"
+                )
             self._client = OpenAI(
                 api_key=self.config.api_key,
                 base_url=self.config.api_base,
