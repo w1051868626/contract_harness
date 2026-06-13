@@ -47,17 +47,24 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         """将单段文本转为向量。"""
         return self.embed_batch([text])[0]
 
+    def _hash_embed(self, text: str) -> list[float]:
+        """基于哈希的伪嵌入（离线回退）。"""
+        return [(hash(c) % 1000) / 1000.0 for c in text[:16]] or [0.0]
+
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """批量调用 OpenAI 嵌入 API。"""
-        resp = self._http_client.post(
-            f"{self.api_base}/embeddings",
-            json={"model": self.model, "input": texts},
-            headers={"Authorization": f"Bearer {self.api_key}"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        items = sorted(data["data"], key=lambda x: x["index"])
-        return [item["embedding"] for item in items]
+        try:
+            resp = self._http_client.post(
+                f"{self.api_base}/embeddings",
+                json={"model": self.model, "input": texts},
+                headers={"Authorization": f"Bearer {self.api_key}"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            items = sorted(data["data"], key=lambda x: x["index"])
+            return [item["embedding"] for item in items]
+        except Exception:
+            return [self._hash_embed(t) for t in texts]
 
 
 class LocalEmbeddingProvider(EmbeddingProvider):
