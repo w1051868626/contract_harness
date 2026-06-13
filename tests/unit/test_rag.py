@@ -138,3 +138,52 @@ class TestEmbeddingProvider:
         assert len(result) > 0
         batch = emb.embed_batch(["a", "b"])
         assert len(batch) == 2
+
+
+class TestFileParsing:
+    def test_parse_txt(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("hello world")
+            path = f.name
+        try:
+            content = KnowledgeBase._parse_file(Path(path))
+            assert content == "hello world"
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    def test_parse_json_list(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            f.write('[{"a": 1}, {"b": 2}]')
+            path = f.name
+        try:
+            content = KnowledgeBase._parse_file(Path(path))
+            assert "a" in content
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    def test_parse_json_dict(self):
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as f:
+            f.write('{"title": "test", "content": "hello"}')
+            path = f.name
+        try:
+            content = KnowledgeBase._parse_file(Path(path))
+            assert "hello" in content
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    def test_parse_pdf_fallback(self):
+        """当 pypdf 未安装时，退回到按字节读取"""
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".pdf", delete=False) as f:
+            f.write(b"%PDF-1.4 garbage content")
+            path = f.name
+        try:
+            content = KnowledgeBase._parse_file(Path(path))
+            assert content is not None
+        finally:
+            Path(path).unlink(missing_ok=True)

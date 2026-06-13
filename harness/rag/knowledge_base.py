@@ -50,7 +50,7 @@ class KnowledgeBase:
         chunk_overlap: int = 64,
     ) -> str:
         path = Path(file_path)
-        content = path.read_text(encoding="utf-8")
+        content = self._parse_file(path)
         return self.add_text(
             title=path.stem,
             content=content,
@@ -58,6 +58,40 @@ class KnowledgeBase:
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
+
+    @staticmethod
+    def _parse_file(path: Path) -> str:
+        suffix = path.suffix.lower()
+        if suffix == ".txt":
+            return path.read_text(encoding="utf-8")
+        if suffix == ".md":
+            return path.read_text(encoding="utf-8")
+        if suffix == ".json":
+            import json
+
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return "\n".join(json.dumps(item, ensure_ascii=False) for item in data)
+            if isinstance(data, dict):
+                return json.dumps(data, ensure_ascii=False, indent=2)
+            return str(data)
+        if suffix == ".pdf":
+            try:
+                from pypdf import PdfReader
+
+                reader = PdfReader(str(path))
+                return "\n".join(page.extract_text() or "" for page in reader.pages)
+            except ImportError:
+                return path.read_text(encoding="utf-8", errors="replace")
+        if suffix == ".docx":
+            try:
+                from docx import Document as DocxDocument
+
+                doc = DocxDocument(str(path))
+                return "\n".join(p.text for p in doc.paragraphs)
+            except ImportError:
+                return path.read_text(encoding="utf-8", errors="replace")
+        return path.read_text(encoding="utf-8")
 
     def query(self, text: str, top_k: int = 5) -> list[Chunk]:
         query_emb = self._embedding.embed(text)
