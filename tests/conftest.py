@@ -4,10 +4,10 @@ from typing import Any
 
 import pytest
 
-from harness.agent.llm import LLMClient, LLMResponse
+from harness.agent.llm import LLMResponse
 
 
-class MockLLMClient(LLMClient):
+class MockLLMClient:
     def __init__(self, responses: list[LLMResponse] | None = None):
         self.responses = responses or []
         self.call_count = 0
