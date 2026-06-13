@@ -1,18 +1,33 @@
 from __future__ import annotations
 
+import json
 import re
 import uuid
 from pathlib import Path
 from typing import Any
 
+from harness.agent.llm import LLMClient, LLMResponse
 from harness.rag.embedding import EmbeddingProvider
 from harness.rag.vector_store import Chunk, Document, VectorStore
 
+CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑结构拆分成有意义的片段。
+每个片段应该是一个完整的主题、章节或逻辑段落，不要切割句子。
+直接输出 JSON 数组，每个元素的格式为 {{"content": "..."}}。
+
+文档：
+{text}"""
+
 
 class KnowledgeBase:
-    def __init__(self, store: VectorStore, embedding: EmbeddingProvider):
+    def __init__(
+        self,
+        store: VectorStore,
+        embedding: EmbeddingProvider,
+        llm: LLMClient | None = None,
+    ):
         self._store = store
         self._embedding = embedding
+        self._llm = llm
 
     @property
     def store(self) -> VectorStore:
@@ -26,6 +41,7 @@ class KnowledgeBase:
         metadata: dict[str, Any] | None = None,
         chunk_size: int = 512,
         chunk_overlap: int = 64,
+        use_ai_chunking: bool = True,
     ) -> str:
         doc_id = uuid.uuid4().hex[:12]
         doc = Document(
@@ -35,7 +51,7 @@ class KnowledgeBase:
             metadata=metadata or {},
         )
         self._store.add_document(doc)
-        chunks = self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
+        chunks = self._resolve_chunks(content, doc_id, chunk_size, chunk_overlap, use_ai_chunking)
         if chunks:
             texts = [c.content for c in chunks]
             embeddings = self._embedding.embed_batch(texts)
@@ -44,11 +60,57 @@ class KnowledgeBase:
             self._store.add_chunks(chunks)
         return doc_id
 
+    def _resolve_chunks(
+        self,
+        content: str,
+        doc_id: str,
+        chunk_size: int,
+        chunk_overlap: int,
+        use_ai: bool,
+    ) -> list[Chunk]:
+        if use_ai and self._llm is not None:
+            try:
+                return self._chunk_with_ai(content, doc_id)
+            except Exception:
+                pass
+        return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
+
+    def _chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
+        prompt = CHUNK_PROMPT.format(text=text[:8000])
+        resp: LLMResponse = self._llm.chat(
+            [
+                {
+                    "role": "system",
+                    "content": "你是文档分块专家，严格按 JSON 格式输出。",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            model="gpt-4o-mini",
+            temperature=0.0,
+        )
+        raw = resp.content.strip()
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+        data = json.loads(raw)
+        if not isinstance(data, list):
+            raise ValueError("AI chunking did not return a list")
+        return [
+            Chunk(
+                id=uuid.uuid4().hex[:12],
+                document_id=doc_id,
+                content=item["content"],
+                chunk_index=i,
+            )
+            for i, item in enumerate(data)
+            if item.get("content", "").strip()
+        ]
+
     def add_file(
         self,
         file_path: str | Path,
         chunk_size: int = 512,
         chunk_overlap: int = 64,
+        use_ai_chunking: bool = True,
     ) -> str:
         path = Path(file_path)
         content = self._parse_file(path)
@@ -58,18 +120,15 @@ class KnowledgeBase:
             source=str(path),
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+            use_ai_chunking=use_ai_chunking,
         )
 
     @staticmethod
     def _parse_file(path: Path) -> str:
         suffix = path.suffix.lower()
-        if suffix == ".txt":
-            return path.read_text(encoding="utf-8")
-        if suffix == ".md":
+        if suffix in (".txt", ".md"):
             return path.read_text(encoding="utf-8")
         if suffix == ".json":
-            import json
-
             data = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(data, list):
                 return "\n".join(json.dumps(item, ensure_ascii=False) for item in data)

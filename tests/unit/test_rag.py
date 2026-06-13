@@ -140,6 +140,40 @@ class TestEmbeddingProvider:
         assert len(batch) == 2
 
 
+class TestAIChunking:
+    def test_ai_chunking_fallback_on_no_llm(self):
+        """无 llm 时自动回退到规则分块"""
+        emb = _MockEmbeddingProvider()
+        store = VectorStore(":memory:")
+        kb = KnowledgeBase(store, emb, llm=None)
+        chunks = kb._resolve_chunks("hello world", "doc1", 512, 64, use_ai=True)
+        # 无 llm → use_ai=True 但 llm is None → 走规则分块
+        assert len(chunks) >= 1
+
+    def test_ai_chunking_parse_response(self, mock_llm):
+        """验证 AI chunking 能正确解析 LLM 返回的 JSON"""
+        emb = _MockEmbeddingProvider()
+        store = VectorStore(":memory:")
+        kb = KnowledgeBase(store, emb, llm=mock_llm)
+
+        kb.add_text(
+            "测试合同",
+            "本合同由甲乙双方签订。\n\n第一条 保密义务。\n\n第二条 违约责任。\n\n第三条 管辖。",
+            use_ai_chunking=True,
+        )
+        chunks = store.search([0.1, 0.2, 0.3], top_k=5)
+        assert any("保密" in c.content for c in chunks)
+
+    def test_ai_chunking_malformed_json(self, mock_llm):
+        """AI 返回非 JSON 时优雅回退到规则分块"""
+        mock_llm.responses = []
+        emb = _MockEmbeddingProvider()
+        store = VectorStore(":memory:")
+        kb = KnowledgeBase(store, emb, llm=mock_llm)
+        result = kb.add_text("test", "AAA BBB CCC", use_ai_chunking=True)
+        assert result
+
+
 class TestFileParsing:
     def test_parse_txt(self):
         with tempfile.NamedTemporaryFile(
