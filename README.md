@@ -169,10 +169,16 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | 变量 | 说明 | 默认值 |
 |---|---|---|
 | `OPENAI_API_KEY` | LLM API 密钥（必填） | - |
+| `OPENAI_API_BASE` | LLM API 地址 | `https://api.openai.com/v1` |
+| `LLM_PROVIDER` | LLM 供应商 | `openai` |
+| `LLM_PROXY` | LLM 代理地址 | 同 `HTTP_PROXY` |
 | `{PROVIDER}_API_KEY` | 自定义供应商密钥 | 同 `OPENAI_API_KEY` |
-| `{PROVIDER}_API_BASE` | 自定义供应商地址 | `https://api.openai.com/v1` |
+| `{PROVIDER}_API_BASE` | 自定义供应商地址 | 同 `OPENAI_API_BASE` |
+| `EMBEDDING_PROVIDER` | Embedding 供应商 | `openai` |
 | `EMBEDDING_API_KEY` | Embedding API 密钥 | 同 `OPENAI_API_KEY` |
 | `EMBEDDING_API_BASE` | Embedding API 地址 | 同 `OPENAI_API_BASE` |
+| `EMBEDDING_PROXY` | Embedding 代理地址 | 同 `HTTP_PROXY` |
+| `HTTP_PROXY` | 通用代理（回退） | - |
 
 ## 开发
 

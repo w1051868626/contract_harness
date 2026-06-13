@@ -22,12 +22,15 @@ class LLMConfig:
 
     def __post_init__(self):
         """从环境变量自动补充缺失的 API 密钥与地址。"""
+        self.provider = os.getenv("LLM_PROVIDER", self.provider)
         if not self.api_key:
             provider_key = f"{self.provider.upper()}_API_KEY"
             self.api_key = os.getenv(provider_key, os.getenv("OPENAI_API_KEY", ""))
         if not self.api_base:
             provider_base = f"{self.provider.upper()}_API_BASE"
             self.api_base = os.getenv(provider_base, "https://api.openai.com/v1")
+        if self.proxy is None:
+            self.proxy = os.getenv("LLM_PROXY", os.getenv("HTTP_PROXY", "")) or None
 
 
 @dataclass
@@ -42,10 +45,13 @@ class EmbeddingConfig:
 
     def __post_init__(self):
         """从环境变量自动补充嵌入 API 密钥与地址。"""
+        self.provider = os.getenv("EMBEDDING_PROVIDER", self.provider)
         if not self.api_key:
             self.api_key = os.getenv("EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", ""))
         if not self.api_base:
             self.api_base = os.getenv("EMBEDDING_API_BASE", os.getenv("OPENAI_API_BASE", ""))
+        if self.proxy is None:
+            self.proxy = os.getenv("EMBEDDING_PROXY", os.getenv("HTTP_PROXY", "")) or None
 
 
 @dataclass
