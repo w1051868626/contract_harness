@@ -7,6 +7,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
+def _default_data_root() -> Path:
+    """返回项目根目录下的 .harness 目录。"""
+    start = Path(__file__).resolve().parent.parent.parent  # up from core/ to project root
+    return start / ".harness"
+
+
 @dataclass
 class LLMConfig:
     """LLM 客户端配置（模型、密钥、代理等）。"""
@@ -75,13 +81,29 @@ class HarnessConfig:
 
     llm: LLMConfig = field(default_factory=LLMConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
-    data_dir: str = str(Path.home() / ".harness" / "data")
-    kb_dir: str = str(Path.home() / ".harness" / "knowledge")
-    replay_dir: str = str(Path.home() / ".harness" / "replays")
-    eval_dir: str = str(Path.home() / ".harness" / "evals")
-    regression_dir: str = str(Path.home() / ".harness" / "regression")
-    report_dir: str = str(Path.home() / ".harness" / "reports")
+    data_dir: str = ""
+    kb_dir: str = ""
+    replay_dir: str = ""
+    eval_dir: str = ""
+    regression_dir: str = ""
+    report_dir: str = ""
     verbose: bool = False
+
+    def __post_init__(self):
+        """通过环境变量 HARNESS_DATA_DIR 自定义数据根目录，否则使用项目根目录。"""
+        root = Path(os.getenv("HARNESS_DATA_DIR", str(_default_data_root())))
+        if not self.data_dir:
+            self.data_dir = str(root / "data")
+        if not self.kb_dir:
+            self.kb_dir = str(root / "knowledge")
+        if not self.replay_dir:
+            self.replay_dir = str(root / "replays")
+        if not self.eval_dir:
+            self.eval_dir = str(root / "evals")
+        if not self.regression_dir:
+            self.regression_dir = str(root / "regression")
+        if not self.report_dir:
+            self.report_dir = str(root / "reports")
 
     def ensure_dirs(self):
         """确保所有配置中的数据目录存在。"""
