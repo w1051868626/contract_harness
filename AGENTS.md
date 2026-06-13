@@ -88,6 +88,7 @@ pyright harness/
 - 每次更改后都必须提交（commit）并推送（push）到远程仓库
 - 每次更新后同步更新 README.md
 - 新增依赖时同步更新 `environment.yml` 和 `pyproject.toml`（二者必须保持一致）
+- 增加新功能时必须同步添加相应的测试用例
 
 ## 目标
 构建一套合同审查 Agent 的 Harness Engineering 体系，确保 Agent 可回放、可评测、可回归。
