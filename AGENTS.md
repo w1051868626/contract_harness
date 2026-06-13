@@ -33,6 +33,13 @@ harness eval report
 # 回归
 harness regression run <dataset>
 harness regression diff <a> <b>
+
+# 知识库
+harness kb seed                    # 导入内置法律条文
+harness kb import <file>           # 导入文件
+harness kb import-dir <dir>        # 批量导入
+harness kb list                    # 列出文档
+harness kb search <query>          # 检索
 ```
 
 ## Conda 环境

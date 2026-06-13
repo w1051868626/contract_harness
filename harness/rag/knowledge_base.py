@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from harness.agent.llm import LLMClient, LLMResponse
-from harness.rag.embedding import EmbeddingProvider
-from harness.rag.reranker import Reranker
+from harness.core.config import HarnessConfig
+from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
+from harness.rag.reranker import Reranker, create_reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore
 
 CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑结构拆分成有意义的片段。
@@ -41,6 +42,26 @@ class KnowledgeBase:
     def store(self) -> VectorStore:
         """返回底层向量存储。"""
         return self._store
+
+    @classmethod
+    def from_config(cls, config: HarnessConfig | None = None) -> KnowledgeBase:
+        """从 HarnessConfig 创建知识库实例。"""
+        cfg = config or HarnessConfig()
+        store = VectorStore(Path(cfg.kb_dir) / "vector.db")
+        embedding = create_embedding_provider(
+            provider=cfg.embedding.provider,
+            api_key=cfg.embedding.api_key,
+            api_base=cfg.embedding.api_base,
+            model=cfg.embedding.model,
+            proxy=cfg.embedding.proxy,
+        )
+        reranker = create_reranker(
+            provider=cfg.embedding.rerank_provider,
+            api_key=cfg.embedding.rerank_api_key,
+            api_base=cfg.embedding.rerank_api_base,
+            model=cfg.embedding.rerank_model,
+        )
+        return cls(store=store, embedding=embedding, reranker=reranker)
 
     def add_text(
         self,

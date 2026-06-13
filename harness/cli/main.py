@@ -17,6 +17,8 @@ from harness.core.types import ContractDocument
 from harness.eval.dataset import EvalDataset
 from harness.eval.reporters import EvalReporter
 from harness.eval.scorer import EvalScorer
+from harness.rag.knowledge_base import KnowledgeBase
+from harness.rag.seed_laws import get_seed_laws
 from harness.regression.comparator import OutputComparator
 from harness.regression.suite import RegressionSuite
 from harness.replay.player import SessionPlayer
@@ -256,3 +258,112 @@ def serve(host: str, port: int, reload: bool) -> None:
     if reload:
         console.print("[yellow]热重载已启用[/yellow]")
     uvicorn.run(app, host=host, port=port, reload=reload)
+
+
+# ---- 知识库命令 ----
+
+
+@cli.group()
+def kb() -> None:
+    """知识库管理命令组。"""
+
+
+@kb.command()
+@click.argument("file_path", type=click.Path(exists=True))
+@click.pass_context
+def import_file(ctx: click.Context, file_path: str) -> None:
+    """将单个文件导入知识库。"""
+    config: HarnessConfig = ctx.obj["config"]
+    config.ensure_dirs()
+    kb_instance = KnowledgeBase.from_config(config)
+    with console.status("正在导入文件..."):
+        doc_id = kb_instance.add_file(file_path)
+    if doc_id:
+        console.print(f"[green]导入成功:[/green] {Path(file_path).name} → {doc_id}")
+    else:
+        console.print("[red]导入失败[/red]")
+
+
+@kb.command()
+@click.argument("directory", type=click.Path(exists=True, file_okay=False))
+@click.pass_context
+def import_dir(ctx: click.Context, directory: str) -> None:
+    """批量导入目录下所有支持的文件。"""
+    config: HarnessConfig = ctx.obj["config"]
+    config.ensure_dirs()
+    kb_instance = KnowledgeBase.from_config(config)
+    supported = (".txt", ".md", ".json", ".pdf", ".docx")
+    files = [p for p in Path(directory).iterdir() if p.suffix.lower() in supported]
+    if not files:
+        console.print("[yellow]目录下没有支持的文件[/yellow]")
+        return
+    for f in files:
+        with console.status(f"正在导入 {f.name}..."):
+            doc_id = kb_instance.add_file(str(f))
+            console.print(f"  [green]✓[/green] {f.name} → {doc_id}")
+
+
+@kb.command()
+@click.pass_context
+def list_docs(ctx: click.Context) -> None:
+    """列出知识库中的所有文档。"""
+    config: HarnessConfig = ctx.obj["config"]
+    config.ensure_dirs()
+    kb_instance = KnowledgeBase.from_config(config)
+    docs = kb_instance.list_documents()
+    if not docs:
+        console.print("[yellow]知识库为空[/yellow]")
+        return
+    table = Table(title="知识库文档列表")
+    table.add_column("ID", style="cyan")
+    table.add_column("标题", style="green")
+    table.add_column("来源")
+    table.add_column("创建时间", style="white")
+    for d in docs:
+        table.add_row(d.id, d.title, d.source, "")
+    console.print(table)
+
+
+@kb.command()
+@click.argument("query")
+@click.option("--top-k", default=5, help="返回结果数")
+@click.pass_context
+def search(ctx: click.Context, query: str, top_k: int) -> None:
+    """检索知识库。"""
+    config: HarnessConfig = ctx.obj["config"]
+    config.ensure_dirs()
+    kb_instance = KnowledgeBase.from_config(config)
+    with console.status("正在检索..."):
+        chunks = kb_instance.query(query, top_k=top_k)
+    if not chunks:
+        console.print("[yellow]未找到相关结果[/yellow]")
+        return
+    table = Table(title=f"搜索结果（top-{top_k}）")
+    table.add_column("得分", style="cyan")
+    table.add_column("文档 ID")
+    table.add_column("内容")
+    for c in chunks:
+        preview = c.content[:80].replace("\n", " ")
+        table.add_row(f"{c.score:.3f}", c.document_id, preview)
+    console.print(table)
+
+
+@kb.command()
+@click.pass_context
+def seed(ctx: click.Context) -> None:
+    """导入内置法律条文种子数据。"""
+    config: HarnessConfig = ctx.obj["config"]
+    config.ensure_dirs()
+    kb_instance = KnowledgeBase.from_config(config)
+    laws = get_seed_laws()
+    imported = 0
+    for law in laws:
+        with console.status(f"正在导入 {law['title']}..."):
+            existing = kb_instance.list_documents()
+            if any(d.title == law["title"] for d in existing):
+                console.print(f"  [yellow]跳过（已存在）[/yellow] {law['title']}")
+                continue
+            kb_instance.add_text(title=law["title"], content=law["content"])
+            console.print(f"  [green]✓[/green] {law['title']}")
+            imported += 1
+    console.print(f"[bold green]导入完成:[/bold green] {imported} 部法律")
