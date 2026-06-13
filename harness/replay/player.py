@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """回放模块，反序列化并逐步骤播放录制会话。"""
+
+from __future__ import annotations
 
 from typing import Any
 
@@ -20,6 +20,7 @@ from harness.replay.storage import ReplayStorage
 
 class SessionPlayer:
     """会话播放器，加载和遍历录制会话。"""
+
     def __init__(self, storage: ReplayStorage | None = None):
         """初始化播放器。"""
         self._storage = storage or ReplayStorage()

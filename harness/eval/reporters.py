@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """评测报告生成器（JSON / Markdown / HTML）。"""
+
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any

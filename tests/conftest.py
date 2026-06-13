@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """测试全局配置，包含 MockLLMClient 与通用 fixture。"""
+
+from __future__ import annotations
 
 from typing import Any
 

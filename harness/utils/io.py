@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """文件读写与序列化工具函数。"""
+
+from __future__ import annotations
 
 import json
 from pathlib import Path

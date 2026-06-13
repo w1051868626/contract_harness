@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """知识库检索工具，从向量知识库中检索合同审查相关的参考信息。"""
+
+from __future__ import annotations
 
 from harness.rag.knowledge_base import KnowledgeBase
 

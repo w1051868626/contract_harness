@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """评测数据集加载与管理。"""
+
+from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -46,6 +46,7 @@ class EvalDataset:
 
 class EvalItem:
     """单个评测项，包含合同文档与期望结果。"""
+
     def __init__(
         self,
         document: ContractDocument,

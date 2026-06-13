@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """录制模块，将 Agent 会话序列化为 JSON 文件。"""
+
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -10,6 +10,7 @@ from harness.utils.io import write_json
 
 class SessionRecorder:
     """会话录制器，将 AgentSession 序列化保存。"""
+
     def __init__(self, replay_dir: str = ""):
         """初始化录制器。"""
         self._replay_dir = Path(replay_dir or "")

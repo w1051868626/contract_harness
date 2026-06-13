@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """嵌入提供者模块，封装文本向量化接口。"""
+
+from __future__ import annotations
 
 import os
 from abc import ABC, abstractmethod
@@ -11,6 +11,7 @@ import httpx
 
 class EmbeddingProvider(ABC):
     """嵌入提供者抽象基类。"""
+
     @abstractmethod
     def embed(self, text: str) -> list[float]:
         """将单段文本转为向量。"""
@@ -22,6 +23,7 @@ class EmbeddingProvider(ABC):
 
 class OpenAIEmbeddingProvider(EmbeddingProvider):
     """基于 OpenAI API 的嵌入实现。"""
+
     def __init__(
         self,
         api_key: str = "",

@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """向量存储模块，基于 SQLite 的本地向量数据库。"""
+
+from __future__ import annotations
 
 import json
 import math

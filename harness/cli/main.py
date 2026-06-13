@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """contract-harness 命令行入口，支持审查、回放、评测、回归与 Web 服务。"""
+
+from __future__ import annotations
 
 import json
 from pathlib import Path

@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """基于 LLM 的风险分析工具，评估合同条款的风险等级并提供建议。"""
+
+from __future__ import annotations
 
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import RISK_ANALYSIS_PROMPT

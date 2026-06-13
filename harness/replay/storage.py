@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """回放存储模块，基于文件系统的 JSON 存储管理。"""
+
+from __future__ import annotations
 
 import json
 from pathlib import Path

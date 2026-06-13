@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """评测评分引擎，驱动 Agent 执行评测并聚合指标。"""
+
+from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
@@ -13,6 +13,7 @@ from harness.eval.metrics import MetricsCalculator
 
 class EvalScorer:
     """评测评分器，驱动 Agent 对数据集逐项审查并计算指标。"""
+
     def __init__(
         self,
         agent: ContractAgent | None = None,

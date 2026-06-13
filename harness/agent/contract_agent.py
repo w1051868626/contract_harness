@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """合同审查 Agent 主流程编排，协调各工具完成条款提取、风险分析、合规检查及报告生成。"""
+
+from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone

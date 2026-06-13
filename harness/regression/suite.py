@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """回归测试套件，用于对比基线指标与当前评测结果。"""
+
+from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +14,7 @@ from harness.utils.io import read_json, write_json
 
 class RegressionSuite:
     """回归测试套件，管理基线保存、加载与指标对比。"""
+
     def __init__(
         self,
         baseline_dir: str | Path | None = None,

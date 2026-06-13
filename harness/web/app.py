@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """FastAPI Web 应用，提供合同审查、会话浏览等功能。"""
+
+from __future__ import annotations
 
 import uuid
 from pathlib import Path

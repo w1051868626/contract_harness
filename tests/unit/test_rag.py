@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """RAG 系统单元测试：向量存储、知识库、嵌入提供者与文件解析。"""
+
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path

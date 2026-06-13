@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """评测指标计算器。"""
+
+from __future__ import annotations
 
 from typing import Any
 
@@ -9,6 +9,7 @@ from harness.core.types import EvalMetric, EvalResult, ReviewReport
 
 class MetricsCalculator:
     """指标计算器，计算条款覆盖率、风险准确率等。"""
+
     def calculate(
         self,
         report: ReviewReport,

@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Agent 组件单元测试：条款提取、风险分析、合规检查与完整审查流程。"""
+
+from __future__ import annotations
 
 from harness.agent.contract_agent import ContractAgent
 from harness.agent.llm import LLMResponse

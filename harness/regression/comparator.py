@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """两份审查报告的差异对比工具。"""
+
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
@@ -12,6 +12,7 @@ from harness.utils.io import write_text
 
 class OutputComparator:
     """比较两个会话的输出差异，支持条款、风险、合规三个维度。"""
+
     def __init__(self, player: SessionPlayer | None = None):
         """注入 SessionPlayer，用于按 ID 加载会话。"""
         self._player = player or SessionPlayer()

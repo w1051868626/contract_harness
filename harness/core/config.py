@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """LLM、嵌入模型与 Harness 全局配置的数据类定义。"""
+
+from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
@@ -10,6 +10,7 @@ from pathlib import Path
 @dataclass
 class LLMConfig:
     """LLM 客户端配置（模型、密钥、代理等）。"""
+
     provider: str = "openai"
     model: str = "gpt-4o"
     api_key: str = ""
@@ -32,6 +33,7 @@ class LLMConfig:
 @dataclass
 class EmbeddingConfig:
     """嵌入模型配置（模型、密钥、代理等）。"""
+
     provider: str = "openai"
     model: str = "text-embedding-3-small"
     api_key: str = ""
@@ -47,6 +49,7 @@ class EmbeddingConfig:
 @dataclass
 class HarnessConfig:
     """Harness 全局配置（目录路径、开关等）。"""
+
     llm: LLMConfig = field(default_factory=LLMConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     data_dir: str = str(Path.home() / ".harness" / "data")

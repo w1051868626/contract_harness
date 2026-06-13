@@ -23,6 +23,7 @@ class TestRegression:
 
     def test_comparator_no_changes(self):
         """两个相同报告应无差异。"""
+
         def _report(risk=RiskLevel.LOW):
             return ReviewReport(
                 document_id="1",
@@ -44,6 +45,7 @@ class TestRegression:
 
     def test_comparator_risk_change(self):
         """风险等级不同时应被检测到。"""
+
         def _report(risk=RiskLevel.LOW):
             return ReviewReport(
                 document_id="1",

@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """知识库模块，支持文档管理、智能分块与语义检索。"""
+
+from __future__ import annotations
 
 import json
 import re

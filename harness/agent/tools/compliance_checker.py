@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """基于 LLM 的合规检查工具，对照多部法规逐条审查合同合规性。"""
+
+from __future__ import annotations
 
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import COMPLIANCE_CHECK_PROMPT

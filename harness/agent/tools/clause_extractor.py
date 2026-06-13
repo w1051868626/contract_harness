@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """基于 LLM 的合同条款提取工具，从合同文本中解析结构化条款。"""
+
+from __future__ import annotations
 
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import CLAUSE_EXTRACT_PROMPT
