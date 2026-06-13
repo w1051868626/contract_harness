@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+import unittest.mock
 from pathlib import Path
 
 from harness.rag.embedding import (
@@ -241,7 +242,8 @@ class TestFileParsing:
             f.write(b"%PDF-1.4 garbage content")
             path = f.name
         try:
-            content = KnowledgeBase._parse_file(Path(path))
-            assert content is not None
+            with unittest.mock.patch.dict("sys.modules", {"pypdf": None}):
+                content = KnowledgeBase._parse_file(Path(path))
+                assert content is not None
         finally:
             Path(path).unlink(missing_ok=True)
