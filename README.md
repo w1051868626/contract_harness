@@ -2,7 +2,7 @@
 
 可回放、可评测、可回归的**法律合同审查 Agent** 系统。
 
-基于自研 Agent Loop 框架，集成了 LLM 编排、工具调用、会话回放、评测评分和回归对比能力。
+基于自研 Agent Loop 框架，集成了 LLM 编排、工具调用、知识库（RAG）、会话回放、评测评分、回归对比和 Web 界面。
 
 ## 安装
 
@@ -18,6 +18,13 @@ pip install -e .
 
 ```bash
 pip install -e .
+```
+
+### 额外依赖
+
+```bash
+pip install -e ".[dev]"    # 开发工具（pytest, ruff, pyright）
+pip install -e ".[local]"  # 本地 Embedding 模型（sentence-transformers）
 ```
 
 ## 快速使用
@@ -118,17 +125,61 @@ graph TB
     classDef step fill:#4a90d9,color:#fff
 ```
 
+## 知识库（RAG）
+
+系统内置基于 RAG 的知识库，支持导入合同法规文档并在审查时自动检索参考信息。
+
+```bash
+# 代码中使用
+kb = KnowledgeBase(store, embedding, llm=llm_client)
+kb.add_file("path/to/regulation.pdf")
+kb.add_text("法规标题", "法规内容...")
+
+# 审查时自动检索并注入上下文
+agent = ContractAgent(llm, knowledge_base=kb)
+```
+
+- **Embedding**：支持 OpenAI API（默认）和本地 sentence-transformers 模型
+- **向量存储**：SQLite 持久化，余弦相似度搜索
+- **文档解析**：支持 TXT / JSON / PDF / DOCX 格式
+- **分块策略**：AI 智能分块（可选 LLM 驱动）→ 段落级 → 句子级 → 字符回退
+
+## 自定义 LLM 供应商
+
+通过设置 `api_base` 和对应环境变量，可接入任意 OpenAI 兼容接口：
+
+```bash
+export DEEPSEEK_API_KEY="sk-xxx"
+export DEEPSEEK_API_BASE="https://api.deepseek.com/v1"
+
+# 代码中指定 provider
+config = LLMConfig(provider="deepseek", model="deepseek-chat")
+```
+
+支持代理：
+
+```bash
+export HTTP_PROXY="http://127.0.0.1:7890"
+# 或代码中
+config = LLMConfig(proxy="http://127.0.0.1:7890")
+```
+
 ## 环境变量
 
 | 变量 | 说明 | 默认值 |
 |---|---|---|
-| `OPENAI_API_KEY` | OpenAI API 密钥（必填） | - |
+| `OPENAI_API_KEY` | LLM API 密钥（必填） | - |
+| `{PROVIDER}_API_KEY` | 自定义供应商密钥 | 同 `OPENAI_API_KEY` |
+| `{PROVIDER}_API_BASE` | 自定义供应商地址 | `https://api.openai.com/v1` |
+| `EMBEDDING_API_KEY` | Embedding API 密钥 | 同 `OPENAI_API_KEY` |
 
 ## 开发
 
 ```bash
 conda activate contract-harness
 pip install -e ".[dev]"
-pytest tests/ -v             # 运行测试
+pytest tests/ -v             # 运行 34 个单元测试
 ruff check harness/ tests/   # 代码检查
+ruff format --check harness/ tests/  # 格式检查
+pyright harness/             # 类型检查
 ```
