@@ -77,6 +77,14 @@ harness kb list                    # 列出所有文档
 harness kb search <query>          # 检索知识库
 ```
 
+### 采集法律条文
+
+```bash
+harness collect --source seed               # 从内置种子采集
+harness collect --source npc --query 民法典  # 从国家法律法规数据库采集
+harness collect --source npc --no-import    # 只保存文件，不导入知识库
+```
+
 ## 架构
 
 ```

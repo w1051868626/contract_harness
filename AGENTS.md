@@ -40,6 +40,10 @@ harness kb import <file>           # 导入文件
 harness kb import-dir <dir>        # 批量导入
 harness kb list                    # 列出文档
 harness kb search <query>          # 检索
+
+# 采集
+harness collect --source seed      # 从内置种子采集
+harness collect --source npc       # 从国家法律法规数据库采集
 ```
 
 ## Conda 环境
