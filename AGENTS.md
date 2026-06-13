@@ -54,6 +54,7 @@ conda activate contract-harness
 conda activate contract-harness
 pip install -e ".[dev]"       # 安装开发依赖
 pip install -e ".[local]"     # 安装本地模型依赖（sentence-transformers）
+git pull origin main           # 拉取最新代码
 pytest tests/ -v
 ruff check harness/ tests/
 ruff format --check harness/ tests/
