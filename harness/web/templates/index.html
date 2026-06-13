@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="hero">
+  <h1>合同审查 Agent</h1>
+  <p class="subtitle">可回放 · 可评测 · 可回归</p>
+</div>
+
+<div class="cards">
+  <a class="card" href="/review">
+    <h3>新审查</h3>
+    <p>上传或粘贴合同，运行审查流水线</p>
+  </a>
+  <a class="card" href="/sessions">
+    <h3>历史会话</h3>
+    <p>查看和回放历史审查记录</p>
+  </a>
+</div>
+
+<div class="stats">
+  <span class="stat">会话总数: <strong>{{ session_count }}</strong></span>
+</div>
+{% endblock %}

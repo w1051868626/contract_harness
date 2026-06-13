@@ -21,6 +21,13 @@ from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
 from harness.utils.io import read_text
 
+try:
+    import uvicorn
+
+    HAS_UVICORN = True
+except ImportError:
+    HAS_UVICORN = False
+
 console = Console()
 
 
@@ -239,3 +246,21 @@ def diff(ctx: click.Context, session_a: str, session_b: str) -> None:
         console.print(f"  风险评估变化: {len(diff_result['risk_diffs'])} 处")
     if diff_result.get("compliance_diffs"):
         console.print(f"  合规检查变化: {len(diff_result['compliance_diffs'])} 处")
+
+
+@cli.command()
+@click.option("--host", default="127.0.0.1", help="监听地址")
+@click.option("--port", default=8000, help="监听端口")
+@click.option("--reload", is_flag=True, help="热重载")
+def serve(host: str, port: int, reload: bool) -> None:
+    """启动 Web 界面"""
+    if not HAS_UVICORN:
+        console.print("[red]请安装 uvicorn: pip install uvicorn[/red]")
+        raise SystemExit(1)
+
+    from harness.web.app import app
+
+    console.print(f"[green]正在启动 Web 界面:[/green] http://{host}:{port}")
+    if reload:
+        console.print("[yellow]热重载已启用[/yellow]")
+    uvicorn.run(app, host=host, port=port, reload=reload)

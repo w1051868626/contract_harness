@@ -52,6 +52,14 @@ harness regression run examples/contracts/
 harness regression diff <session_a> <session_b>
 ```
 
+### Web 界面
+
+```bash
+harness serve
+```
+
+访问 http://127.0.0.1:8000 查看 Web 界面，支持合同上传审查、会话回放等功能。
+
 ## 架构
 
 ```

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>审查会话</h1>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+{% if sessions %}
+<table>
+  <tr><th>会话 ID</th><th>合同</th><th>时间</th><th></th></tr>
+  {% for s in sessions %}
+  <tr>
+    <td><code>{{ s.session_id }}</code></td>
+    <td>{{ s.document_title }}</td>
+    <td>{{ s.started_at }}</td>
+    <td><a href="/sessions/{{ s.session_id }}" class="btn-small">查看</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="empty">暂无会话记录</p>
+{% endif %}
+{% endblock %}

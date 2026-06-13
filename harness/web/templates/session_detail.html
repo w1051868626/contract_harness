@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="result-header">
+  <h1>会话详情</h1>
+  <span class="session-id">{{ session.session_id }}</span>
+</div>
+
+<section>
+  <h3>合同</h3>
+  <p><strong>{{ session.document.title }}</strong></p>
+  <pre>{{ session.document.content[:500] }}{% if session.document.content|length > 500 %}...{% endif %}</pre>
+</section>
+
+<section>
+  <h3>流水线步骤</h3>
+  {% for step in session.steps %}
+  <div class="step">
+    <h4>Step {{ step.step_index }}: {{ step.agent_message }}</h4>
+    {% for tc in step.tool_calls %}
+    <div class="tool-call">
+      <strong>⚙ {{ tc.tool_name }}</strong>
+      {% if tc.output is string %}
+      <pre>{{ tc.output[:300] }}</pre>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</section>
+
+{% if session.report %}
+<section>
+  <h3>审查报告</h3>
+  <p><strong>整体风险:</strong>
+    <span class="risk-badge risk-{{ session.report.overall_risk.value }}">{{ session.report.overall_risk.value }}</span>
+  </p>
+  <p><strong>摘要:</strong></p>
+  <p>{{ session.report.summary }}</p>
+  <p><strong>条款数:</strong> {{ session.report.clauses|length }} |
+     <strong>风险评估:</strong> {{ session.report.risks|length }} |
+     <strong>合规检查:</strong> {{ session.report.compliance_checks|length }}
+  </p>
+</section>
+{% endif %}
+{% endblock %}
