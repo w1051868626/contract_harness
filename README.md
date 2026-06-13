@@ -60,9 +60,53 @@ harness/
 ├── replay/       回放系统（录制 + 回放 + 存储管理）
 ├── eval/         评测系统（数据集 + 指标 + 评分流水线）
 ├── regression/   回归系统（测试套件 + 对比器）
+├── rag/          知识库（Embedding + 向量存储 + 检索）
 ├── cli/          命令行入口（click + rich）
 ├── core/         核心类型（pydantic）、配置、异常
 └── utils/        工具函数
+```
+
+### 流程图
+
+```mermaid
+graph TB
+    subgraph CLI["CLI 入口"]
+        CMD["harness review &lt;file&gt;<br/>harness replay &lt;session&gt;<br/>harness eval run<br/>harness regression run"]
+    end
+
+    subgraph AGENT["Agent 流水线"]
+        direction TB
+        S0["Step 0<br/>知识库检索"]:::step --> S1["Step 1<br/>条款提取<br/>(ClauseExtractor)"]:::step
+        S1 --> S2["Step 2<br/>风险分析<br/>(RiskAnalyzer)"]:::step
+        S2 --> S3["Step 3<br/>合规检查<br/>(ComplianceChecker)"]:::step
+        S3 --> S4["Step 4<br/>生成摘要<br/>(LLM)"]:::step
+        S0 -.->|可选| KB[("SQLite 向量库<br/>KnowledgeBase")]
+    end
+
+    subgraph LLM["LLM 层"]
+        LLMC["LLMClient"] -->|OpenAI 协议| APIS["OpenAI / Ollama<br/>vLLM / Azure ..."]
+        LLMC -->|httpx proxy| PROXY["代理"]
+    end
+
+    subgraph OUTPUT["输出"]
+        REPORT["ReviewReport<br/>(clauses + risks + compliance)"]
+        SESSION["AgentSession<br/>(4 步全量 Trace + ToolCall)"]
+    end
+
+    subgraph HARNESS["Harness 系统"]
+        REPLAY["ReplaySystem<br/>录制 → JSON → 回放"]
+        EVAL["EvalSystem<br/>Ground Truth → 4 项指标"]
+        REGR["RegressionSystem<br/>基线对比 → pass/fail"]
+    end
+
+    AGENT --> LLM
+    AGENT --> OUTPUT
+    SESSION --> REPLAY
+    SESSION --> EVAL
+    SESSION --> REGR
+    CMD --> AGENT
+
+    classDef step fill:#4a90d9,color:#fff
 ```
 
 ## 环境变量
