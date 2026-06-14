@@ -249,6 +249,40 @@ class TestFileParsing:
         finally:
             Path(path).unlink(missing_ok=True)
 
+    def test_parse_zip(self):
+        """应正确解压 zip 并拼接内部文件内容。"""
+        import zipfile
+
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
+            zip_path = f.name
+        try:
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                zf.writestr("doc1.txt", "第一条内容")
+                zf.writestr("doc2.txt", "第二条内容")
+            content = KnowledgeBase._parse_file(Path(zip_path))
+            assert "第一条内容" in content
+            assert "第二条内容" in content
+            assert "doc1.txt" in content
+            assert "doc2.txt" in content
+        finally:
+            Path(zip_path).unlink(missing_ok=True)
+
+    def test_parse_zip_skip_unsupported(self):
+        """zip 中的不支持格式应被跳过。"""
+        import zipfile
+
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
+            zip_path = f.name
+        try:
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                zf.writestr("doc.txt", "文本内容")
+                zf.writestr("image.png", b"fake_png")
+            content = KnowledgeBase._parse_file(Path(zip_path))
+            assert "文本内容" in content
+            assert "image.png" not in content
+        finally:
+            Path(zip_path).unlink(missing_ok=True)
+
 
 class _MockReranker(Reranker):
     """模拟重排序器，反转候选顺序。"""

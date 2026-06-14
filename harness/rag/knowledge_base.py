@@ -160,7 +160,7 @@ class KnowledgeBase:
 
     @staticmethod
     def _parse_file(path: Path) -> str:
-        """解析文件内容（支持 txt/md/json/pdf/docx）。"""
+        """解析文件内容（支持 txt/md/json/pdf/docx/zip）。"""
         suffix = path.suffix.lower()
         if suffix in (".txt", ".md"):
             return path.read_text(encoding="utf-8")
@@ -187,7 +187,37 @@ class KnowledgeBase:
                 return "\n".join(p.text for p in doc.paragraphs)
             except ImportError:
                 return path.read_text(encoding="utf-8", errors="replace")
+        if suffix == ".zip":
+            return KnowledgeBase._parse_zip(path)
         return path.read_text(encoding="utf-8")
+
+    @staticmethod
+    def _parse_zip(path: Path) -> str:
+        """解压 zip 并拼接所有支持的文件内容。"""
+        import tempfile
+        import zipfile
+
+        supported = {".txt", ".md", ".json", ".pdf", ".docx"}
+        parts: list[str] = []
+        with zipfile.ZipFile(path) as zf:
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                ext = Path(info.filename).suffix.lower()
+                if ext not in supported:
+                    continue
+                try:
+                    raw = zf.read(info.filename)
+                    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                        tmp.write(raw)
+                        tmp_path = Path(tmp.name)
+                    content = KnowledgeBase._parse_file(tmp_path)
+                    tmp_path.unlink(missing_ok=True)
+                    header = f"# {info.filename}\n\n"
+                    parts.append(header + content)
+                except Exception:
+                    continue
+        return "\n\n---\n\n".join(parts)
 
     def query(self, text: str, top_k: int = 5) -> list[Chunk]:
         """语义检索最相关的文本块（支持可选的 rerank 精排）。"""

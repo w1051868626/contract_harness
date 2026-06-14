@@ -292,7 +292,7 @@ def import_dir(ctx: click.Context, directory: str) -> None:
     config: HarnessConfig = ctx.obj["config"]
     config.ensure_dirs()
     kb_instance = KnowledgeBase.from_config(config)
-    supported = (".txt", ".md", ".json", ".pdf", ".docx")
+    supported = (".txt", ".md", ".json", ".pdf", ".docx", ".zip")
     files = [p for p in Path(directory).iterdir() if p.suffix.lower() in supported]
     if not files:
         console.print("[yellow]目录下没有支持的文件[/yellow]")
