@@ -287,8 +287,8 @@ class KnowledgeBase:
         if not re.search(r'第[一二三四五六七八九十百千零\d]+条', text):
             return None
 
-        article_pat = re.compile(r'(?=\n第[一二三四五六七八九十百千零\d]+条)')
-        raw_parts = article_pat.split(text.strip())
+        split_pat = re.compile(r'(?=\n第[一二三四五六七八九十百千零\d]+[条章节分编])')
+        raw_parts = split_pat.split(text.strip())
         parts = [p.strip() for p in raw_parts if p.strip()]
 
         if not parts:
