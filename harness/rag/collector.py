@@ -160,6 +160,38 @@ class PlaywrightNPCSource(LawSource):
                 "Playwright 未安装。运行: pip install playwright && playwright install chromium"
             )
 
+    def _navigate_to_npc(self, page, context):
+        """导航到 NPC 网站并获取浏览器 cookies。"""
+        try:
+            page.goto("https://flk.npc.gov.cn")
+        except TypeError:
+            page.evaluate("window.location.href = 'https://flk.npc.gov.cn'")
+        for _ in range(30):
+            time.sleep(1)
+            if "flk.npc.gov.cn" in page.url and page.url != "about:blank":
+                break
+        time.sleep(2)
+        cookies = {c["name"]: c["value"] for c in context.cookies()}
+        return cookies
+
+    def _make_client(self, cookies: dict[str, str]) -> httpx.Client:
+        """创建携带浏览器 cookies 的 httpx 客户端。"""
+        return httpx.Client(
+            cookies=cookies,
+            timeout=30,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                "Referer": "https://flk.npc.gov.cn/",
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "zh-CN,zh;q=0.9",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+        )
+
     def fetch(self, query: str = "") -> list[dict[str, str]]:
         """通过浏览器环境访问 NPC API 采集法律条文。"""
         self._ensure_playwright()
@@ -180,79 +212,68 @@ class PlaywrightNPCSource(LawSource):
                 locale="zh-CN",
             )
             page = context.new_page()
-
-            # 使用 JavaScript 导航到 NPC 网站建立浏览器会话（绕过 page.goto 序列化缺陷）
-            page.evaluate("window.location.href = 'https://flk.npc.gov.cn'")
-            page.wait_for_timeout(5000)
-
-            for q in queries:
-                page_num = 1
-                while len(results) < self.page_size:
-                    try:
-                        items = self._search_page_js(page, q or "民法典", page_num)
-                        if not items:
-                            break
-                        for item in items:
-                            title = item.get("title", "")
-                            if title in seen_titles:
-                                continue
-                            seen_titles.add(title)
-                            detail = self._fetch_detail_js(page, item.get("id", ""))
-                            if detail:
-                                results.append(detail)
-                            if len(results) >= self.page_size:
-                                break
-                            time.sleep(self.delay)
-                        page_num += 1
-                    except Exception as e:
-                        print(f"  [采集异常] query={q!r}, 第 {page_num} 页: {e}")
-                        break
-
+            cookies = self._navigate_to_npc(page, context)
             browser.close()
 
+        client = self._make_client(cookies)
+
+        for q in queries:
+            page_num = 1
+            while len(results) < self.page_size:
+                try:
+                    items = self._search_page_httpx(client, q or "民法典", page_num)
+                    if not items:
+                        break
+                    for item in items:
+                        title = item.get("title", "")
+                        if title in seen_titles:
+                            continue
+                        seen_titles.add(title)
+                        detail = self._fetch_detail_httpx(client, item.get("id", ""))
+                        if detail:
+                            results.append(detail)
+                        if len(results) >= self.page_size:
+                            break
+                        time.sleep(self.delay)
+                    page_num += 1
+                except Exception as e:
+                    print(f"  [采集异常] query={q!r}, 第 {page_num} 页: {e}")
+                    break
+
+        client.close()
         return results
 
-    def _search_page_js(self, page, query: str, page_num: int) -> list[dict[str, Any]]:
-        """在浏览器页面内使用 JavaScript fetch 搜索，拥有完整浏览器会话。"""
-        return page.evaluate("""async (args) => {
-            const params = new URLSearchParams({
-                page: String(args.pageNum),
-                size: '10',
-                type: 'flfg',
-                searchType: 'title;accurate',
-                sortTr: 'f_bbrq_s;desc',
-                gbrqStart: '',
-                gbrqEnd: '',
-                sxrqStart: '',
-                sxrqEnd: '',
-                sort: 'true',
-                searchWord: args.query,
-            });
-            const resp = await fetch(args.searchUrl + '?' + params.toString(), {
-                headers: {'Accept': 'application/json'}
-            });
-            const data = await resp.json();
-            return data.result || [];
-        }""", {"query": query, "pageNum": page_num, "searchUrl": self.SEARCH_URL})
+    def _search_page_httpx(self, client: httpx.Client, query: str, page_num: int) -> list[dict[str, Any]]:
+        """使用 httpx 搜索，携带浏览器 cookies。"""
+        resp = client.get(
+            self.SEARCH_URL,
+            params={
+                "page": page_num,
+                "size": 10,
+                "type": "flfg",
+                "searchType": "title;accurate",
+                "sortTr": "f_bbrq_s;desc",
+                "gbrqStart": "",
+                "gbrqEnd": "",
+                "sxrqStart": "",
+                "sxrqEnd": "",
+                "sort": "true",
+                "searchWord": query,
+            },
+        )
+        resp.raise_for_status()
+        return resp.json().get("result", [])
 
-    def _fetch_detail_js(self, page, law_id: str) -> dict[str, str] | None:
-        """在浏览器页面内使用 JavaScript fetch 获取详情，拥有完整浏览器会话。"""
-        data = page.evaluate("""async (args) => {
-            const resp = await fetch(args.detailUrl, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({id: args.lawId}),
-            });
-            const d = await resp.json();
-            const r = d.result || {};
-            return {
-                title: r.title || '',
-                content: r.body || r.bodyText || r.content || '',
-            };
-        }""", {"lawId": law_id, "detailUrl": self.DETAIL_URL})
-        if data and data.get("title") and data.get("content"):
-            return data
-        return None
+    def _fetch_detail_httpx(self, client: httpx.Client, law_id: str) -> dict[str, str] | None:
+        """使用 httpx 获取详情，携带浏览器 cookies。"""
+        resp = client.post(self.DETAIL_URL, data={"id": law_id})
+        resp.raise_for_status()
+        data = resp.json().get("result", {})
+        title = data.get("title", "")
+        content = data.get("body", "") or data.get("bodyText", "") or data.get("content", "")
+        if not title or not content:
+            return None
+        return {"title": title, "content": content}
 
 
 class LocalFileSource(LawSource):
