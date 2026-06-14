@@ -284,10 +284,10 @@ class KnowledgeBase:
         多条合并到 chunk_size 内；单条超长时按「（X）」款/项切分。
         非法律文本返回 None，由上层回退到通用分块。
         """
-        if not re.search(r'第[一二三四五六七八九十百千零\d]+条', text):
+        if not re.search(r"第[一二三四五六七八九十百千零\d]+条", text):
             return None
 
-        split_pat = re.compile(r'(?=\n第[一二三四五六七八九十百千零\d]+[条章节分编])')
+        split_pat = re.compile(r"(?=\n第[一二三四五六七八九十百千零\d]+[条章节分编])")
         raw_parts = split_pat.split(text.strip())
         parts = [p.strip() for p in raw_parts if p.strip()]
 
@@ -301,11 +301,11 @@ class KnowledgeBase:
         cur_section = ""
 
         def _get_article_range(buf: list[str]) -> str:
-            arts = [p for p in buf if re.match(r'第[一二三四五六七八九十百千零\d]+条', p.strip())]
+            arts = [p for p in buf if re.match(r"第[一二三四五六七八九十百千零\d]+条", p.strip())]
             if not arts:
                 return ""
-            first = re.match(r'第([一二三四五六七八九十百千零\d]+)条', arts[0].strip())
-            last = re.match(r'第([一二三四五六七八九十百千零\d]+)条', arts[-1].strip())
+            first = re.match(r"第([一二三四五六七八九十百千零\d]+)条", arts[0].strip())
+            last = re.match(r"第([一二三四五六七八九十百千零\d]+)条", arts[-1].strip())
             if not first or not last:
                 return ""
             same = first.group(1) == last.group(1)
@@ -326,10 +326,10 @@ class KnowledgeBase:
                 idx += 1
 
         def _is_header(p: str) -> bool:
-            return bool(re.match(r'第[一二三四五六七八九十百千零\d]+[章节分编]', p.strip()))
+            return bool(re.match(r"第[一二三四五六七八九十百千零\d]+[章节分编]", p.strip()))
 
         def _split_long_article(article: str) -> list[str]:
-            items = re.split(r'(?=\n*（[一二三四五六七八九十百千零\d]+）)', article)
+            items = re.split(r"(?=\n*（[一二三四五六七八九十百千零\d]+）)", article)
             return [it.strip() for it in items if it.strip()]
 
         buffer: list[str] = []

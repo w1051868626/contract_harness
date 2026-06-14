@@ -338,6 +338,7 @@ class TestFileParsing:
             with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f2:
                 db_path = f2.name
             from harness.rag.vector_store import VectorStore
+
             store = VectorStore(db_path)
             emb = _MockEmbeddingProvider()
             kb = KnowledgeBase(store, emb)
@@ -369,6 +370,7 @@ class TestFileParsing:
             with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f2:
                 db_path = f2.name
             from harness.rag.vector_store import VectorStore
+
             store = VectorStore(db_path)
             emb = _MockEmbeddingProvider()
             kb = KnowledgeBase(store, emb)
@@ -468,5 +470,3 @@ class TestReranker:
             store.close()
         finally:
             Path(db_path).unlink(missing_ok=True)
-
-
