@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tempfile
 import unittest.mock
 from pathlib import Path
@@ -141,6 +142,60 @@ class TestKnowledgeBase:
         """短文本应只返回一个 Chunk。"""
         chunks = KnowledgeBase._chunk_text("small text", "doc1", chunk_size=300, overlap=30)
         assert len(chunks) == 1
+
+    def test_chunk_legal_non_legal(self):
+        """非法律文本应返回 None。"""
+        result = KnowledgeBase._chunk_legal_text("hello world", "doc1", 200, 30)
+        assert result is None
+
+    def test_chunk_legal_preserves_article_boundary(self):
+        """法律条文分块不应切割「条」。"""
+        text = """第三章 合同的效力
+
+第五百零二条 依法成立的合同，自成立时生效。
+
+第五百零三条 无权代理人以被代理人的名义订立合同，被代理人已经开始履行合同义务或者接受相对人履行的，视为对合同的追认。
+
+第五百零四条 法人的法定代表人超越权限订立的合同，除相对人知道或者应当知道其超越权限外，该代表行为有效。
+
+第五百零五条 当事人超越经营范围订立的合同的效力，应当依照本法有关规定确定。"""
+        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 200, 30)
+        assert chunks is not None
+        for c in chunks:
+            assert re.match(
+                r"(第[一二三四五六七八九十百千零\d]+[章节分编]|第[一二三四五六七八九十百千零\d]+条)",
+                c.content.strip(),
+            ), f"Chunk starts mid-article: {c.content[:40]}"
+
+    def test_chunk_legal_split_long_article(self):
+        """超长法律条文应按「（X）」款/项分割。"""
+        text = """第十三条 符合下列情形之一的，个人信息处理者方可处理个人信息：
+（一）取得个人的同意；
+（二）为订立、履行个人作为一方当事人的合同所必需；
+（三）为履行法定职责或者法定义务所必需；
+（四）为应对突发公共卫生事件，或者紧急情况下为保护自然人的生命健康和财产安全所必需；
+（五）为公共利益实施新闻报道、舆论监督等行为，在合理的范围内处理个人信息；
+（六）依照本法规定在合理的范围内处理个人自行公开或者其他已经合法公开的个人信息；
+（七）法律、行政法规规定的其他情形。"""
+        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 150, 30)
+        assert chunks is not None
+        assert len(chunks) > 1, "Long article should be split into multiple chunks"
+
+    def test_chunk_legal_preserves_header(self):
+        """章节标题应作为新 chunk 起点。"""
+        text = """第一章 总则
+
+第一条 为了保护合同当事人的合法权益，维护社会经济秩序，制定本法。
+
+第二章 合同的订立
+
+第二条 本法所称合同是平等主体的自然人、法人、其他组织之间设立、变更、终止民事权利义务关系的协议。"""
+        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 200, 30)
+        assert chunks is not None
+        assert any("第一章" in c.content for c in chunks)
+        assert any("第二章" in c.content for c in chunks)
+        assert any("第一条" in c.content for c in chunks)
+        assert any("第二条" in c.content for c in chunks)
 
 
 class TestEmbeddingProvider:

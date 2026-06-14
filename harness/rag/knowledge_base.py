@@ -118,12 +118,15 @@ class KnowledgeBase:
         chunk_overlap: int,
         use_ai: bool,
     ) -> list[Chunk]:
-        """根据配置选择 AI 分块或传统分块。"""
+        """根据配置选择 AI 分块、法律条文分块或传统分块。"""
         if use_ai and self._chunk_llm is not None:
             try:
                 return self._chunk_with_ai(content, doc_id)
             except Exception:
                 pass
+        legal = self._chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
+        if legal is not None:
+            return legal
         return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
 
     def _chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
@@ -267,6 +270,84 @@ class KnowledgeBase:
     def delete_document(self, document_id: str):
         """删除指定文档及其分块。"""
         self._store.delete_document(document_id)
+
+    @staticmethod
+    def _chunk_legal_text(
+        text: str,
+        doc_id: str,
+        chunk_size: int,
+        overlap: int,
+    ) -> list[Chunk] | None:
+        """法律条文专用分块：以「条」为原子单位，不切割条款。
+
+        检测到「第X条」结构时按条分割，每条为完整语义单元；
+        多条合并到 chunk_size 内；单条超长时按「（X）」款/项切分。
+        非法律文本返回 None，由上层回退到通用分块。
+        """
+        if not re.search(r'第[一二三四五六七八九十百千零\d]+条', text):
+            return None
+
+        article_pat = re.compile(r'(?=\n第[一二三四五六七八九十百千零\d]+条)')
+        raw_parts = article_pat.split(text.strip())
+        parts = [p.strip() for p in raw_parts if p.strip()]
+
+        if not parts:
+            return None
+
+        chunks: list[Chunk] = []
+        idx = 0
+
+        def _flush(buf: list[str]) -> None:
+            nonlocal idx
+            if buf:
+                chunks.append(KnowledgeBase._make_chunk(buf, doc_id, idx))
+                idx += 1
+
+        def _is_header(p: str) -> bool:
+            return bool(re.match(r'第[一二三四五六七八九十百千零\d]+[章节分编]', p.strip()))
+
+        def _split_long_article(article: str) -> list[str]:
+            items = re.split(r'(?=\n*（[一二三四五六七八九十百千零\d]+）)', article)
+            return [it.strip() for it in items if it.strip()]
+
+        buffer: list[str] = []
+        buf_len = 0
+
+        for part in parts:
+            part_len = len(part)
+            is_hdr = _is_header(part)
+
+            if is_hdr:
+                _flush(buffer)
+                buffer = [part]
+                buf_len = part_len
+            elif buf_len + part_len <= chunk_size:
+                buffer.append(part)
+                buf_len += part_len
+            else:
+                _flush(buffer)
+                if part_len <= chunk_size:
+                    buffer = [part]
+                    buf_len = part_len
+                else:
+                    subs = _split_long_article(part)
+                    sub_buf: list[str] = []
+                    sub_len = 0
+                    for s in subs:
+                        sl = len(s)
+                        if sub_len + sl <= chunk_size:
+                            sub_buf.append(s)
+                            sub_len += sl
+                        else:
+                            _flush(sub_buf)
+                            sub_buf = [s]
+                            sub_len = sl
+                    _flush(sub_buf)
+                    buffer = []
+                    buf_len = 0
+
+        _flush(buffer)
+        return chunks
 
     @staticmethod
     def _chunk_text(
