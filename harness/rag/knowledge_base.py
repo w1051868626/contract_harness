@@ -308,7 +308,8 @@ class KnowledgeBase:
             last = re.match(r'第([一二三四五六七八九十百千零\d]+)条', arts[-1].strip())
             if not first or not last:
                 return ""
-            return f"{first.group(0)}—{last.group(0)}" if first.group(1) != last.group(1) else first.group(0)
+            same = first.group(1) == last.group(1)
+            return f"{first.group(0)}—{last.group(0)}" if not same else first.group(0)
 
         def _flush(buf: list[str]) -> None:
             nonlocal idx
@@ -340,7 +341,9 @@ class KnowledgeBase:
 
             if is_hdr:
                 _flush(buffer)
-                hdr_match = re.match(r'(第[一二三四五六七八九十百千零\d]+)([章节分编])', part.strip())
+                hdr_match = re.match(
+                    r"(第[一二三四五六七八九十百千零\d]+)([章节分编])", part.strip()
+                )
                 if hdr_match:
                     if hdr_match.group(2) in ("章", "编"):
                         cur_chapter = part.strip()
