@@ -208,6 +208,76 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `HTTP_PROXY` | 通用代理（回退） | - |
 | `HARNESS_DATA_DIR` | 数据根目录（知识库、回放等） | 项目下 `.harness/` |
 
+## CLI 架构（Click 用法）
+
+所有 CLI 命令定义在 `harness/cli/main.py`，使用 Click 库构建。本项目遵循以下 Click 模式：
+
+### 根命令组
+
+```python
+@click.group()
+@click.option("--verbose", "-v", is_flag=True, help="启用详细输出")
+@click.pass_context
+def cli(ctx: click.Context, verbose: bool) -> None:
+    """合同审查 Agent 系统 CLI。"""
+    ctx.ensure_object(dict)
+    config = HarnessConfig()
+    ctx.obj["config"] = config
+```
+
+- `@click.group()` 定义根命令组，所有子命令挂载在其上
+- `@click.option` 定义全局选项（如 `--verbose`），所有子命令共享
+- `@click.pass_context` 注入 `click.Context`，通过 `ctx.obj` 字典在命令间传递共享对象（如 `HarnessConfig`）
+
+### 子命令（平级）
+
+```python
+@cli.command()
+@click.argument("contract_file", type=click.Path(exists=True))
+@click.option("--save/--no-save", default=True, help="是否保存回放记录")
+@click.pass_context
+def review(ctx: click.Context, contract_file: str, save: bool) -> None:
+    """审查一份合同并展示结果。"""
+    config: HarnessConfig = ctx.obj["config"]
+```
+
+- `@cli.command()` 将函数注册为根命令组的平级子命令（如 `harness review`)
+- `@click.argument` 定义位置参数，`type=click.Path(exists=True)` 自动校验文件存在
+- `--save/--no-save` 是布尔 flag 的惯用写法，Click 自动生成 `--save` 和 `--no-save` 两个选项
+
+### 命令组嵌套
+
+```python
+@cli.group()
+def kb() -> None:
+    """知识库管理命令组。"""
+
+@kb.command()
+@click.argument("query")
+@click.option("--top-k", default=5, help="返回结果数")
+@click.pass_context
+def search(ctx: click.Context, query: str, top_k: int) -> None:
+    """检索知识库。"""
+```
+
+- `@cli.group()` 定义嵌套命令组（如 `harness kb`）
+- 子组内的命令通过 `@组名.command()` 注册（如 `harness kb search`）
+
+### context 传递模式
+
+`ctx.obj` 是 Click 推荐的跨命令数据传递方式。本项目统一使用 `ctx.obj["config"]` 传递 `HarnessConfig`，确保所有命令共享同一配置实例。
+
+### 关键装饰器速查
+
+| 装饰器 | 用途 |
+|---|---|
+| `@click.group()` | 定义命令组（可嵌套） |
+| `@click.command()` | 定义叶命令 |
+| `@click.argument()` | 位置参数 |
+| `@click.option()` | 命名选项 |
+| `@click.pass_context` | 注入 `click.Context` |
+| `@click.Path(exists=True)` | 路径类型校验 |
+
 ## 开发
 
 ```bash
