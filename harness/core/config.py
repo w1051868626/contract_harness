@@ -25,6 +25,7 @@ class LLMConfig:
     temperature: float = 0.1
     max_tokens: int = 4096
     timeout: int = 120
+    chunk_model: str = "gpt-4o-mini"
 
     def __post_init__(self):
         """从环境变量自动补充缺失的 API 密钥与地址。"""
@@ -37,6 +38,7 @@ class LLMConfig:
             self.api_base = os.getenv(provider_base, "https://api.openai.com/v1")
         if self.proxy is None:
             self.proxy = os.getenv("LLM_PROXY", os.getenv("HTTP_PROXY", "")) or None
+        self.chunk_model = os.getenv("CHUNK_MODEL", self.chunk_model)
 
 
 @dataclass

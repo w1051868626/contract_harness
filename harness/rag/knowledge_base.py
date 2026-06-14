@@ -31,12 +31,14 @@ class KnowledgeBase:
         embedding: EmbeddingProvider,
         llm: LLMClient | None = None,
         reranker: Reranker | None = None,
+        chunk_model: str = "gpt-4o-mini",
     ):
         """初始化知识库。"""
         self._store = store
         self._embedding = embedding
         self._llm = llm
         self._reranker = reranker
+        self._chunk_model = chunk_model
 
     @property
     def store(self) -> VectorStore:
@@ -61,7 +63,8 @@ class KnowledgeBase:
             api_base=cfg.embedding.rerank_api_base,
             model=cfg.embedding.rerank_model,
         )
-        return cls(store=store, embedding=embedding, reranker=reranker)
+        llm = LLMClient(cfg.llm) if cfg.llm.api_key else None
+        return cls(store=store, embedding=embedding, reranker=reranker, llm=llm, chunk_model=cfg.llm.chunk_model)
 
     def add_text(
         self,
@@ -119,7 +122,7 @@ class KnowledgeBase:
                 },
                 {"role": "user", "content": prompt},
             ],
-            model="gpt-4o-mini",
+            model=self._chunk_model,
             temperature=0.0,
         )
         raw = resp.content.strip()
