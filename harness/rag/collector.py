@@ -180,7 +180,7 @@ class PlaywrightNPCSource(LawSource):
                 locale="zh-CN",
             )
             page = context.new_page()
-            page.goto("https://flk.npc.gov.cn", wait_until="networkidle")
+            page.goto("https://flk.npc.gov.cn")
 
             for q in queries:
                 page_num = 1
