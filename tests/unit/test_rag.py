@@ -230,7 +230,7 @@ class TestAIChunking:
         """验证 AI chunking 能正确解析 LLM 返回的 JSON"""
         emb = _MockEmbeddingProvider()
         store = VectorStore(":memory:")
-        kb = KnowledgeBase(store, emb, llm=mock_llm)
+        kb = KnowledgeBase(store, emb, llm=mock_llm, chunk_llm=mock_llm)
 
         kb.add_text(
             "测试合同",
@@ -245,7 +245,7 @@ class TestAIChunking:
         mock_llm.responses = []
         emb = _MockEmbeddingProvider()
         store = VectorStore(":memory:")
-        kb = KnowledgeBase(store, emb, llm=mock_llm)
+        kb = KnowledgeBase(store, emb, llm=mock_llm, chunk_llm=mock_llm)
         result = kb.add_text("test", "AAA BBB CCC", use_ai_chunking=True)
         assert result
 

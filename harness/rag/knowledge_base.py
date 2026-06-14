@@ -40,7 +40,7 @@ class KnowledgeBase:
         self._llm = llm
         self._reranker = reranker
         self._chunk_model = chunk_model
-        self._chunk_llm = chunk_llm or llm
+        self._chunk_llm = chunk_llm
 
     @property
     def store(self) -> VectorStore:
