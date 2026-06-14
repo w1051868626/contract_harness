@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from harness.agent.llm import LLMClient, LLMResponse
-from harness.core.config import HarnessConfig
+from harness.core.config import HarnessConfig, LLMConfig
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.reranker import Reranker, create_reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore
@@ -32,6 +32,7 @@ class KnowledgeBase:
         llm: LLMClient | None = None,
         reranker: Reranker | None = None,
         chunk_model: str = "gpt-4o-mini",
+        chunk_llm: LLMClient | None = None,
     ):
         """初始化知识库。"""
         self._store = store
@@ -39,6 +40,7 @@ class KnowledgeBase:
         self._llm = llm
         self._reranker = reranker
         self._chunk_model = chunk_model
+        self._chunk_llm = chunk_llm or llm
 
     @property
     def store(self) -> VectorStore:
@@ -64,7 +66,21 @@ class KnowledgeBase:
             model=cfg.embedding.rerank_model,
         )
         llm = LLMClient(cfg.llm) if cfg.llm.api_key else None
-        return cls(store=store, embedding=embedding, reranker=reranker, llm=llm, chunk_model=cfg.llm.chunk_model)
+        chunk_cfg = LLMConfig(
+            api_key=cfg.llm.chunk_api_key,
+            api_base=cfg.llm.chunk_api_base,
+            model=cfg.llm.chunk_model,
+            proxy=cfg.llm.proxy,
+        )
+        chunk_llm = LLMClient(chunk_cfg) if chunk_cfg.api_key else llm
+        return cls(
+            store=store,
+            embedding=embedding,
+            reranker=reranker,
+            llm=llm,
+            chunk_llm=chunk_llm,
+            chunk_model=cfg.llm.chunk_model,
+        )
 
     def add_text(
         self,
@@ -103,7 +119,7 @@ class KnowledgeBase:
         use_ai: bool,
     ) -> list[Chunk]:
         """根据配置选择 AI 分块或传统分块。"""
-        if use_ai and self._llm is not None:
+        if use_ai and self._chunk_llm is not None:
             try:
                 return self._chunk_with_ai(content, doc_id)
             except Exception:
@@ -112,9 +128,9 @@ class KnowledgeBase:
 
     def _chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
         """使用 LLM 对文本进行智能分块。"""
-        assert self._llm is not None
+        assert self._chunk_llm is not None
         prompt = CHUNK_PROMPT.format(text=text[:8000])
-        resp: LLMResponse = self._llm.chat(
+        resp: LLMResponse = self._chunk_llm.chat(
             [
                 {
                     "role": "system",

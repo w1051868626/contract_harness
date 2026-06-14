@@ -26,6 +26,8 @@ class LLMConfig:
     max_tokens: int = 4096
     timeout: int = 120
     chunk_model: str = "gpt-4o-mini"
+    chunk_api_key: str = ""
+    chunk_api_base: str = ""
 
     def __post_init__(self):
         """从环境变量自动补充缺失的 API 密钥与地址。"""
@@ -39,6 +41,10 @@ class LLMConfig:
         if self.proxy is None:
             self.proxy = os.getenv("LLM_PROXY", os.getenv("HTTP_PROXY", "")) or None
         self.chunk_model = os.getenv("CHUNK_MODEL", self.chunk_model)
+        if not self.chunk_api_key:
+            self.chunk_api_key = os.getenv("CHUNK_API_KEY", self.api_key)
+        if not self.chunk_api_base:
+            self.chunk_api_base = os.getenv("CHUNK_API_BASE", self.api_base)
 
 
 @dataclass
