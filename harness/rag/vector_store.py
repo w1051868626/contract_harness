@@ -213,8 +213,8 @@ class ChromaVectorStore(VectorStore):
         metadata["chunk_index"] = chunk.chunk_index
         self._collection.add(
             ids=[chunk.id],
-            embeddings=[chunk.embedding],
-            metadatas=[metadata],
+            embeddings=[chunk.embedding],  # type: ignore[arg-type]
+            metadatas=[metadata],  # type: ignore[arg-type]
             documents=[chunk.content],
         )
 
@@ -236,34 +236,38 @@ class ChromaVectorStore(VectorStore):
         if ids:
             self._collection.add(
                 ids=ids,
-                embeddings=embeddings,
-                metadatas=metadatas,
+                embeddings=embeddings,  # type: ignore[arg-type]
+                metadatas=metadatas,  # type: ignore[arg-type]
                 documents=documents,
             )
 
     def search(self, query_embedding: list[float], top_k: int = 5) -> list[Chunk]:
-        results = self._collection.query(
+        raw: Any = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
         )
-        chunks: list[Chunk] = []
-        ids = results.get("ids", [[]])[0]
-        distances = results.get("distances", [[]])[0]
-        metadatas = results.get("metadatas", [[]])[0]
-        documents = results.get("documents", [[]])[0]
+        ids: list[str] = raw.get("ids", [[]])[0] if raw.get("ids") else []
+        distances: list[float] = raw.get("distances", [[]])[0] if raw.get("distances") else []
+        metadatas_raw = raw.get("metadatas", [[]])[0] if raw.get("metadatas") else []
+        documents = raw.get("documents", [[]])[0] if raw.get("documents") else []
 
+        chunks: list[Chunk] = []
         for i in range(len(ids)):
-            meta = metadatas[i] if metadatas else {}
+            meta: dict[str, Any] = (
+                dict(metadatas_raw[i]) if metadatas_raw and i < len(metadatas_raw) else {}
+            )
+            doc_id = str(meta.get("document_id", ""))
+            c_idx = int(meta.get("chunk_index", 0))
             chunks.append(
                 Chunk(
                     id=ids[i],
-                    document_id=meta.get("document_id", ""),
-                    content=documents[i] if documents else "",
-                    score=1.0 - distances[i] if distances else 0.0,
+                    document_id=doc_id,
+                    content=str(documents[i]) if documents and i < len(documents) else "",
+                    score=1.0 - distances[i] if distances and i < len(distances) else 0.0,
                     metadata={
                         k: v for k, v in meta.items() if k not in ("document_id", "chunk_index")
                     },
-                    chunk_index=meta.get("chunk_index", 0),
+                    chunk_index=c_idx,
                 )
             )
         return chunks
