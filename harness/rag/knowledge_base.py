@@ -12,7 +12,7 @@ from harness.agent.llm import LLMClient, LLMResponse
 from harness.core.config import HarnessConfig, LLMConfig
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.reranker import Reranker, create_reranker
-from harness.rag.vector_store import Chunk, Document, VectorStore
+from harness.rag.vector_store import Chunk, Document, VectorStore, create_vector_store
 
 CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑结构拆分成有意义的片段。
 每个片段应该是一个完整的主题、章节或逻辑段落，不要切割句子。
@@ -51,7 +51,13 @@ class KnowledgeBase:
     def from_config(cls, config: HarnessConfig | None = None) -> KnowledgeBase:
         """从 HarnessConfig 创建知识库实例。"""
         cfg = config or HarnessConfig()
-        store = VectorStore(Path(cfg.kb_dir) / "vector.db")
+        import os
+
+        vs_backend = os.getenv("VECTOR_STORE_BACKEND", "sqlite")
+        if vs_backend == "chroma":
+            store = create_vector_store(cfg.kb_dir, backend="chroma")
+        else:
+            store = create_vector_store(Path(cfg.kb_dir) / "vector.db", backend="sqlite")
         embedding = create_embedding_provider(
             provider=cfg.embedding.provider,
             api_key=cfg.embedding.api_key,

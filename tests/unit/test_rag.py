@@ -14,7 +14,7 @@ from harness.rag.embedding import (
 )
 from harness.rag.knowledge_base import KnowledgeBase
 from harness.rag.reranker import LocalReranker, OpenAIReranker, Reranker, create_reranker
-from harness.rag.vector_store import Chunk, Document, VectorStore
+from harness.rag.vector_store import Chunk, Document, SqliteVectorStore
 
 
 class _MockEmbeddingProvider(EmbeddingProvider):
@@ -35,7 +35,7 @@ class TestVectorStore:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
         try:
-            store = VectorStore(db_path)
+            store = SqliteVectorStore(db_path)
             store.add_document(Document(id="d1", title="Test Doc", source="test.txt"))
             docs = store.list_documents()
             assert len(docs) == 1
@@ -50,7 +50,7 @@ class TestVectorStore:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
         try:
-            store = VectorStore(db_path)
+            store = SqliteVectorStore(db_path)
             store.add_document(Document(id="d1", title="法律条款"))
             emb1 = [1.0, 0.0, 0.0]
             emb2 = [0.0, 1.0, 0.0]
@@ -77,7 +77,7 @@ class TestVectorStore:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
         try:
-            store = VectorStore(db_path)
+            store = SqliteVectorStore(db_path)
             store.add_document(Document(id="d1", title="Test"))
             store.delete_document("d1")
             assert store.list_documents() == []
@@ -94,7 +94,7 @@ class TestKnowledgeBase:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
         try:
-            store = VectorStore(db_path)
+            store = SqliteVectorStore(db_path)
             emb = _MockEmbeddingProvider()
             kb = KnowledgeBase(store, emb)
             kb.add_text("保密法规", "双方应对合同内容严格保密，未经对方书面同意不得向第三方披露")
@@ -112,7 +112,7 @@ class TestKnowledgeBase:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
         try:
-            store = VectorStore(db_path)
+            store = SqliteVectorStore(db_path)
             kb = KnowledgeBase(store, _MockEmbeddingProvider())
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".txt", delete=False, encoding="utf-8"
@@ -239,7 +239,7 @@ class TestAIChunking:
     def test_ai_chunking_fallback_on_no_llm(self):
         """无 llm 时自动回退到规则分块"""
         emb = _MockEmbeddingProvider()
-        store = VectorStore(":memory:")
+        store = SqliteVectorStore(":memory:")
         kb = KnowledgeBase(store, emb, llm=None)
         chunks = kb._resolve_chunks("hello world", "doc1", 512, 64, use_ai=True)
         # 无 llm → use_ai=True 但 llm is None → 走规则分块
@@ -248,7 +248,7 @@ class TestAIChunking:
     def test_ai_chunking_parse_response(self, mock_llm):
         """验证 AI chunking 能正确解析 LLM 返回的 JSON"""
         emb = _MockEmbeddingProvider()
-        store = VectorStore(":memory:")
+        store = SqliteVectorStore(":memory:")
         kb = KnowledgeBase(store, emb, llm=mock_llm, chunk_llm=mock_llm)
 
         kb.add_text(
@@ -263,7 +263,7 @@ class TestAIChunking:
         """AI 返回非 JSON 时优雅回退到规则分块"""
         mock_llm.responses = []
         emb = _MockEmbeddingProvider()
-        store = VectorStore(":memory:")
+        store = SqliteVectorStore(":memory:")
         kb = KnowledgeBase(store, emb, llm=mock_llm, chunk_llm=mock_llm)
         result = kb.add_text("test", "AAA BBB CCC", use_ai_chunking=True)
         assert result
@@ -337,9 +337,7 @@ class TestFileParsing:
 
             with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f2:
                 db_path = f2.name
-            from harness.rag.vector_store import VectorStore
-
-            store = VectorStore(db_path)
+            store = SqliteVectorStore(db_path)
             emb = _MockEmbeddingProvider()
             kb = KnowledgeBase(store, emb)
             result = kb.add_file(zip_path)
@@ -369,9 +367,7 @@ class TestFileParsing:
 
             with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f2:
                 db_path = f2.name
-            from harness.rag.vector_store import VectorStore
-
-            store = VectorStore(db_path)
+            store = SqliteVectorStore(db_path)
             emb = _MockEmbeddingProvider()
             kb = KnowledgeBase(store, emb)
             kb.add_file(zip_path)
@@ -440,7 +436,7 @@ class TestReranker:
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             db_path = f.name
         try:
-            store = VectorStore(db_path)
+            store = SqliteVectorStore(db_path)
             store.add_document(Document(id="d1", title="条款"))
             store.add_chunks(
                 [

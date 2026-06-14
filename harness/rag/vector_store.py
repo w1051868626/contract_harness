@@ -1,10 +1,11 @@
-"""向量存储模块，基于 SQLite 的本地向量数据库。"""
+"""向量存储模块，支持 SQLite 和 Chroma 后端。"""
 
 from __future__ import annotations
 
 import json
 import math
 import sqlite3
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -34,7 +35,6 @@ class Document:
 
 
 def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    """计算两个向量的余弦相似度。"""
     dot = sum(x * y for x, y in zip(a, b))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(x * x for x in b))
@@ -44,20 +44,43 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 def _serialize_embedding(emb: list[float]) -> bytes:
-    """将向量序列化为二进制。"""
     return json.dumps(emb).encode("utf-8")
 
 
 def _deserialize_embedding(data: bytes) -> list[float]:
-    """从二进制反序列化向量。"""
     return json.loads(data.decode("utf-8"))
 
 
-class VectorStore:
-    """基于 SQLite 的向量存储，支持增删查。"""
+class VectorStore(ABC):
+    """向量存储抽象基类。"""
+
+    @abstractmethod
+    def add_document(self, document: Document) -> str: ...
+
+    @abstractmethod
+    def add_chunk(self, chunk: Chunk): ...
+
+    def add_chunks(self, chunks: list[Chunk]):
+        for chunk in chunks:
+            self.add_chunk(chunk)
+
+    @abstractmethod
+    def search(self, query_embedding: list[float], top_k: int = 5) -> list[Chunk]: ...
+
+    @abstractmethod
+    def list_documents(self) -> list[Document]: ...
+
+    @abstractmethod
+    def delete_document(self, document_id: str): ...
+
+    @abstractmethod
+    def close(self): ...
+
+
+class SqliteVectorStore(VectorStore):
+    """基于 SQLite 的本地向量数据库，全量余弦相似度搜索。"""
 
     def __init__(self, db_path: str | Path):
-        """初始化数据库连接与表结构。"""
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self._db_path))
@@ -65,7 +88,6 @@ class VectorStore:
         self._init_schema()
 
     def _init_schema(self):
-        """创建文档表和分块表。"""
         self._conn.executescript("""
             CREATE TABLE IF NOT EXISTS documents (
                 id TEXT PRIMARY KEY,
@@ -87,7 +109,6 @@ class VectorStore:
         self._conn.commit()
 
     def add_document(self, document: Document) -> str:
-        """添加或替换文档记录。"""
         self._conn.execute(
             "INSERT OR REPLACE INTO documents (id, title, source, metadata) VALUES (?, ?, ?, ?)",
             (document.id, document.title, document.source, json.dumps(document.metadata)),
@@ -96,7 +117,6 @@ class VectorStore:
         return document.id
 
     def add_chunk(self, chunk: Chunk):
-        """添加单个分块。"""
         sql = (
             "INSERT OR REPLACE INTO chunks "
             "(id, document_id, content, embedding, metadata, chunk_index) "
@@ -115,18 +135,11 @@ class VectorStore:
         )
         self._conn.commit()
 
-    def add_chunks(self, chunks: list[Chunk]):
-        """批量添加分块。"""
-        for chunk in chunks:
-            self.add_chunk(chunk)
-
     def search(self, query_embedding: list[float], top_k: int = 5) -> list[Chunk]:
-        """根据查询向量检索最相似的 top_k 个分块。"""
         rows = self._conn.execute(
             "SELECT id, document_id, content, embedding, metadata, chunk_index FROM chunks "
             "WHERE embedding IS NOT NULL"
         ).fetchall()
-
         scored: list[Chunk] = []
         for row_id, doc_id, content, emb_bytes, meta_json, idx in rows:
             if not emb_bytes:
@@ -143,23 +156,160 @@ class VectorStore:
                     chunk_index=idx,
                 )
             )
-
         scored.sort(key=lambda c: c.score, reverse=True)
         return scored[:top_k]
 
     def list_documents(self) -> list[Document]:
-        """按创建时间倒序列出所有文档。"""
         rows = self._conn.execute(
             "SELECT id, title, source, metadata FROM documents ORDER BY created_at DESC"
         ).fetchall()
         return [Document(id=r[0], title=r[1], source=r[2], metadata=json.loads(r[3])) for r in rows]
 
     def delete_document(self, document_id: str):
-        """删除文档及其所有分块。"""
         self._conn.execute("DELETE FROM chunks WHERE document_id = ?", (document_id,))
         self._conn.execute("DELETE FROM documents WHERE id = ?", (document_id,))
         self._conn.commit()
 
     def close(self):
-        """关闭数据库连接。"""
         self._conn.close()
+
+
+class ChromaVectorStore(VectorStore):
+    """基于 Chroma 的向量数据库，支持 ANN 近似搜索。"""
+
+    def __init__(
+        self,
+        persist_dir: str | Path,
+        collection_name: str = "contract_harness",
+        embedding_dim: int = 1536,
+    ):
+        import chromadb
+        from chromadb.config import Settings
+
+        self._embedding_dim = embedding_dim
+        persist_path = Path(persist_dir)
+        persist_path.mkdir(parents=True, exist_ok=True)
+        self._client = chromadb.PersistentClient(
+            path=str(persist_path),
+            settings=Settings(anonymized_telemetry=False),
+        )
+        self._collection = self._client.get_or_create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"},
+        )
+
+    def add_document(self, document: Document) -> str:
+        self._client.get_or_create_collection(
+            name=f"doc_meta_{document.id}",
+            metadata={"title": document.title, "source": document.source},
+        )
+        return document.id
+
+    def add_chunk(self, chunk: Chunk):
+        if not chunk.embedding:
+            return
+        metadata = dict(chunk.metadata)
+        metadata["document_id"] = chunk.document_id
+        metadata["chunk_index"] = chunk.chunk_index
+        self._collection.add(
+            ids=[chunk.id],
+            embeddings=[chunk.embedding],
+            metadatas=[metadata],
+            documents=[chunk.content],
+        )
+
+    def add_chunks(self, chunks: list[Chunk]):
+        ids: list[str] = []
+        embeddings: list[list[float]] = []
+        metadatas: list[dict[str, Any]] = []
+        documents: list[str] = []
+        for chunk in chunks:
+            if not chunk.embedding:
+                continue
+            ids.append(chunk.id)
+            embeddings.append(chunk.embedding)
+            meta = dict(chunk.metadata)
+            meta["document_id"] = chunk.document_id
+            meta["chunk_index"] = chunk.chunk_index
+            metadatas.append(meta)
+            documents.append(chunk.content)
+        if ids:
+            self._collection.add(
+                ids=ids,
+                embeddings=embeddings,
+                metadatas=metadatas,
+                documents=documents,
+            )
+
+    def search(self, query_embedding: list[float], top_k: int = 5) -> list[Chunk]:
+        results = self._collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k,
+        )
+        chunks: list[Chunk] = []
+        ids = results.get("ids", [[]])[0]
+        distances = results.get("distances", [[]])[0]
+        metadatas = results.get("metadatas", [[]])[0]
+        documents = results.get("documents", [[]])[0]
+
+        for i in range(len(ids)):
+            meta = metadatas[i] if metadatas else {}
+            chunks.append(
+                Chunk(
+                    id=ids[i],
+                    document_id=meta.get("document_id", ""),
+                    content=documents[i] if documents else "",
+                    score=1.0 - distances[i] if distances else 0.0,
+                    metadata={
+                        k: v for k, v in meta.items() if k not in ("document_id", "chunk_index")
+                    },
+                    chunk_index=meta.get("chunk_index", 0),
+                )
+            )
+        return chunks
+
+    def list_documents(self) -> list[Document]:
+        collections = self._client.list_collections()
+        docs: list[Document] = []
+        for coll in collections:
+            if coll.name == self._collection.name:
+                continue
+            if not coll.name.startswith("doc_meta_"):
+                continue
+            doc_id = coll.name[len("doc_meta_") :]
+            meta = coll.metadata or {}
+            docs.append(
+                Document(
+                    id=doc_id,
+                    title=meta.get("title", doc_id),
+                    source=meta.get("source", ""),
+                )
+            )
+        return docs
+
+    def delete_document(self, document_id: str):
+        meta_key = f"doc_meta_{document_id}"
+        try:
+            self._client.delete_collection(meta_key)
+        except ValueError:
+            pass
+        results = self._collection.get(where={"document_id": document_id})
+        if results and results.get("ids"):
+            self._collection.delete(ids=results["ids"])
+
+    def close(self):
+        pass
+
+
+def create_vector_store(
+    path: str | Path,
+    backend: str = "sqlite",
+    **kwargs: Any,
+) -> VectorStore:
+    """向量存储工厂函数。"""
+    backend = backend.lower()
+    if backend == "sqlite":
+        return SqliteVectorStore(path)
+    if backend == "chroma":
+        return ChromaVectorStore(path, **kwargs)
+    raise ValueError(f"Unsupported vector store backend: {backend}")

@@ -23,5 +23,6 @@ dependencies:
   - ruff>=0.4
   - pip:
     - openai>=1.0
+    - chromadb>=0.5.0
     - sentence-transformers>=3.0
     - pyright>=1.1
