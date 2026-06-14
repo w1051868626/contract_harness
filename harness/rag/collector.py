@@ -179,14 +179,13 @@ class PlaywrightNPCSource(LawSource):
                 ),
                 locale="zh-CN",
             )
-            page = context.new_page()
-            page.goto("https://flk.npc.gov.cn")
+            api = context.request
 
             for q in queries:
                 page_num = 1
                 while len(results) < self.page_size:
                     try:
-                        items = self._search_page_playwright(page, q or "民法典", page_num)
+                        items = self._search_page_playwright(api, q or "民法典", page_num)
                         if not items:
                             break
                         for item in items:
@@ -194,7 +193,7 @@ class PlaywrightNPCSource(LawSource):
                             if title in seen_titles:
                                 continue
                             seen_titles.add(title)
-                            detail = self._fetch_detail_playwright(page, item.get("id", ""))
+                            detail = self._fetch_detail_playwright(api, item.get("id", ""))
                             if detail:
                                 results.append(detail)
                             if len(results) >= self.page_size:
@@ -209,8 +208,8 @@ class PlaywrightNPCSource(LawSource):
 
         return results
 
-    def _search_page_playwright(self, page, query: str, page_num: int) -> list[dict[str, Any]]:
-        resp = page.request.get(
+    def _search_page_playwright(self, api, query: str, page_num: int) -> list[dict[str, Any]]:
+        resp = api.get(
             self.SEARCH_URL,
             params={
                 "page": str(page_num),
@@ -229,8 +228,8 @@ class PlaywrightNPCSource(LawSource):
         data = resp.json()
         return data.get("result", [])
 
-    def _fetch_detail_playwright(self, page, law_id: str) -> dict[str, str] | None:
-        resp = page.request.post(self.DETAIL_URL, data={"id": law_id})
+    def _fetch_detail_playwright(self, api, law_id: str) -> dict[str, str] | None:
+        resp = api.post(self.DETAIL_URL, data={"id": law_id})
         data = resp.json().get("result", {})
         title = data.get("title", "")
         content = data.get("body", "") or data.get("bodyText", "") or data.get("content", "")
