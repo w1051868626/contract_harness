@@ -72,7 +72,7 @@ class KnowledgeBase:
             model=cfg.llm.chunk_model,
             proxy=cfg.llm.proxy,
         )
-        chunk_llm = LLMClient(chunk_cfg) if chunk_cfg.api_key else llm
+        chunk_llm = LLMClient(chunk_cfg) if chunk_cfg.api_key and chunk_cfg.model else None
         return cls(
             store=store,
             embedding=embedding,

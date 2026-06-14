@@ -25,7 +25,7 @@ class LLMConfig:
     temperature: float = 0.1
     max_tokens: int = 4096
     timeout: int = 120
-    chunk_model: str = "gpt-4o-mini"
+    chunk_model: str = ""
     chunk_api_key: str = ""
     chunk_api_base: str = ""
 
