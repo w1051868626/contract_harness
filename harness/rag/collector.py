@@ -179,13 +179,17 @@ class PlaywrightNPCSource(LawSource):
                 ),
                 locale="zh-CN",
             )
-            api = context.request
+            page = context.new_page()
+
+            # 使用 JavaScript 导航到 NPC 网站建立浏览器会话（绕过 page.goto 序列化缺陷）
+            page.evaluate("window.location.href = 'https://flk.npc.gov.cn'")
+            page.wait_for_timeout(5000)
 
             for q in queries:
                 page_num = 1
                 while len(results) < self.page_size:
                     try:
-                        items = self._search_page_playwright(api, q or "民法典", page_num)
+                        items = self._search_page_js(page, q or "民法典", page_num)
                         if not items:
                             break
                         for item in items:
@@ -193,7 +197,7 @@ class PlaywrightNPCSource(LawSource):
                             if title in seen_titles:
                                 continue
                             seen_titles.add(title)
-                            detail = self._fetch_detail_playwright(api, item.get("id", ""))
+                            detail = self._fetch_detail_js(page, item.get("id", ""))
                             if detail:
                                 results.append(detail)
                             if len(results) >= self.page_size:
@@ -208,34 +212,47 @@ class PlaywrightNPCSource(LawSource):
 
         return results
 
-    def _search_page_playwright(self, api, query: str, page_num: int) -> list[dict[str, Any]]:
-        resp = api.get(
-            self.SEARCH_URL,
-            params={
-                "page": str(page_num),
-                "size": "10",
-                "type": "flfg",
-                "searchType": "title;accurate",
-                "sortTr": "f_bbrq_s;desc",
-                "gbrqStart": "",
-                "gbrqEnd": "",
-                "sxrqStart": "",
-                "sxrqEnd": "",
-                "sort": "true",
-                "searchWord": query,
-            },
-        )
-        data = resp.json()
-        return data.get("result", [])
+    def _search_page_js(self, page, query: str, page_num: int) -> list[dict[str, Any]]:
+        """在浏览器页面内使用 JavaScript fetch 搜索，拥有完整浏览器会话。"""
+        return page.evaluate("""async (args) => {
+            const params = new URLSearchParams({
+                page: String(args.pageNum),
+                size: '10',
+                type: 'flfg',
+                searchType: 'title;accurate',
+                sortTr: 'f_bbrq_s;desc',
+                gbrqStart: '',
+                gbrqEnd: '',
+                sxrqStart: '',
+                sxrqEnd: '',
+                sort: 'true',
+                searchWord: args.query,
+            });
+            const resp = await fetch(args.searchUrl + '?' + params.toString(), {
+                headers: {'Accept': 'application/json'}
+            });
+            const data = await resp.json();
+            return data.result || [];
+        }""", {"query": query, "pageNum": page_num, "searchUrl": self.SEARCH_URL})
 
-    def _fetch_detail_playwright(self, api, law_id: str) -> dict[str, str] | None:
-        resp = api.post(self.DETAIL_URL, data={"id": law_id})
-        data = resp.json().get("result", {})
-        title = data.get("title", "")
-        content = data.get("body", "") or data.get("bodyText", "") or data.get("content", "")
-        if not title or not content:
-            return None
-        return {"title": title, "content": content}
+    def _fetch_detail_js(self, page, law_id: str) -> dict[str, str] | None:
+        """在浏览器页面内使用 JavaScript fetch 获取详情，拥有完整浏览器会话。"""
+        data = page.evaluate("""async (args) => {
+            const resp = await fetch(args.detailUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: args.lawId}),
+            });
+            const d = await resp.json();
+            const r = d.result || {};
+            return {
+                title: r.title || '',
+                content: r.body || r.bodyText || r.content || '',
+            };
+        }""", {"lawId": law_id, "detailUrl": self.DETAIL_URL})
+        if data and data.get("title") and data.get("content"):
+            return data
+        return None
 
 
 class LocalFileSource(LawSource):
