@@ -6,7 +6,19 @@ import json
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv as _load_dotenv
 from pydantic import BaseModel
+
+
+def load_dotenv(dotenv_path: str | Path | None = None) -> bool:
+    """从 .env 文件加载环境变量。
+
+    从当前目录开始向上搜索 .env 文件，或加载指定路径的文件。
+    多次调用安全，已加载后不会重复覆盖已有环境变量。
+    """
+    if dotenv_path is None:
+        return _load_dotenv()
+    return _load_dotenv(dotenv_path=Path(dotenv_path))
 
 
 def read_text(path: str | Path) -> str:

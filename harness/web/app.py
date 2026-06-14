@@ -18,6 +18,9 @@ from harness.core.types import ContractDocument
 from harness.replay.player import SessionPlayer
 from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
+from harness.utils.io import load_dotenv
+
+load_dotenv()
 
 HERE = Path(__file__).parent
 

@@ -16,7 +16,7 @@ harness/
 ├── web/          FastAPI Web 界面（审查 + 会话）
 ├── cli/          命令行入口（click + rich）
 ├── core/         核心类型（pydantic）、配置、异常
-└── utils/        工具函数
+└── utils/        工具函数（含 load_dotenv、文件读写等）
 ```
 
 ## 开发命令
@@ -76,6 +76,7 @@ conda activate contract-harness
 - fastapi + uvicorn（Web 界面）
 - pypdf + python-docx（文档解析）
 - sentence-transformers（本地 embedding / reranker）
+- python-dotenv（.env 加载）
 - ruff + pyright（代码规范）
 
 ## 环境变量
@@ -84,7 +85,11 @@ conda activate contract-harness
 - `EMBEDDING_API_KEY/BASE` — Embedding 独立密钥和地址
 - `LLM_PROVIDER/PROXY` — LLM 供应商和代理
 - `RERANK_PROVIDER/API_KEY/API_BASE/MODEL` — Reranker 配置
+- `CHUNK_API_KEY/BASE/MODEL` — AI 分块 LLM 独立配置
 - `HTTP_PROXY` — 通用代理回退
+- `HARNESS_DATA_DIR` — 数据根目录
+
+支持 `.env` 文件（项目根目录自动加载）。
 
 ## 规则
 
@@ -96,3 +101,7 @@ conda activate contract-harness
 ## 目标
 
 构建一套合同审查 Agent 的 Harness Engineering 体系，确保 Agent 可回放、可评测、可回归。
+
+## 更新记录
+
+- 2026-06-14: 新增 `load_dotenv()` 工具函数，CLI/Web 入口自动加载 `.env`；新增 `python-dotenv` 依赖；同步更新 pyproject.toml/environment.yml/README.md/AGENTS.md/CLAUDE.md。

@@ -14,7 +14,7 @@ harness/
 ├── web/          FastAPI Web 界面（审查 + 会话）
 ├── cli/          命令行入口（click + rich）
 ├── core/         核心类型（pydantic）、配置、异常
-└── utils/        工具函数
+└── utils/        工具函数（含 load_dotenv、文件读写等）
 ```
 
 ## 关键文件
@@ -64,6 +64,13 @@ harness serve                              # 启动 Web 界面
 | `RERANK_PROVIDER/API_KEY/API_BASE/MODEL` | Reranker 配置 |
 | `HTTP_PROXY` | 通用代理回退 |
 | `HARNESS_DATA_DIR` | 数据根目录（默认项目下 `.harness/`） |
+| `CHUNK_API_KEY` | AI 分块 API 密钥 |
+| `CHUNK_API_BASE` | AI 分块 API 地址 |
+| `CHUNK_MODEL` | AI 分块模型 |
+
+### .env 文件
+
+项目启动时（CLI / Web）自动调用 `harness.utils.io.load_dotenv()`，从项目目录向上搜索 `.env` 并加载。支持 `CHUNK_API_KEY`、`CHUNK_API_BASE` 等环境变量。
 
 ## 约定
 
@@ -74,3 +81,7 @@ harness serve                              # 启动 Web 界面
 - LLMClient 空 key 延迟到 `client` 属性报错（非 `__init__`）
 - 数据目录默认 `project_root/.harness/`，可被 `HARNESS_DATA_DIR` 覆盖
 - CI type-check 安装 `.[dev]`
+
+## 更新记录
+
+- 2026-06-14: 新增 `load_dotenv()` 工具函数（`harness/utils/io.py`），CLI 入口和 Web 入口自动加载 `.env`；新增依赖 `python-dotenv`；同步更新文档。

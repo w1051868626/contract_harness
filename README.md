@@ -178,6 +178,8 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 
 ## 环境变量
 
+项目启动时自动从项目根目录向上加载 `.env` 文件（`harness/utils/io.py:load_dotenv`）。
+
 | 变量 | 说明 | 默认值 |
 |---|---|---|
 | `OPENAI_API_KEY` | LLM API 密钥（必填） | - |

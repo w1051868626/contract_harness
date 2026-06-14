@@ -24,7 +24,9 @@ from harness.regression.suite import RegressionSuite
 from harness.replay.player import SessionPlayer
 from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
-from harness.utils.io import read_text
+from harness.utils.io import load_dotenv, read_text
+
+load_dotenv()
 
 console = Console()
 
