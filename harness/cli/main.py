@@ -17,7 +17,6 @@ from harness.core.types import ContractDocument
 from harness.eval.dataset import EvalDataset
 from harness.eval.reporters import EvalReporter
 from harness.eval.scorer import EvalScorer
-from harness.rag.collector import collect as collect_laws
 from harness.rag.knowledge_base import KnowledgeBase
 from harness.rag.seed_laws import get_seed_laws
 from harness.regression.comparator import OutputComparator
@@ -259,44 +258,6 @@ def serve(host: str, port: int, reload: bool) -> None:
     if reload:
         console.print("[yellow]热重载已启用[/yellow]")
     uvicorn.run(app, host=host, port=port, reload=reload)
-
-
-# ---- 法律采集命令 ----
-
-
-@cli.command()
-@click.option("--source", default="npc", help="采集源（npc / seed），默认 npc")
-@click.option("--query", default="", help="搜索关键词")
-@click.option("--output", "-o", default="", help="输出目录（默认 kb 的本地收集目录）")
-@click.option("--import/--no-import", "import_", default=True, help="采集后自动导入知识库")
-@click.pass_context
-def collect(ctx: click.Context, source: str, query: str, output: str, import_: bool) -> None:
-    """从公开来源采集法律条文并导入知识库。"""
-    config: HarnessConfig = ctx.obj["config"]
-    config.ensure_dirs()
-    proxy = config.llm.proxy or None
-    out = output or str(Path(config.kb_dir).parent / "collected")
-
-    with console.status(f"正在从 [{source}] 采集..."):
-        laws = collect_laws(source=source, query=query, output_dir=out, proxy=proxy)
-
-    if not laws:
-        console.print("[yellow]未采集到条文[/yellow]")
-        return
-
-    console.print(f"[green]采集到 {len(laws)} 篇条文[/green]")
-
-    if import_:
-        console.status("正在导入知识库...")
-        kb_instance = KnowledgeBase.from_config(config)
-        imported = 0
-        for law in laws:
-            existing = kb_instance.list_documents()
-            if any(d.title == law["title"] for d in existing):
-                continue
-            kb_instance.add_text(title=law["title"], content=law["content"])
-            imported += 1
-        console.print(f"[green]导入完成: {imported} 篇[/green]")
 
 
 # ---- 知识库命令 ----

@@ -23,7 +23,6 @@ python-multipart>=0.0.9
 
 # Local AI
 sentence-transformers>=3.0
-playwright>=1.40
 
 # Dev
 pytest>=8.0

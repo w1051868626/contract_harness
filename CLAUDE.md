@@ -19,7 +19,6 @@ harness/
 
 ## 关键文件
 
-- `harness/rag/collector.py` — 法律条文采集器（SeedLawSource / NPCLawSource / PlaywrightNPCSource / LocalFileSource），`pw-npc` 源用 Playwright 建立浏览器 session 后提取 cookies，再用 httpx 调 NPC API
 - `harness/rag/knowledge_base.py` — KnowledgeBase，`from_config()` 类方法创建实例
 - `harness/rag/embedding.py` — EmbeddingProvider / OpenAIEmbeddingProvider（离线 hash 回退）
 - `harness/rag/reranker.py` — Reranker ABC / OpenAIReranker / LocalReranker
@@ -45,9 +44,6 @@ pyright harness/
 ## 关键命令
 
 ```bash
-harness collect --source seed              # 内置种子采集
-harness collect --source npc --query 民法典  # httpx 采集（有 cookie 时可用）
-harness collect --source pw-npc --query 民法典  # Playwright 浏览器采集
 harness kb seed                            # 导入内置法律条文
 harness kb search <query>                  # 检索知识库
 harness review <file>                      # 审查合同
@@ -76,11 +72,4 @@ harness serve                              # 启动 Web 界面
 - docstring 必须在 `from __future__ import annotations` 之前（ruff E402）
 - LLMClient 空 key 延迟到 `client` 属性报错（非 `__init__`）
 - 数据目录默认 `project_root/.harness/`，可被 `HARNESS_DATA_DIR` 覆盖
-- CI type-check 安装 `.[dev,local]` 以引入 playwright
-
-## 已知问题
-
-- 国家法律法规数据库（flk.npc.gov.cn）有反爬保护
-- `NPCLawSource`（`--source npc`）直接 httpx 请求返回 HTML，需 `--source pw-npc`
-- `PlaywrightNPCSource` 某些 Playwright 版本 `page.goto()` 有 Union 序列化缺陷，使用 `page.evaluate("window.location.href = ...")` + `context.cookies()` + httpx 替代
-- 安装 playwright 后需要运行 `playwright install chromium`
+- CI type-check 安装 `.[dev]`
