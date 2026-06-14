@@ -1,9 +1,11 @@
 # contract-harness 项目记忆
 
 ## 项目概述
-可回放、可评测、可回归的**法律合同审查 Agent** 系统，基于自研 Loop 框架（Python 3.11+）。
 
-## 目录结构
+可回放、可评测、可回归的**法律合同审查 Agent** 系统，基于自研 Agent Loop 框架（Python 3.11+）。
+
+## 架构
+
 ```
 harness/
 ├── agent/        合同审查 Agent（LLM 编排 + 工具调用）
@@ -17,7 +19,21 @@ harness/
 └── utils/        工具函数
 ```
 
+## 开发命令
+
+```bash
+conda activate contract-harness
+pip install -e ".[dev]"       # 安装开发依赖
+pip install -e ".[local]"     # 安装本地模型依赖（sentence-transformers）
+git pull origin main           # 拉取最新代码
+pytest tests/ -v
+ruff check harness/ tests/
+ruff format --check harness/ tests/
+pyright harness/
+```
+
 ## 关键命令
+
 ```bash
 # 审查合同
 harness review <file>
@@ -48,32 +64,15 @@ harness collect --source pw-npc    # 通过 Playwright 采集（绕过反爬）
 ```
 
 ## Conda 环境
+
 ```bash
 conda activate contract-harness
 ```
 
 环境定义在 `environment.yml`，位于项目根目录。
 
-## 开发命令
-```bash
-conda activate contract-harness
-pip install -e ".[dev]"       # 安装开发依赖
-pip install -e ".[local]"     # 安装本地模型依赖（sentence-transformers）
-git pull origin main           # 拉取最新代码
-pytest tests/ -v
-ruff check harness/ tests/
-ruff format --check harness/ tests/
-pyright harness/
-```
-
-## 环境变量
-- `OPENAI_API_KEY` — LLM API 密钥
-- `EMBEDDING_API_KEY/BASE` — Embedding 独立密钥和地址
-- `LLM_PROVIDER/PROXY` — LLM 供应商和代理
-- `RERANK_PROVIDER/API_KEY/API_BASE/MODEL` — Reranker 配置
-- `HTTP_PROXY` — 通用代理回退
-
 ## 技术栈
+
 - Python 3.11+ / 自研 Agent Loop
 - click + rich（CLI）
 - openai（LLM 客户端）
@@ -85,11 +84,21 @@ pyright harness/
 - sentence-transformers（本地 embedding / reranker）
 - ruff + pyright（代码规范）
 
+## 环境变量
+
+- `OPENAI_API_KEY` — LLM API 密钥
+- `EMBEDDING_API_KEY/BASE` — Embedding 独立密钥和地址
+- `LLM_PROVIDER/PROXY` — LLM 供应商和代理
+- `RERANK_PROVIDER/API_KEY/API_BASE/MODEL` — Reranker 配置
+- `HTTP_PROXY` — 通用代理回退
+
 ## 规则
+
 - 每次更改后都必须提交（commit）并推送（push）到远程仓库
 - 每次更新后同步更新 README.md
 - 新增依赖时同步更新 `environment.yml` 和 `pyproject.toml`（二者必须保持一致）
 - 增加新功能时必须同步添加相应的测试用例
 
 ## 目标
+
 构建一套合同审查 Agent 的 Harness Engineering 体系，确保 Agent 可回放、可评测、可回归。
