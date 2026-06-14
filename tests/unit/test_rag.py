@@ -197,6 +197,23 @@ class TestKnowledgeBase:
         assert any("第一条" in c.content for c in chunks)
         assert any("第二条" in c.content for c in chunks)
 
+    def test_chunk_legal_metadata(self):
+        """法律分块应在 metadata 中记录章/条层级。"""
+        text = """第一章 总则
+
+第一条 为了保护合同当事人的合法权益，制定本法。
+
+第二章 合同的订立
+
+第二条 合同是平等主体之间设立、变更、终止民事权利义务关系的协议。
+
+第三条 当事人订立合同，应当具有相应的民事权利能力和民事行为能力。"""
+        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 300, 30)
+        assert chunks is not None
+        assert chunks[0].metadata.get("chapter") == "第一章 总则"
+        has_articles = any("articles" in c.metadata for c in chunks)
+        assert has_articles, "应包含 articles 范围信息"
+
 
 class TestEmbeddingProvider:
     """嵌入提供者工厂与 Mock 实现测试。"""

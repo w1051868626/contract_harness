@@ -297,10 +297,31 @@ class KnowledgeBase:
         chunks: list[Chunk] = []
         idx = 0
 
+        cur_chapter = ""
+        cur_section = ""
+
+        def _get_article_range(buf: list[str]) -> str:
+            arts = [p for p in buf if re.match(r'第[一二三四五六七八九十百千零\d]+条', p.strip())]
+            if not arts:
+                return ""
+            first = re.match(r'第([一二三四五六七八九十百千零\d]+)条', arts[0].strip())
+            last = re.match(r'第([一二三四五六七八九十百千零\d]+)条', arts[-1].strip())
+            if not first or not last:
+                return ""
+            return f"{first.group(0)}—{last.group(0)}" if first.group(1) != last.group(1) else first.group(0)
+
         def _flush(buf: list[str]) -> None:
             nonlocal idx
             if buf:
-                chunks.append(KnowledgeBase._make_chunk(buf, doc_id, idx))
+                meta: dict[str, Any] = {}
+                if cur_chapter:
+                    meta["chapter"] = cur_chapter
+                if cur_section:
+                    meta["section"] = cur_section
+                art_range = _get_article_range(buf)
+                if art_range:
+                    meta["articles"] = art_range
+                chunks.append(KnowledgeBase._make_chunk(buf, doc_id, idx, metadata=meta))
                 idx += 1
 
         def _is_header(p: str) -> bool:
@@ -319,6 +340,13 @@ class KnowledgeBase:
 
             if is_hdr:
                 _flush(buffer)
+                hdr_match = re.match(r'(第[一二三四五六七八九十百千零\d]+)([章节分编])', part.strip())
+                if hdr_match:
+                    if hdr_match.group(2) in ("章", "编"):
+                        cur_chapter = part.strip()
+                        cur_section = ""
+                    elif hdr_match.group(2) in ("节", "分编"):
+                        cur_section = part.strip()
                 buffer = [part]
                 buf_len = part_len
             elif buf_len + part_len <= chunk_size:
@@ -457,11 +485,17 @@ class KnowledgeBase:
         return carry
 
     @staticmethod
-    def _make_chunk(segments: list[str], doc_id: str, idx: int) -> Chunk:
+    def _make_chunk(
+        segments: list[str],
+        doc_id: str,
+        idx: int,
+        metadata: dict[str, Any] | None = None,
+    ) -> Chunk:
         """创建 Chunk 对象。"""
         return Chunk(
             id=uuid.uuid4().hex[:12],
             document_id=doc_id,
             content="\n\n".join(segments),
             chunk_index=idx,
+            metadata=metadata or {},
         )
