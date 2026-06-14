@@ -250,22 +250,35 @@ class TestFileParsing:
             Path(path).unlink(missing_ok=True)
 
     def test_parse_zip(self):
-        """应正确解压 zip 并拼接内部文件内容。"""
+        """zip 应解压并以内部文件名作为标题分别导入。"""
         import zipfile
 
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
             zip_path = f.name
+        db_path = ""
         try:
             with zipfile.ZipFile(zip_path, "w") as zf:
-                zf.writestr("doc1.txt", "第一条内容")
-                zf.writestr("doc2.txt", "第二条内容")
-            content = KnowledgeBase._parse_file(Path(zip_path))
-            assert "第一条内容" in content
-            assert "第二条内容" in content
-            assert "doc1.txt" in content
-            assert "doc2.txt" in content
+                zf.writestr("合同A.txt", "第一条内容")
+                zf.writestr("合同B.txt", "第二条内容")
+
+            with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f2:
+                db_path = f2.name
+            from harness.rag.vector_store import VectorStore
+            store = VectorStore(db_path)
+            emb = _MockEmbeddingProvider()
+            kb = KnowledgeBase(store, emb)
+            result = kb.add_file(zip_path)
+            docs = store.list_documents()
+            assert len(docs) == 2
+            titles = {d.title for d in docs}
+            assert "合同A" in titles
+            assert "合同B" in titles
+            assert result  # first doc_id is returned
+            store.close()
         finally:
             Path(zip_path).unlink(missing_ok=True)
+            if db_path:
+                Path(db_path).unlink(missing_ok=True)
 
     def test_parse_zip_skip_unsupported(self):
         """zip 中的不支持格式应被跳过。"""
@@ -273,15 +286,27 @@ class TestFileParsing:
 
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
             zip_path = f.name
+        db_path = ""
         try:
             with zipfile.ZipFile(zip_path, "w") as zf:
                 zf.writestr("doc.txt", "文本内容")
                 zf.writestr("image.png", b"fake_png")
-            content = KnowledgeBase._parse_file(Path(zip_path))
-            assert "文本内容" in content
-            assert "image.png" not in content
+
+            with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f2:
+                db_path = f2.name
+            from harness.rag.vector_store import VectorStore
+            store = VectorStore(db_path)
+            emb = _MockEmbeddingProvider()
+            kb = KnowledgeBase(store, emb)
+            kb.add_file(zip_path)
+            docs = store.list_documents()
+            assert len(docs) == 1
+            assert docs[0].title == "doc"
+            store.close()
         finally:
             Path(zip_path).unlink(missing_ok=True)
+            if db_path:
+                Path(db_path).unlink(missing_ok=True)
 
 
 class _MockReranker(Reranker):

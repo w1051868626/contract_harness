@@ -272,16 +272,25 @@ def kb() -> None:
 @click.argument("file_path", type=click.Path(exists=True))
 @click.pass_context
 def import_file(ctx: click.Context, file_path: str) -> None:
-    """将单个文件导入知识库。"""
+    """将单个文件导入知识库（zip 会自动解压分别导入）。"""
     config: HarnessConfig = ctx.obj["config"]
     config.ensure_dirs()
     kb_instance = KnowledgeBase.from_config(config)
     with console.status("正在导入文件..."):
-        doc_id = kb_instance.add_file(file_path)
-    if doc_id:
-        console.print(f"[green]导入成功:[/green] {Path(file_path).name} → {doc_id}")
-    else:
-        console.print("[red]导入失败[/red]")
+        if file_path.lower().endswith(".zip"):
+            doc_ids = kb_instance._add_zip(Path(file_path))
+            if doc_ids:
+                console.print(f"[green]导入成功:[/green] {Path(file_path).name}")
+                for did in doc_ids:
+                    console.print(f"  [green]✓[/green] {did}")
+            else:
+                console.print("[red]导入失败[/red]")
+        else:
+            doc_id = kb_instance.add_file(file_path)
+            if doc_id:
+                console.print(f"[green]导入成功:[/green] {Path(file_path).name} → {doc_id}")
+            else:
+                console.print("[red]导入失败[/red]")
 
 
 @kb.command()
@@ -299,8 +308,12 @@ def import_dir(ctx: click.Context, directory: str) -> None:
         return
     for f in files:
         with console.status(f"正在导入 {f.name}..."):
-            doc_id = kb_instance.add_file(str(f))
-            console.print(f"  [green]✓[/green] {f.name} → {doc_id}")
+            if f.suffix.lower() == ".zip":
+                doc_ids = kb_instance._add_zip(f)
+                console.print(f"  [green]✓[/green] {f.name} ({len(doc_ids)} 篇)")
+            else:
+                doc_id = kb_instance.add_file(str(f))
+                console.print(f"  [green]✓[/green] {f.name} → {doc_id}")
 
 
 @kb.command()
