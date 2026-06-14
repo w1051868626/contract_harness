@@ -194,6 +194,7 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `EMBEDDING_PROVIDER` | Embedding 供应商 | `openai` |
 | `EMBEDDING_API_KEY` | Embedding API 密钥 | 同 `OPENAI_API_KEY` |
 | `EMBEDDING_API_BASE` | Embedding API 地址 | 同 `OPENAI_API_BASE` |
+| `EMBEDDING_MODEL` | Embedding 模型 | `text-embedding-3-small` |
 | `EMBEDDING_PROXY` | Embedding 代理地址 | 同 `HTTP_PROXY` |
 | `RERANK_PROVIDER` | Reranker 供应商（openai / local） | 无 |
 | `RERANK_API_KEY` | Reranker API 密钥 | 同 `OPENAI_API_KEY` |

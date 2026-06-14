@@ -59,7 +59,7 @@ harness serve                              # 启动 Web 界面
 | 变量 | 说明 |
 |---|---|
 | `OPENAI_API_KEY` | LLM API 密钥 |
-| `EMBEDDING_API_KEY/BASE` | Embedding 独立密钥和地址 |
+| `EMBEDDING_API_KEY/BASE/MODEL` | Embedding 独立密钥、地址和模型 |
 | `LLM_PROVIDER` / `LLM_PROXY` | LLM 供应商和代理 |
 | `RERANK_PROVIDER/API_KEY/API_BASE/MODEL` | Reranker 配置 |
 | `HTTP_PROXY` | 通用代理回退 |

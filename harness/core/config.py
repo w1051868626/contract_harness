@@ -71,6 +71,7 @@ class EmbeddingConfig:
             self.api_base = os.getenv("EMBEDDING_API_BASE", os.getenv("OPENAI_API_BASE", ""))
         if self.proxy is None:
             self.proxy = os.getenv("EMBEDDING_PROXY", os.getenv("HTTP_PROXY", "")) or None
+        self.model = os.getenv("EMBEDDING_MODEL", self.model)
 
         self.rerank_provider = os.getenv("RERANK_PROVIDER", self.rerank_provider)
         if not self.rerank_api_key:
