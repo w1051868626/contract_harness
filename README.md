@@ -71,7 +71,7 @@ harness serve
 
 ```bash
 harness kb seed                    # 导入内置法律条文（民法典、劳动合同法等 7 部）
-harness kb import <file>           # 导入单个文件
+harness kb import <file>           # 导入单个文件（支持 txt/md/json/pdf/docx/zip）
 harness kb import-dir <directory>  # 批量导入目录下所有文件
 harness kb list                    # 列出所有文档
 harness kb search <query>          # 检索知识库
@@ -151,7 +151,7 @@ agent = ContractAgent(llm, knowledge_base=kb)
 
 - **Embedding**：支持 OpenAI API（默认）和本地 sentence-transformers 模型
 - **向量存储**：SQLite 持久化，余弦相似度搜索
-- **文档解析**：支持 TXT / JSON / PDF / DOCX 格式
+- **文档解析**：支持 TXT / JSON / PDF / DOCX / ZIP（自动解压提取）格式
 - **分块策略**：AI 智能分块（可选 LLM 驱动）→ 段落级 → 句子级 → 字符回退
 - **重排序**：支持 Reranker 精排，在向量检索后对候选结果重新打分排序（OpenAI API / local cross-encoder）
 - **种子数据**：内置 7 部常用法律条文（民法典合同编、劳动合同法、数据安全法、个人信息保护法、反垄断法、公司法、商标法），`harness kb seed` 一键导入

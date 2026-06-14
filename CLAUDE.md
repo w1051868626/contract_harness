@@ -19,7 +19,7 @@ harness/
 
 ## 关键文件
 
-- `harness/rag/knowledge_base.py` — KnowledgeBase，`from_config()` 类方法创建实例
+- `harness/rag/knowledge_base.py` — KnowledgeBase，`from_config()` 类方法创建实例，`_parse_file()` 支持 txt/md/json/pdf/docx/zip
 - `harness/rag/embedding.py` — EmbeddingProvider / OpenAIEmbeddingProvider（离线 hash 回退）
 - `harness/rag/reranker.py` — Reranker ABC / OpenAIReranker / LocalReranker
 - `harness/rag/seed_laws.py` — 7 部内置法律种子数据
@@ -45,6 +45,7 @@ pyright harness/
 
 ```bash
 harness kb seed                            # 导入内置法律条文
+harness kb import <file>                   # 导入单个文件（支持 txt/md/json/pdf/docx/zip）
 harness kb search <query>                  # 检索知识库
 harness review <file>                      # 审查合同
 harness replay <session_id>               # 回放会话

@@ -52,7 +52,7 @@ harness regression diff <a> <b>
 
 # 知识库
 harness kb seed                    # 导入内置法律条文
-harness kb import <file>           # 导入文件
+harness kb import <file>           # 导入单个文件（支持 txt/md/json/pdf/docx/zip）
 harness kb import-dir <dir>        # 批量导入
 harness kb list                    # 列出文档
 harness kb search <query>          # 检索
