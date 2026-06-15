@@ -79,6 +79,13 @@ class KnowledgeBase:
             proxy=cfg.llm.proxy,
         )
         chunk_llm = LLMClient(chunk_cfg) if chunk_cfg.api_key and chunk_cfg.model else None
+        logger.debug(
+            "KnowledgeBase.from_config: kb_dir=%s, embedding=%s, reranker=%s, chunk_llm=%s",
+            cfg.kb_dir,
+            cfg.embedding.provider,
+            cfg.embedding.rerank_provider or "none",
+            chunk_cfg.model if chunk_llm else "none",
+        )
         return cls(
             store=store,
             embedding=embedding,
@@ -129,18 +136,22 @@ class KnowledgeBase:
     ) -> list[Chunk]:
         """根据配置选择 AI 分块、法律条文分块或传统分块。"""
         if use_ai and self._chunk_llm is not None:
+            logger.debug("使用 AI 分块")
             try:
                 return self._chunk_with_ai(content, doc_id)
             except Exception:
                 pass
         legal = self._chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
         if legal is not None:
+            logger.debug("使用法律条文分块: chunks=%d", len(legal))
             return legal
+        logger.debug("使用通用文本分块")
         return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
 
     def _chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
         """使用 LLM 对文本进行智能分块。"""
         assert self._chunk_llm is not None
+        logger.debug("AI 分块开始: text_len=%d, model=%s", len(text), self._chunk_model)
         prompt = CHUNK_PROMPT.format(text=text[:8000])
         resp: LLMResponse = self._chunk_llm.chat(
             [
@@ -159,7 +170,7 @@ class KnowledgeBase:
         data = json.loads(raw)
         if not isinstance(data, list):
             raise ValueError("AI chunking did not return a list")
-        return [
+        chunks = [
             Chunk(
                 id=uuid.uuid4().hex[:12],
                 document_id=doc_id,
@@ -169,6 +180,8 @@ class KnowledgeBase:
             for i, item in enumerate(data)
             if item.get("content", "").strip()
         ]
+        logger.debug("AI 分块完成: chunks=%d", len(chunks))
+        return chunks
 
     def add_file(
         self,
@@ -203,6 +216,7 @@ class KnowledgeBase:
         """解压 zip 并以内部文件名为标题分别导入。"""
         supported = {".txt", ".md", ".json", ".pdf", ".docx"}
         doc_ids: list[str] = []
+        logger.debug("解压 zip 导入: path=%s", path)
         with zipfile.ZipFile(path) as zf:
             for info in zf.infolist():
                 if info.is_dir():
@@ -235,6 +249,7 @@ class KnowledgeBase:
     def _parse_file(path: Path) -> str:
         """解析文件内容（支持 txt/md/json/pdf/docx）。"""
         suffix = path.suffix.lower()
+        logger.debug("解析文件: path=%s, suffix=%s", path.name, suffix)
         if suffix in (".txt", ".md"):
             return path.read_text(encoding="utf-8")
         if suffix == ".json":
@@ -270,10 +285,13 @@ class KnowledgeBase:
 
     def list_documents(self) -> list[Document]:
         """列出所有文档。"""
-        return self._store.list_documents()
+        docs = self._store.list_documents()
+        logger.debug("列出文档: count=%d", len(docs))
+        return docs
 
     def delete_document(self, document_id: str):
         """删除指定文档及其分块。"""
+        logger.debug("删除文档: doc_id=%s", document_id)
         self._store.delete_document(document_id)
 
     @staticmethod
@@ -383,6 +401,7 @@ class KnowledgeBase:
                     buf_len = 0
 
         _flush(buffer)
+        logger.debug("法律条文分块完成: chunks=%d", len(chunks))
         return chunks
 
     @staticmethod
@@ -399,6 +418,7 @@ class KnowledgeBase:
         segments = KnowledgeBase._split_segments(text)
 
         if len(segments) == 1 and len(text) <= chunk_size:
+            logger.debug("通用分块: text_len=%d, single_chunk", len(text))
             return [
                 Chunk(
                     id=uuid.uuid4().hex[:12],
@@ -449,6 +469,7 @@ class KnowledgeBase:
         if buffer:
             chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx))
 
+        logger.debug("通用分块完成: text_len=%d, chunks=%d", len(text), len(chunks))
         return chunks
 
     @staticmethod
