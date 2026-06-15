@@ -6,6 +6,7 @@ from pathlib import Path
 
 from harness.core.types import AgentSession
 from harness.utils.io import write_json
+from harness.utils.log import logger
 
 
 class SessionRecorder:
@@ -17,12 +18,14 @@ class SessionRecorder:
 
     def record(self, session: AgentSession, output_dir: str | Path | None = None) -> Path:
         """录制会话到 JSON 文件。"""
+        logger.info("Recording session session_id={}", session.session_id)
         target = Path(output_dir) if output_dir else self._replay_dir
         target.mkdir(parents=True, exist_ok=True)
 
         filepath = target / f"session_{session.session_id}.json"
         data = self._serialize(session)
         write_json(filepath, data)
+        logger.info("Session recorded to {}", filepath)
         return filepath
 
     def _serialize(self, session: AgentSession) -> dict:

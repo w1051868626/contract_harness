@@ -8,6 +8,7 @@ import re
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import CLAUSE_EXTRACT_PROMPT
 from harness.core.types import Clause, ContractDocument, RiskLevel
+from harness.utils.log import logger
 
 
 class ClauseExtractor:
@@ -19,6 +20,7 @@ class ClauseExtractor:
 
     def extract(self, document: ContractDocument) -> list[Clause]:
         """提取合同中的结构化条款列表。"""
+        logger.info("Extracting clauses from document")
         prompt = CLAUSE_EXTRACT_PROMPT.format(contract_content=document.content)
         resp = self._llm.chat(
             [
@@ -29,7 +31,9 @@ class ClauseExtractor:
                 {"role": "user", "content": prompt},
             ]
         )
-        return self._parse_response(resp.content)
+        clauses = self._parse_response(resp.content)
+        logger.debug("Extracted {} clauses", len(clauses))
+        return clauses
 
     def _parse_response(self, content: str) -> list[Clause]:
         """解析 LLM 返回的 JSON 响应为 Clause 对象列表。"""

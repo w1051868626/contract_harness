@@ -20,6 +20,7 @@ from harness.core.types import (
     ToolCall,
 )
 from harness.rag.knowledge_base import KnowledgeBase
+from harness.utils.log import logger
 
 
 class ContractAgent:
@@ -41,6 +42,7 @@ class ContractAgent:
             document=document,
             started_at=datetime.now(timezone.utc).isoformat(),
         )
+        logger.info("Starting contract review for document_id={}", document.id)
 
         # Step 0: 知识库检索（可选）
         kb_context = ""
@@ -71,6 +73,7 @@ class ContractAgent:
         tc.finished_at = datetime.now(timezone.utc).isoformat()
         step1.tool_calls.append(tc)
         session.steps.append(step1)
+        logger.info("Extracted {} clauses from document", len(clauses))
 
         # Step 2: 风险分析
         step2 = AgentStep(step_index=2, timestamp=datetime.now(timezone.utc).isoformat())
@@ -88,6 +91,7 @@ class ContractAgent:
             step2.tool_calls.append(tc)
             risks.append(risk)
         session.steps.append(step2)
+        logger.info("Analyzed {} clauses for risk", len(risks))
 
         # Step 3: 合规检查
         step3 = AgentStep(step_index=3, timestamp=datetime.now(timezone.utc).isoformat())
@@ -105,6 +109,7 @@ class ContractAgent:
             step3.tool_calls.append(tc)
             all_compliance.extend(checks)
         session.steps.append(step3)
+        logger.info("Performed {} compliance checks", len(all_compliance))
 
         # Step 4: 生成报告摘要
         step4 = AgentStep(step_index=4, timestamp=datetime.now(timezone.utc).isoformat())
@@ -125,6 +130,7 @@ class ContractAgent:
         )
         session.report = report
         session.finished_at = datetime.now(timezone.utc).isoformat()
+        logger.info("Review completed for document_id={}", document.id)
 
         return report, session
 

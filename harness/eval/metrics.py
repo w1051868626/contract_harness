@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from harness.core.types import EvalMetric, EvalResult, ReviewReport
+from harness.utils.log import logger
 
 
 class MetricsCalculator:
@@ -16,15 +17,19 @@ class MetricsCalculator:
         expected: dict[str, Any],
     ) -> list[EvalMetric]:
         """计算单份审查报告的各项指标。"""
-        return [
+        logger.info("Calculating metrics for document_id={}", report.document_id)
+        metrics = [
             self._clause_coverage(report, expected),
             self._risk_accuracy(report, expected),
             self._compliance_accuracy(report, expected),
             self._risk_level_accuracy(report, expected),
         ]
+        logger.debug("Metrics: {}", {m.name: m.value for m in metrics})
+        return metrics
 
     def aggregate(self, results: list[EvalResult]) -> dict[str, float]:
         """聚合多个评测结果为平均指标。"""
+        logger.debug("Aggregating {} eval results", len(results))
         if not results:
             return {}
 
@@ -33,7 +38,9 @@ class MetricsCalculator:
             for m in result.metrics:
                 all_metrics.setdefault(m.name, []).append(m.value)
 
-        return {name: sum(values) / len(values) for name, values in all_metrics.items()}
+        aggregated = {name: sum(values) / len(values) for name, values in all_metrics.items()}
+        logger.debug("Aggregated metrics: {}", aggregated)
+        return aggregated
 
     def _clause_coverage(self, report: ReviewReport, expected: dict) -> EvalMetric:
         """计算条款类型覆盖比例。"""

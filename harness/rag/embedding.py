@@ -8,6 +8,8 @@ from typing import Any
 
 import httpx
 
+from harness.utils.log import logger
+
 
 class EmbeddingProvider(ABC):
     """嵌入提供者抽象基类。"""
@@ -53,6 +55,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """批量调用 OpenAI 嵌入 API。"""
+        logger.debug("Embedding batch of {} texts with model={}", len(texts), self.model)
         try:
             resp = self._http_client.post(
                 f"{self.api_base}/embeddings",
@@ -62,6 +65,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             resp.raise_for_status()
             data = resp.json()
             items = sorted(data["data"], key=lambda x: x["index"])
+            logger.debug("Successfully embedded {} texts", len(items))
             return [item["embedding"] for item in items]
         except Exception:
             return [self._hash_embed(t) for t in texts]
@@ -96,6 +100,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """批量使用本地模型编码文本。"""
+        logger.debug("Local embedding batch of {} texts with model={}", len(texts), self.model_name)
         self._load()
         assert self._model is not None
         return self._model.encode(texts).tolist()

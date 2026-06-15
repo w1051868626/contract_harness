@@ -8,6 +8,7 @@ import re
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import COMPLIANCE_CHECK_PROMPT
 from harness.core.types import Clause, ComplianceCheck
+from harness.utils.log import logger
 
 
 class ComplianceChecker:
@@ -29,6 +30,7 @@ class ComplianceChecker:
         """对单一条款执行多法规合规检查。"""
         results: list[ComplianceCheck] = []
         for regulation in self.REGULATIONS:
+            logger.debug("Checking compliance for regulation={}", regulation)
             prompt = COMPLIANCE_CHECK_PROMPT.format(
                 topic=regulation,
                 clause_content=clause.content,
@@ -43,6 +45,9 @@ class ComplianceChecker:
                 ]
             )
             results.append(self._parse_response(resp.content, regulation))
+        logger.info(
+            "Completed {} compliance checks for clause_type={}", len(results), clause.clause_type
+        )
         return results
 
     def _parse_response(self, content: str, regulation: str) -> ComplianceCheck:

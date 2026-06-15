@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from harness.core.types import (
@@ -16,6 +17,7 @@ from harness.core.types import (
     ToolCall,
 )
 from harness.replay.storage import ReplayStorage
+from harness.utils.log import logger
 
 
 class SessionPlayer:
@@ -27,10 +29,22 @@ class SessionPlayer:
 
     def load(self, session_id: str) -> AgentSession | None:
         """加载指定会话。"""
+        logger.info("Loading session session_id={}", session_id)
         data = self._storage.load(session_id)
         if data is None:
             return None
-        return self._deserialize(data)
+        session = self._deserialize(data)
+        if session.started_at and session.finished_at:
+            start = datetime.fromisoformat(session.started_at)
+            end = datetime.fromisoformat(session.finished_at)
+            logger.info(
+                "Session loaded session_id={} (duration={:.1f}s)",
+                session_id,
+                (end - start).total_seconds(),
+            )
+        else:
+            logger.info("Session loaded session_id={}", session_id)
+        return session
 
     def list_sessions(self) -> list[dict[str, Any]]:
         """列出所有录制会话。"""

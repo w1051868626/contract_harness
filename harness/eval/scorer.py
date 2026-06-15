@@ -9,6 +9,7 @@ from harness.agent.contract_agent import ContractAgent
 from harness.core.types import EvalResult
 from harness.eval.dataset import EvalDataset
 from harness.eval.metrics import MetricsCalculator
+from harness.utils.log import logger
 
 
 class EvalScorer:
@@ -24,6 +25,7 @@ class EvalScorer:
 
     def run(self, dataset: EvalDataset) -> list[EvalResult]:
         """对数据集逐项运行审查，返回各评测结果。"""
+        logger.info("Starting scoring run on {} items", len(dataset.items))
         results: list[EvalResult] = []
         for item in dataset.items:
             report, _ = self._agent.review(item.document)
@@ -52,14 +54,16 @@ class EvalScorer:
                 )
             )
 
+        logger.info("Scoring completed: {} results", len(results))
         return results
 
     def score(self, dataset: EvalDataset) -> dict[str, Any]:
         """运行评测并返回聚合后的评分结果。"""
+        logger.debug("Scoring dataset with {} items", len(dataset.items))
         results = self.run(dataset)
         aggregated = self._metrics.aggregate(results)
 
-        return {
+        result = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "total_items": len(dataset.items),
             "aggregated_metrics": aggregated,
@@ -71,3 +75,9 @@ class EvalScorer:
                 for r in results
             ],
         }
+        logger.debug(
+            "Score result: total_items={}, metrics={}",
+            result["total_items"],
+            result["aggregated_metrics"],
+        )
+        return result

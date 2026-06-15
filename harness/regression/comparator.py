@@ -8,6 +8,7 @@ from typing import Any
 from harness.core.types import AgentSession
 from harness.replay.player import SessionPlayer
 from harness.utils.io import write_text
+from harness.utils.log import logger
 
 
 class OutputComparator:
@@ -19,6 +20,7 @@ class OutputComparator:
 
     def compare(self, session_a: AgentSession, session_b: AgentSession) -> dict[str, Any]:
         """对比两个会话的审查结果，返回差异字典。"""
+        logger.info("Comparing sessions {} and {}", session_a.session_id, session_b.session_id)
         diff = {
             "summary_changed": False,
             "risk_level_changed": False,
@@ -43,10 +45,17 @@ class OutputComparator:
             report_a.compliance_checks, report_b.compliance_checks
         )
 
+        logger.info(
+            "Comparison complete: {} clause diffs, {} risk diffs, {} compliance diffs",
+            len(diff["clause_diffs"]),
+            len(diff["risk_diffs"]),
+            len(diff["compliance_diffs"]),
+        )
         return diff
 
     def compare_by_session_id(self, session_id_a: str, session_id_b: str) -> dict[str, Any]:
         """通过会话 ID 加载并对比。"""
+        logger.debug("Comparing sessions by ID: {} vs {}", session_id_a, session_id_b)
         session_a = self._player.load(session_id_a)
         session_b = self._player.load(session_id_b)
         if not session_a or not session_b:

@@ -8,6 +8,7 @@ from typing import Any
 
 from harness.core.config import HarnessConfig
 from harness.utils.io import read_json, write_json
+from harness.utils.log import logger
 
 
 class ReplayStorage:
@@ -23,23 +24,32 @@ class ReplayStorage:
 
     def save(self, session_id: str, data: dict) -> Path:
         """保存会话数据到文件。"""
+        logger.debug("Saving session session_id={}", session_id)
         filepath = self._filepath(session_id)
         write_json(filepath, data)
+        logger.debug("Session saved to {}", filepath)
         return filepath
 
     def load(self, session_id: str) -> dict[str, Any] | None:
         """加载会话数据。"""
+        logger.debug("Loading session session_id={}", session_id)
         filepath = self._filepath(session_id)
         if not filepath.exists():
+            logger.debug("Session file not found session_id={}", session_id)
             return None
-        return read_json(filepath)
+        data = read_json(filepath)
+        logger.debug("Session loaded session_id={}", session_id)
+        return data
 
     def delete(self, session_id: str) -> bool:
         """删除会话文件。"""
+        logger.debug("Deleting session session_id={}", session_id)
         filepath = self._filepath(session_id)
         if filepath.exists():
             filepath.unlink()
+            logger.debug("Session deleted session_id={}", session_id)
             return True
+        logger.debug("Session not found for deletion session_id={}", session_id)
         return False
 
     def list_sessions(self) -> list[dict[str, Any]]:

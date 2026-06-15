@@ -8,6 +8,7 @@ import re
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import RISK_ANALYSIS_PROMPT
 from harness.core.types import Clause, RiskAssessment, RiskLevel
+from harness.utils.log import logger
 
 
 class RiskAnalyzer:
@@ -19,6 +20,7 @@ class RiskAnalyzer:
 
     def analyze(self, clause: Clause) -> RiskAssessment:
         """对单一条款进行风险分析。"""
+        logger.info("Analyzing risk for clause_type={}", clause.clause_type)
         prompt = RISK_ANALYSIS_PROMPT.format(
             clause_type=clause.clause_type,
             clause_content=clause.content,
@@ -32,7 +34,9 @@ class RiskAnalyzer:
                 {"role": "user", "content": prompt},
             ]
         )
-        return self._parse_response(resp.content, clause)
+        result = self._parse_response(resp.content, clause)
+        logger.debug("Risk level for {}: {}", clause.clause_type, result.risk_level.value)
+        return result
 
     def _parse_response(self, content: str, clause: Clause) -> RiskAssessment:
         """解析 LLM 返回的 JSON 响应为 RiskAssessment 对象。"""

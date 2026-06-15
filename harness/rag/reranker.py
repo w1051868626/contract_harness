@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from harness.rag.vector_store import Chunk
+from harness.utils.log import logger
 
 
 class Reranker(ABC):
@@ -41,6 +42,9 @@ class OpenAIReranker(Reranker):
         self._http_client = httpx.Client(proxy=proxy) if proxy else httpx.Client()
 
     def rerank(self, query: str, candidates: list[Chunk], top_k: int = 5) -> list[Chunk]:
+        logger.debug(
+            "Reranking {} candidates with model={}, top_k={}", len(candidates), self.model, top_k
+        )
         if not candidates:
             return []
         resp = self._http_client.post(
@@ -60,6 +64,7 @@ class OpenAIReranker(Reranker):
             idx = item["index"]
             candidates[idx].score = item.get("relevance_score", 0.0)
             results.append(candidates[idx])
+        logger.debug("Reranking returned {} results", len(results))
         return results
 
 
@@ -83,6 +88,12 @@ class LocalReranker(Reranker):
             )
 
     def rerank(self, query: str, candidates: list[Chunk], top_k: int = 5) -> list[Chunk]:
+        logger.debug(
+            "Local reranking {} candidates with model={}, top_k={}",
+            len(candidates),
+            self.model_name,
+            top_k,
+        )
         if not candidates:
             return []
         self._load()
@@ -92,7 +103,9 @@ class LocalReranker(Reranker):
         for chunk, score in zip(candidates, scores):
             chunk.score = float(score)
         candidates.sort(key=lambda c: c.score, reverse=True)
-        return candidates[:top_k]
+        result = candidates[:top_k]
+        logger.debug("Local reranking returned {} results", len(result))
+        return result
 
 
 def create_reranker(

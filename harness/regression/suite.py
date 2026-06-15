@@ -10,6 +10,7 @@ from harness.core.types import RegressionResult
 from harness.eval.dataset import EvalDataset
 from harness.eval.scorer import EvalScorer
 from harness.utils.io import read_json, write_json
+from harness.utils.log import logger
 
 
 class RegressionSuite:
@@ -28,6 +29,7 @@ class RegressionSuite:
 
     def run(self, dataset: EvalDataset, version: str = "") -> RegressionResult:
         """运行回归测试：评分、对比基线、返回结果。"""
+        logger.info("Running regression test on {} items", len(dataset.items))
         results = self._scorer.run(dataset)
         current_metrics: dict[str, float] = {}
         for r in results:
@@ -61,10 +63,17 @@ class RegressionSuite:
                     )
 
         self._save_baseline(current_metrics, result.current_version)
+        logger.info(
+            "Regression test completed: passed={}, regressions={}, improvements={}",
+            result.passed,
+            len(result.regressions),
+            len(result.improvements),
+        )
         return result
 
     def save_baseline(self, dataset: EvalDataset, version: str) -> Path:
         """手动保存当前评测结果作为基线。"""
+        logger.debug("Saving baseline version={}", version)
         results = self._scorer.run(dataset)
         metrics: dict[str, float] = {}
         for r in results:
@@ -74,7 +83,9 @@ class RegressionSuite:
             for k in metrics:
                 metrics[k] /= len(results)
 
-        return self._save_baseline(metrics, version)
+        result_path = self._save_baseline(metrics, version)
+        logger.debug("Baseline saved to {}", result_path)
+        return result_path
 
     def _load_baseline(self) -> dict[str, Any] | None:
         """从磁盘加载基线 JSON。"""

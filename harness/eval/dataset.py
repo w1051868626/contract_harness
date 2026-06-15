@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from harness.core.types import ContractDocument, RiskLevel
+from harness.utils.log import logger
 
 
 class EvalDataset:
@@ -19,11 +20,13 @@ class EvalDataset:
     def load(self, path: str | Path | None = None) -> None:
         """从文件或目录加载评测项。"""
         source = Path(path) if path else self._dir
+        logger.info("Loading dataset from {}", source)
         if source.is_file():
             self._load_file(source)
         elif source.is_dir():
             for f in sorted(source.glob("*.json")):
                 self._load_file(f)
+        logger.info("Loaded {} items from dataset", len(self._items))
 
     def _load_file(self, path: Path) -> None:
         """加载单个 JSON 文件中的评测项。"""
