@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "可回放、可评测、可回归的合同审查 Agent 系统"
 requires-python = ">=3.11"
 dependencies = [
-    "click>=8.1",
     "rich>=13.0",
     "pydantic>=2.0",
     "pyyaml>=6.0",
@@ -26,7 +25,7 @@ dependencies = [
 ]
 
 [project.scripts]
-harness = "harness.cli.main:cli"
+harness = "harness.cli.main:main"
 
 [tool.setuptools.packages.find]
 include = ["harness*"]
