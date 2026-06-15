@@ -7,8 +7,6 @@ from pathlib import Path
 
 import click
 import uvicorn
-from rich.console import Console
-from rich.table import Table
 
 from harness.agent.contract_agent import ContractAgent
 from harness.agent.llm import LLMClient
@@ -26,11 +24,8 @@ from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
 from harness.utils.io import load_dotenv, read_text
 from harness.utils.log import logger, setup_logging
-from harness.web.app import app
 
 load_dotenv()
-
-console = Console()
 
 
 @click.group()
@@ -69,27 +64,24 @@ def review(ctx: click.Context, contract_file: str, save: bool, model: str) -> No
     if model:
         config.llm.model = model
 
-    with console.status("正在审查合同..."):
-        agent = ContractAgent(LLMClient(config.llm))
-        report, session = agent.review(document)
+    logger.info("正在审查合同: {}", filepath.name)
+    agent = ContractAgent(LLMClient(config.llm))
+    report, session = agent.review(document)
 
-    console.print(f"\n[bold green]审查完成:[/bold green] {filepath.name}")
-    console.print(f"[bold]会话 ID:[/bold] {session.session_id}")
-    console.print(f"[bold]整体风险:[/bold] [red]{report.overall_risk.value.upper()}[/red]")
-    console.print(f"\n[bold]审查摘要:[/bold]\n{report.summary[:500]}...")
+    logger.info("审查完成: {}", filepath.name)
+    logger.info("会话 ID: {}", session.session_id)
+    logger.info("整体风险: {}", report.overall_risk.value.upper())
+    logger.info("审查摘要:\n{}", report.summary[:500])
 
-    table = Table(title="条款概览")
-    table.add_column("类型", style="cyan")
-    table.add_column("风险", style="magenta")
-    table.add_column("备注")
+    logger.info("条款概览:")
     for c in report.clauses:
-        table.add_row(c.clause_type, c.risk.value, c.comment[:40] if c.comment else "")
-    console.print(table)
+        comment = c.comment[:40] if c.comment else ""
+        logger.info("  {} | {} | {}", c.clause_type, c.risk.value, comment)
 
     if save:
         recorder = SessionRecorder(config.replay_dir)
         path = recorder.record(session)
-        console.print(f"\n回放已保存: {path}")
+        logger.info("回放已保存: {}", path)
 
 
 @cli.command()
@@ -103,23 +95,23 @@ def replay(ctx: click.Context, session_id: str, as_json: bool) -> None:
     session = player.load(session_id)
 
     if session is None:
-        console.print(f"[red]会话 {session_id} 不存在[/red]")
+        logger.warning("会话 {} 不存在", session_id)
         return
 
     if as_json:
         r = SessionRecorder()
         data = r._serialize(session)
-        console.print(json.dumps(data, ensure_ascii=False, indent=2))
+        logger.info(json.dumps(data, ensure_ascii=False, indent=2))
         return
 
-    console.print(f"[bold]回放会话:[/bold] {session.session_id}")
-    console.print(f"[bold]合同:[/bold] {session.document.title}")
-    console.print(f"[bold]时间:[/bold] {session.started_at}")
+    logger.info("回放会话: {}", session.session_id)
+    logger.info("合同: {}", session.document.title)
+    logger.info("时间: {}", session.started_at)
 
     for step in session.steps:
-        console.print(f"\n[cyan]Step {step.step_index}[/cyan]: {step.agent_message}")
+        logger.info("Step {}: {}", step.step_index, step.agent_message)
         for tc in step.tool_calls:
-            console.print(f"  ⚙ {tc.tool_name} ({len(str(tc.input))} chars)")
+            logger.info("  工具: {} ({} chars)", tc.tool_name, len(str(tc.input)))
 
 
 @cli.command()
@@ -132,22 +124,17 @@ def sessions(ctx: click.Context, limit: int) -> None:
     sessions_list = player.list_sessions()
 
     if not sessions_list:
-        console.print("[yellow]暂无回放记录[/yellow]")
+        logger.info("暂无回放记录")
         return
 
-    table = Table(title="回放会话列表")
-    table.add_column("会话 ID", style="cyan")
-    table.add_column("合同", style="green")
-    table.add_column("时间", style="white")
-
+    logger.info("回放会话列表:")
     for s in sessions_list[:limit]:
-        table.add_row(s["session_id"], s["document_title"], s["started_at"])
-    console.print(table)
+        logger.info("  {} | {} | {}", s["session_id"], s["document_title"], s["started_at"])
 
 
 @cli.group()
 def eval() -> None:
-    """评测命令组。"""
+    """评测命令组."""
 
 
 @eval.command()
@@ -159,22 +146,21 @@ def run(ctx: click.Context, dataset: str) -> None:
     ds = EvalDataset()
     ds.load(dataset)
 
-    with console.status("正在运行评测..."):
-        scorer = EvalScorer()
-        data = scorer.score(ds)
+    logger.info("正在运行评测...")
+    scorer = EvalScorer()
+    data = scorer.score(ds)
 
-    console.print("\n[bold green]评测完成[/bold green]")
+    logger.info("评测完成")
     for name, value in data.get("aggregated_metrics", {}).items():
         pct = value * 100
-        color = "green" if pct >= 80 else "yellow" if pct >= 60 else "red"
-        console.print(f"  {name}: [{color}]{pct:.1f}%[/{color}]")
+        logger.info("  {}: {:.1f}%", name, pct)
 
     reporter = EvalReporter(config.report_dir)
     md_path = reporter.report_markdown(data)
     html_path = reporter.report_html(data)
-    console.print("\n报告已生成:")
-    console.print(f"  Markdown: {md_path}")
-    console.print(f"  HTML:     {html_path}")
+    logger.info("报告已生成:")
+    logger.info("  Markdown: {}", md_path)
+    logger.info("  HTML:     {}", html_path)
 
 
 @eval.command()
@@ -183,13 +169,13 @@ def run(ctx: click.Context, dataset: str) -> None:
 def report(ctx: click.Context, output: str) -> None:
     """展示评测报告相关信息。"""
     config: HarnessConfig = ctx.obj["config"]
-    console.print(f"[yellow]报告目录: {config.report_dir}[/yellow]")
-    console.print("[yellow]使用 'eval run' 运行评测后会自动生成报告[/yellow]")
+    logger.info("报告目录: {}", config.report_dir)
+    logger.info("使用 'eval run' 运行评测后会自动生成报告")
 
 
 @cli.group()
 def regression() -> None:
-    """回归测试命令组。"""
+    """回归测试命令组."""
 
 
 @regression.command(name="run")
@@ -201,28 +187,27 @@ def regression_run(ctx: click.Context, dataset: str, version: str) -> None:
     ds = EvalDataset()
     ds.load(dataset)
 
-    with console.status("正在运行回归测试..."):
-        suite = RegressionSuite()
-        result = suite.run(ds, version)
+    logger.info("正在运行回归测试...")
+    suite = RegressionSuite()
+    result = suite.run(ds, version)
 
     if result.passed:
-        console.print("[bold green]回归测试通过 ✓[/bold green]")
+        logger.info("回归测试通过")
     else:
-        console.print("[bold red]回归测试失败 ✗[/bold red]")
+        logger.warning("回归测试失败")
 
     if result.improvements:
-        console.print("\n[green]改进:[/green]")
+        logger.info("改进:")
         for imp in result.improvements:
-            console.print(f"  ✓ {imp}")
+            logger.info("  + {}", imp)
     if result.regressions:
-        console.print("\n[red]回归:[/red]")
+        logger.warning("回归:")
         for reg in result.regressions:
-            console.print(f"  ✗ {reg}")
+            logger.warning("  - {}", reg)
     if result.metrics_diff:
-        console.print("\n[bold]指标变化:[/bold]")
+        logger.info("指标变化:")
         for name, diff in result.metrics_diff.items():
-            color = "green" if diff >= 0 else "red"
-            console.print(f"  {name}: [{color}]{diff:+.2%}[/{color}]")
+            logger.info("  {}: {:+.2%}", name, diff)
 
 
 @regression.command()
@@ -234,20 +219,20 @@ def diff(ctx: click.Context, session_a: str, session_b: str) -> None:
     config: HarnessConfig = ctx.obj["config"]
     comparator = OutputComparator(SessionPlayer(ReplayStorage(config.replay_dir)))
 
-    with console.status("正在对比..."):
-        diff_result = comparator.compare_by_session_id(session_a, session_b)
+    logger.info("正在对比...")
+    diff_result = comparator.compare_by_session_id(session_a, session_b)
 
-    console.print("[bold]对比结果:[/bold]")
+    logger.info("对比结果:")
     if diff_result.get("risk_level_changed"):
-        console.print("  [red]风险等级发生变化[/red]")
+        logger.warning("  风险等级发生变化")
     if diff_result.get("summary_changed"):
-        console.print("  [yellow]摘要内容发生变化[/yellow]")
+        logger.info("  摘要内容发生变化")
     if diff_result.get("clause_diffs"):
-        console.print(f"  条款变化: {len(diff_result['clause_diffs'])} 处")
+        logger.info("  条款变化: {} 处", len(diff_result["clause_diffs"]))
     if diff_result.get("risk_diffs"):
-        console.print(f"  风险评估变化: {len(diff_result['risk_diffs'])} 处")
+        logger.info("  风险评估变化: {} 处", len(diff_result["risk_diffs"]))
     if diff_result.get("compliance_diffs"):
-        console.print(f"  合规检查变化: {len(diff_result['compliance_diffs'])} 处")
+        logger.info("  合规检查变化: {} 处", len(diff_result["compliance_diffs"]))
 
 
 @cli.command()
@@ -256,11 +241,12 @@ def diff(ctx: click.Context, session_a: str, session_b: str) -> None:
 @click.option("--reload", is_flag=True, help="热重载")
 def serve(host: str, port: int, reload: bool) -> None:
     """启动 FastAPI Web 界面。"""
+    from harness.web.app import app
+
     setup_logging(log_dir=HarnessConfig().log_dir)
     logger.info("启动 Web 界面: http://{}:{}", host, port)
-    console.print(f"[green]正在启动 Web 界面:[/green] http://{host}:{port}")
     if reload:
-        console.print("[yellow]热重载已启用[/yellow]")
+        logger.info("热重载已启用")
     uvicorn.run(app, host=host, port=port, reload=reload)
 
 
@@ -269,7 +255,7 @@ def serve(host: str, port: int, reload: bool) -> None:
 
 @cli.group()
 def kb() -> None:
-    """知识库管理命令组。"""
+    """知识库管理命令组."""
 
 
 @kb.command()
@@ -280,21 +266,21 @@ def import_file(ctx: click.Context, file_path: str) -> None:
     config: HarnessConfig = ctx.obj["config"]
     config.ensure_dirs()
     kb_instance = KnowledgeBase.from_config(config)
-    with console.status("正在导入文件..."):
-        if file_path.lower().endswith(".zip"):
-            doc_ids = kb_instance.add_zip(Path(file_path))
-            if doc_ids:
-                console.print(f"[green]导入成功:[/green] {Path(file_path).name}")
-                for did in doc_ids:
-                    console.print(f"  [green]✓[/green] {did}")
-            else:
-                console.print("[red]导入失败[/red]")
+    logger.info("正在导入文件: {}", Path(file_path).name)
+    if file_path.lower().endswith(".zip"):
+        doc_ids = kb_instance.add_zip(Path(file_path))
+        if doc_ids:
+            logger.info("导入成功: {}", Path(file_path).name)
+            for did in doc_ids:
+                logger.info("  + {}", did)
         else:
-            doc_id = kb_instance.add_file(file_path)
-            if doc_id:
-                console.print(f"[green]导入成功:[/green] {Path(file_path).name} → {doc_id}")
-            else:
-                console.print("[red]导入失败[/red]")
+            logger.warning("导入失败")
+    else:
+        doc_id = kb_instance.add_file(file_path)
+        if doc_id:
+            logger.info("导入成功: {} -> {}", Path(file_path).name, doc_id)
+        else:
+            logger.warning("导入失败")
 
 
 @kb.command()
@@ -308,16 +294,16 @@ def import_dir(ctx: click.Context, directory: str) -> None:
     supported = (".txt", ".md", ".json", ".pdf", ".docx", ".zip")
     files = [p for p in Path(directory).iterdir() if p.suffix.lower() in supported]
     if not files:
-        console.print("[yellow]目录下没有支持的文件[/yellow]")
+        logger.info("目录下没有支持的文件")
         return
     for f in files:
-        with console.status(f"正在导入 {f.name}..."):
-            if f.suffix.lower() == ".zip":
-                doc_ids = kb_instance.add_zip(f)
-                console.print(f"  [green]✓[/green] {f.name} ({len(doc_ids)} 篇)")
-            else:
-                doc_id = kb_instance.add_file(str(f))
-                console.print(f"  [green]✓[/green] {f.name} → {doc_id}")
+        logger.info("正在导入 {}...", f.name)
+        if f.suffix.lower() == ".zip":
+            doc_ids = kb_instance.add_zip(f)
+            logger.info("  + {} ({} 篇)", f.name, len(doc_ids))
+        else:
+            doc_id = kb_instance.add_file(str(f))
+            logger.info("  + {} -> {}", f.name, doc_id)
 
 
 @kb.command()
@@ -329,16 +315,11 @@ def list_docs(ctx: click.Context) -> None:
     kb_instance = KnowledgeBase.from_config(config)
     docs = kb_instance.list_documents()
     if not docs:
-        console.print("[yellow]知识库为空[/yellow]")
+        logger.info("知识库为空")
         return
-    table = Table(title="知识库文档列表")
-    table.add_column("ID", style="cyan")
-    table.add_column("标题", style="green")
-    table.add_column("来源")
-    table.add_column("创建时间", style="white")
+    logger.info("知识库文档列表:")
     for d in docs:
-        table.add_row(d.id, d.title, d.source, "")
-    console.print(table)
+        logger.info("  {} | {} | {}", d.id, d.title, d.source)
 
 
 @kb.command()
@@ -350,19 +331,15 @@ def search(ctx: click.Context, query: str, top_k: int) -> None:
     config: HarnessConfig = ctx.obj["config"]
     config.ensure_dirs()
     kb_instance = KnowledgeBase.from_config(config)
-    with console.status("正在检索..."):
-        chunks = kb_instance.query(query, top_k=top_k)
+    logger.info("正在检索: {} (top-k={})", query, top_k)
+    chunks = kb_instance.query(query, top_k=top_k)
     if not chunks:
-        console.print("[yellow]未找到相关结果[/yellow]")
+        logger.info("未找到相关结果")
         return
-    table = Table(title=f"搜索结果（top-{top_k}）")
-    table.add_column("得分", style="cyan")
-    table.add_column("文档 ID")
-    table.add_column("内容")
+    logger.info("搜索结果 (top-{}):", top_k)
     for c in chunks:
         preview = c.content[:80].replace("\n", " ")
-        table.add_row(f"{c.score:.3f}", c.document_id, preview)
-    console.print(table)
+        logger.info("  {:.3f} | {} | {}", c.score, c.document_id, preview)
 
 
 @kb.command()
@@ -375,12 +352,12 @@ def seed(ctx: click.Context) -> None:
     laws = get_seed_laws()
     imported = 0
     for law in laws:
-        with console.status(f"正在导入 {law.title}..."):
-            existing = kb_instance.list_documents()
-            if any(d.title == law.title for d in existing):
-                console.print(f"  [yellow]跳过（已存在）[/yellow] {law.title}")
-                continue
-            kb_instance.add_text(title=law.title, content=law.content)
-            console.print(f"  [green]✓[/green] {law.title}")
-            imported += 1
-    console.print(f"[bold green]导入完成:[/bold green] {imported} 部法律")
+        logger.info("正在导入 {}...", law.title)
+        existing = kb_instance.list_documents()
+        if any(d.title == law.title for d in existing):
+            logger.info("跳过（已存在）: {}", law.title)
+            continue
+        kb_instance.add_text(title=law.title, content=law.content)
+        logger.info("  + {}", law.title)
+        imported += 1
+    logger.info("导入完成: {} 部法律", imported)
