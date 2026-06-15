@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from jinja2 import Template
+
 from harness.core.config import HarnessConfig
 from harness.utils.io import write_json, write_text
 
@@ -48,12 +50,7 @@ class EvalReporter:
         return filepath
 
     def report_html(self, data: dict[str, Any], name: str = "eval_report") -> Path:
-        """生成 HTML 格式报告（依赖 jinja2，否则回退为 Markdown）。"""
-        try:
-            from jinja2 import Template
-        except ImportError:
-            return self.report_markdown(data, name)
-
+        """生成 HTML 格式报告。"""
         template = Template("""<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="UTF-8"><title>评测报告</title>

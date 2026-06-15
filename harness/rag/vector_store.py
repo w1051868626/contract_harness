@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import chromadb
+from chromadb.config import Settings
+
 
 @dataclass
 class Chunk:
@@ -66,9 +69,6 @@ class ChromaVectorStore(VectorStore):
         collection_name: str = "contract_harness",
         embedding_dim: int = 1536,
     ):
-        import chromadb
-        from chromadb.config import Settings
-
         self._embedding_dim = embedding_dim
         persist_path = Path(persist_dir)
         persist_path.mkdir(parents=True, exist_ok=True)

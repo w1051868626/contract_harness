@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import re
+
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import RISK_ANALYSIS_PROMPT
 from harness.core.types import Clause, RiskAssessment, RiskLevel
@@ -33,9 +36,6 @@ class RiskAnalyzer:
 
     def _parse_response(self, content: str, clause: Clause) -> RiskAssessment:
         """解析 LLM 返回的 JSON 响应为 RiskAssessment 对象。"""
-        import json
-        import re
-
         json_str = re.search(r"\{.*?\}", content, re.DOTALL)
         if not json_str:
             return RiskAssessment(

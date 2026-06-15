@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -191,9 +193,6 @@ class KnowledgeBase:
         use_ai_chunking: bool = True,
     ) -> list[str]:
         """解压 zip 并以内部文件名为标题分别导入。"""
-        import tempfile
-        import zipfile
-
         supported = {".txt", ".md", ".json", ".pdf", ".docx"}
         doc_ids: list[str] = []
         with zipfile.ZipFile(path) as zf:

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from harness.core.config import HarnessConfig
 from harness.utils.io import read_json, write_json
 
 
@@ -17,8 +18,6 @@ class ReplayStorage:
         if storage_dir:
             self._dir = Path(storage_dir)
         else:
-            from harness.core.config import HarnessConfig
-
             self._dir = Path(HarnessConfig().replay_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
 

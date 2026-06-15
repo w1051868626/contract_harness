@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import re
+
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import COMPLIANCE_CHECK_PROMPT
 from harness.core.types import Clause, ComplianceCheck
@@ -44,9 +47,6 @@ class ComplianceChecker:
 
     def _parse_response(self, content: str, regulation: str) -> ComplianceCheck:
         """解析 LLM 返回的 JSON 响应为 ComplianceCheck 对象。"""
-        import json
-        import re
-
         json_str = re.search(r"\{.*?\}", content, re.DOTALL)
         if not json_str:
             return ComplianceCheck(regulation=regulation, status=True, detail="无法解析")

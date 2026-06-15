@@ -1,5 +1,7 @@
 """评测系统指标计算单元测试。"""
 
+import pytest
+
 from harness.core.types import (
     Clause,
     ReviewReport,
@@ -32,8 +34,6 @@ class TestEval:
         }
         calc = MetricsCalculator()
         metrics = calc._clause_coverage(report, expected)
-        import pytest
-
         assert pytest.approx(metrics.value, 0.001) == 2 / 3
 
     def test_metrics_calculator_risk_level_accuracy(self):

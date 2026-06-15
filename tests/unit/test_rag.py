@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import tempfile
 import unittest.mock
+import zipfile
 from pathlib import Path
 
 from harness.rag.embedding import (
@@ -320,8 +321,6 @@ class TestFileParsing:
 
     def test_parse_zip(self):
         """zip 应解压并以内部文件名作为标题分别导入。"""
-        import zipfile
-
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
             zip_path = f.name
         try:
@@ -346,8 +345,6 @@ class TestFileParsing:
 
     def test_parse_zip_skip_unsupported(self):
         """zip 中的不支持格式应被跳过。"""
-        import zipfile
-
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
             zip_path = f.name
         try:

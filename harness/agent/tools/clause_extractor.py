@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import re
+
 from harness.agent.llm import LLMClient
 from harness.agent.prompts import CLAUSE_EXTRACT_PROMPT
 from harness.core.types import Clause, ContractDocument, RiskLevel
@@ -30,9 +33,6 @@ class ClauseExtractor:
 
     def _parse_response(self, content: str) -> list[Clause]:
         """解析 LLM 返回的 JSON 响应为 Clause 对象列表。"""
-        import json
-        import re
-
         json_str = re.search(r"\[.*?\]", content, re.DOTALL)
         if not json_str:
             return []
