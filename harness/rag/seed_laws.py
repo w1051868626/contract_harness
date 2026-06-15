@@ -2,19 +2,91 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
+
+_ARTICLE_RE = re.compile(r"^(第[一二三四五六七八九十百千零\d]+条)\s*")
+_BOUNDARY_RE = re.compile(r"(?=\n第[一二三四五六七八九十百千零\d]+[条章节分编])")
+
+
+@dataclass
+class Article:
+    """法律条文中的一条，含编号、正文及所属章节。"""
+
+    number: str
+    content: str
+    chapter: str = ""
+
+
+@dataclass
+class Chapter:
+    """法律条文中的一个章/节/编，含标题及下属条。"""
+
+    title: str
+    articles: list[Article] = field(default_factory=list)
 
 
 @dataclass
 class SeedLaw:
-    """一部法律条文的标题与全文。"""
+    """一部法律条文的标题、全文及其结构化条、章数据。"""
 
     title: str
     content: str
+    articles: list[Article] = field(default_factory=list)
+
+    @classmethod
+    def from_text(cls, title: str, content: str) -> SeedLaw:
+        """从标题和全文创建 SeedLaw，自动解析出 articles。"""
+        return cls(title=title, content=content, articles=_parse_articles(content))
+
+    @property
+    def chapters(self) -> list[Chapter]:
+        """按章节分组的文章列表。"""
+        result: list[Chapter] = []
+        cur: Chapter | None = None
+        for art in self.articles:
+            if art.chapter:
+                if not cur or cur.title != art.chapter:
+                    cur = Chapter(title=art.chapter)
+                    result.append(cur)
+                cur.articles.append(art)
+        return result
+
+
+def _parse_articles(text: str) -> list[Article]:
+    """将法律全文解析为 Article 列表。"""
+    parts = _BOUNDARY_RE.split(text.strip())
+    parts = [p.strip() for p in parts if p.strip()]
+
+    articles: list[Article] = []
+    current_chapter = ""
+
+    for part in parts:
+        first = part.split("\n", 1)[0].strip()
+
+        ch_match = re.match(
+            r"^第[一二三四五六七八九十百千零\d]+(?:编|分编|章|节)\s*\S*",
+            first,
+        )
+        if ch_match:
+            current_chapter = first
+            continue
+
+        art_match = _ARTICLE_RE.match(part)
+        if art_match:
+            articles.append(
+                Article(
+                    number=art_match.group(1),
+                    content=part[len(art_match.group(1)) :].strip(),
+                    chapter=current_chapter,
+                )
+            )
+
+    return articles
 
 
 SEED_LAWS: list[SeedLaw] = [
-    SeedLaw(
+    SeedLaw.from_text(
         title="中华人民共和国民法典（合同编·通则）",
         content="""第三编 合同
 
@@ -79,7 +151,7 @@ SEED_LAWS: list[SeedLaw] = [
 约定的违约金低于造成的损失的，人民法院或者仲裁机构可以根据当事人的请求予以增加；约定的违约金过分高于造成的损失的，人民法院或者仲裁机构可以根据当事人的请求予以适当减少。
 当事人就迟延履行约定违约金的，违约方支付违约金后，还应当履行债务。""",
     ),
-    SeedLaw(
+    SeedLaw.from_text(
         title="中华人民共和国劳动合同法（节选）",
         content="""中华人民共和国劳动合同法
 
@@ -121,7 +193,7 @@ SEED_LAWS: list[SeedLaw] = [
 
 第四十七条 经济补偿按劳动者在本单位工作的年限，每满一年支付一个月工资的标准向劳动者支付。六个月以上不满一年的，按一年计算；不满六个月的，向劳动者支付半个月工资的经济补偿。劳动者月工资高于用人单位所在直辖市、设区的市级人民政府公布的本地区上年度职工月平均工资三倍的，向其支付经济补偿的标准按职工月平均工资三倍的数额支付，向其支付经济补偿的年限最高不超过十二年。本条所称月工资是指劳动者在劳动合同解除或者终止前十二个月的平均工资。""",
     ),
-    SeedLaw(
+    SeedLaw.from_text(
         title="中华人民共和国数据安全法（节选）",
         content="""中华人民共和国数据安全法
 
@@ -143,7 +215,7 @@ SEED_LAWS: list[SeedLaw] = [
 
 第三十八条 国家机关为履行法定职责的需要收集、使用数据，应当在其履行法定职责的范围内依照法律、行政法规规定的条件和程序进行；对在履行职责中知悉的个人隐私、个人信息、商业秘密、保密商务信息等数据应当依法予以保密，不得泄露或者非法向他人提供。""",
     ),
-    SeedLaw(
+    SeedLaw.from_text(
         title="中华人民共和国个人信息保护法（节选）",
         content="""中华人民共和国个人信息保护法
 
@@ -177,7 +249,7 @@ SEED_LAWS: list[SeedLaw] = [
 （四）个人信息处理者违反法律、行政法规或者违反约定处理个人信息；
 （五）法律、行政法规规定的其他情形。""",
     ),
-    SeedLaw(
+    SeedLaw.from_text(
         title="中华人民共和国反垄断法（节选）",
         content="""中华人民共和国反垄断法
 
@@ -216,7 +288,7 @@ SEED_LAWS: list[SeedLaw] = [
 （二）经营者通过取得股权或者资产的方式取得对其他经营者的控制权；
 （三）经营者通过合同等方式取得对其他经营者的控制权或者能够对其他经营者施加决定性影响。""",
     ),
-    SeedLaw(
+    SeedLaw.from_text(
         title="中华人民共和国公司法（节选）",
         content="""中华人民共和国公司法（2023修订）
 
@@ -234,7 +306,7 @@ SEED_LAWS: list[SeedLaw] = [
 
 第四十四条 有限责任公司设立时的股东为设立公司从事的民事活动，其法律后果由公司承受。公司未成立的，其法律后果由设立时的股东承受；设立时的股东为二人以上的，享有连带债权，承担连带债务。设立时的股东为设立公司以自己的名义从事民事活动产生的民事责任，第三人有权请求公司或者公司设立时的股东承担。""",
     ),
-    SeedLaw(
+    SeedLaw.from_text(
         title="中华人民共和国商标法（节选）",
         content="""中华人民共和国商标法
 
