@@ -43,6 +43,7 @@ def cli(ctx: click.Context, verbose: bool) -> None:
     if verbose:
         config.ensure_dirs()
     setup_logging(verbose=verbose, log_dir=config.log_dir)
+    ctx.ensure_object(dict)
     ctx.obj["config"] = config
     logger.debug("CLI 启动 (verbose=%s)", verbose)
 
