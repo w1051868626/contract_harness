@@ -23,12 +23,12 @@ from harness.utils.log import logger, setup_logging
 
 load_dotenv()
 
-setup_logging(verbose=True)
-
 HERE = Path(__file__).parent
 
 config = HarnessConfig()
 config.ensure_dirs()
+
+setup_logging(verbose=True, log_dir=config.log_dir)
 
 app = FastAPI(title="contract-harness")
 logger.info("FastAPI 应用已创建 (config_dir=%s)", config.data_dir)

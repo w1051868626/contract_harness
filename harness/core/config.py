@@ -91,6 +91,7 @@ class HarnessConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     data_dir: str = ""
+    log_dir: str = ""
     kb_dir: str = ""
     replay_dir: str = ""
     eval_dir: str = ""
@@ -103,6 +104,8 @@ class HarnessConfig:
         root = Path(os.getenv("HARNESS_DATA_DIR", str(_default_data_root())))
         if not self.data_dir:
             self.data_dir = str(root / "data")
+        if not self.log_dir:
+            self.log_dir = str(root / "logs")
         if not self.kb_dir:
             self.kb_dir = str(root / "knowledge")
         if not self.replay_dir:
@@ -118,6 +121,7 @@ class HarnessConfig:
         """确保所有配置中的数据目录存在。"""
         for d in [
             self.data_dir,
+            self.log_dir,
             self.kb_dir,
             self.replay_dir,
             self.eval_dir,
