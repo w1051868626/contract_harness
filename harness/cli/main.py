@@ -373,12 +373,12 @@ def seed(ctx: click.Context) -> None:
     laws = get_seed_laws()
     imported = 0
     for law in laws:
-        with console.status(f"正在导入 {law['title']}..."):
+        with console.status(f"正在导入 {law.title}..."):
             existing = kb_instance.list_documents()
-            if any(d.title == law["title"] for d in existing):
-                console.print(f"  [yellow]跳过（已存在）[/yellow] {law['title']}")
+            if any(d.title == law.title for d in existing):
+                console.print(f"  [yellow]跳过（已存在）[/yellow] {law.title}")
                 continue
-            kb_instance.add_text(title=law["title"], content=law["content"])
-            console.print(f"  [green]✓[/green] {law['title']}")
+            kb_instance.add_text(title=law.title, content=law.content)
+            console.print(f"  [green]✓[/green] {law.title}")
             imported += 1
     console.print(f"[bold green]导入完成:[/bold green] {imported} 部法律")
