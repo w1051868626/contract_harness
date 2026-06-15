@@ -87,6 +87,7 @@ conda activate contract-harness
 - `LLM_PROVIDER/PROXY` — LLM 供应商和代理
 - `RERANK_PROVIDER/API_KEY/API_BASE/MODEL` — Reranker 配置
 - `CHUNK_API_KEY/BASE/MODEL` — AI 分块 LLM 独立配置
+- `VECTOR_STORE_BACKEND` — 向量存储后端（已废弃，仅支持 chroma）
 - `HTTP_PROXY` — 通用代理回退
 - `HARNESS_DATA_DIR` — 数据根目录
 
