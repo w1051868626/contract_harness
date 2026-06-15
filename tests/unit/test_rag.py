@@ -14,7 +14,7 @@ from harness.rag.embedding import (
 )
 from harness.rag.knowledge_base import KnowledgeBase
 from harness.rag.reranker import LocalReranker, OpenAIReranker, Reranker, create_reranker
-from harness.rag.vector_store import Chunk, ChromaVectorStore, Document, SqliteVectorStore
+from harness.rag.vector_store import Chunk, ChromaVectorStore, Document
 
 
 class _MockEmbeddingProvider(EmbeddingProvider):
@@ -26,64 +26,6 @@ class _MockEmbeddingProvider(EmbeddingProvider):
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         return [self.embed(t) for t in texts]
 
-
-class TestVectorStore:
-    """向量存储的增删查操作测试。"""
-
-    def test_add_and_list_documents(self):
-        """添加文档后应能列出。"""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-        try:
-            store = SqliteVectorStore(db_path)
-            store.add_document(Document(id="d1", title="Test Doc", source="test.txt"))
-            docs = store.list_documents()
-            assert len(docs) == 1
-            assert docs[0].id == "d1"
-            assert docs[0].title == "Test Doc"
-            store.close()
-        finally:
-            Path(db_path).unlink(missing_ok=True)
-
-    def test_add_chunk_and_search(self):
-        """添加 Chunk 后应能按向量相似度搜索到。"""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-        try:
-            store = SqliteVectorStore(db_path)
-            store.add_document(Document(id="d1", title="法律条款"))
-            emb1 = [1.0, 0.0, 0.0]
-            emb2 = [0.0, 1.0, 0.0]
-            store.add_chunks(
-                [
-                    Chunk(
-                        id="c1", document_id="d1", content="保密条款", embedding=emb1, chunk_index=0
-                    ),
-                    Chunk(
-                        id="c2", document_id="d1", content="违约责任", embedding=emb2, chunk_index=1
-                    ),
-                ]
-            )
-            results = store.search([0.9, 0.1, 0.0], top_k=2)
-            assert len(results) == 2
-            assert results[0].id == "c1"
-            assert results[0].score > results[1].score
-            store.close()
-        finally:
-            Path(db_path).unlink(missing_ok=True)
-
-    def test_delete_document(self):
-        """删除文档后列表应清空。"""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-        try:
-            store = SqliteVectorStore(db_path)
-            store.add_document(Document(id="d1", title="Test"))
-            store.delete_document("d1")
-            assert store.list_documents() == []
-            store.close()
-        finally:
-            Path(db_path).unlink(missing_ok=True)
 
 
 class TestChromaVectorStore:
@@ -145,10 +87,8 @@ class TestKnowledgeBase:
 
     def test_add_text_and_query(self):
         """添加文本后应能通过向量搜索查询到。"""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-        try:
-            store = SqliteVectorStore(db_path)
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
             emb = _MockEmbeddingProvider()
             kb = KnowledgeBase(store, emb)
             kb.add_text("保密法规", "双方应对合同内容严格保密，未经对方书面同意不得向第三方披露")
@@ -158,15 +98,11 @@ class TestKnowledgeBase:
             kb.delete_document(chunks[0].document_id)
             assert kb.list_documents() == []
             store.close()
-        finally:
-            Path(db_path).unlink(missing_ok=True)
 
     def test_add_file(self):
         """添加文件应自动分块并入库。"""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-        try:
-            store = SqliteVectorStore(db_path)
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
             kb = KnowledgeBase(store, _MockEmbeddingProvider())
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".txt", delete=False, encoding="utf-8"
@@ -182,8 +118,6 @@ class TestKnowledgeBase:
             finally:
                 Path(src_path).unlink(missing_ok=True)
             store.close()
-        finally:
-            Path(db_path).unlink(missing_ok=True)
 
     def test_chunk_text(self):
         """长文本应按 chunk_size 正确分块。"""
@@ -292,35 +226,39 @@ class TestEmbeddingProvider:
 class TestAIChunking:
     def test_ai_chunking_fallback_on_no_llm(self):
         """无 llm 时自动回退到规则分块"""
-        emb = _MockEmbeddingProvider()
-        store = SqliteVectorStore(":memory:")
-        kb = KnowledgeBase(store, emb, llm=None)
-        chunks = kb._resolve_chunks("hello world", "doc1", 512, 64, use_ai=True)
-        # 无 llm → use_ai=True 但 llm is None → 走规则分块
-        assert len(chunks) >= 1
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            emb = _MockEmbeddingProvider()
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            kb = KnowledgeBase(store, emb, llm=None)
+            chunks = kb._resolve_chunks("hello world", "doc1", 512, 64, use_ai=True)
+            assert len(chunks) >= 1
+            store.close()
 
     def test_ai_chunking_parse_response(self, mock_llm):
         """验证 AI chunking 能正确解析 LLM 返回的 JSON"""
-        emb = _MockEmbeddingProvider()
-        store = SqliteVectorStore(":memory:")
-        kb = KnowledgeBase(store, emb, llm=mock_llm, chunk_llm=mock_llm)
-
-        kb.add_text(
-            "测试合同",
-            "本合同由甲乙双方签订。\n\n第一条 保密义务。\n\n第二条 违约责任。\n\n第三条 管辖。",
-            use_ai_chunking=True,
-        )
-        chunks = store.search([0.1, 0.2, 0.3], top_k=5)
-        assert any("保密" in c.content for c in chunks)
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            emb = _MockEmbeddingProvider()
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            kb = KnowledgeBase(store, emb, llm=mock_llm, chunk_llm=mock_llm)
+            kb.add_text(
+                "测试合同",
+                "本合同由甲乙双方签订。\n\n第一条 保密义务。\n\n第二条 违约责任。\n\n第三条 管辖。",
+                use_ai_chunking=True,
+            )
+            chunks = store.search([0.1, 0.2, 0.3, 0.0], top_k=5)
+            assert any("保密" in c.content for c in chunks)
+            store.close()
 
     def test_ai_chunking_malformed_json(self, mock_llm):
         """AI 返回非 JSON 时优雅回退到规则分块"""
-        mock_llm.responses = []
-        emb = _MockEmbeddingProvider()
-        store = SqliteVectorStore(":memory:")
-        kb = KnowledgeBase(store, emb, llm=mock_llm, chunk_llm=mock_llm)
-        result = kb.add_text("test", "AAA BBB CCC", use_ai_chunking=True)
-        assert result
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            mock_llm.responses = []
+            emb = _MockEmbeddingProvider()
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            kb = KnowledgeBase(store, emb, llm=mock_llm, chunk_llm=mock_llm)
+            result = kb.add_text("test", "AAA BBB CCC", use_ai_chunking=True)
+            assert result
+            store.close()
 
 
 class TestFileParsing:
@@ -383,29 +321,25 @@ class TestFileParsing:
 
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
             zip_path = f.name
-        db_path = ""
         try:
             with zipfile.ZipFile(zip_path, "w") as zf:
                 zf.writestr("合同A.txt", "第一条内容")
                 zf.writestr("合同B.txt", "第二条内容")
 
-            with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f2:
-                db_path = f2.name
-            store = SqliteVectorStore(db_path)
-            emb = _MockEmbeddingProvider()
-            kb = KnowledgeBase(store, emb)
-            result = kb.add_file(zip_path)
-            docs = store.list_documents()
-            assert len(docs) == 2
-            titles = {d.title for d in docs}
-            assert "合同A" in titles
-            assert "合同B" in titles
-            assert result  # first doc_id is returned
-            store.close()
+            with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+                store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+                emb = _MockEmbeddingProvider()
+                kb = KnowledgeBase(store, emb)
+                result = kb.add_file(zip_path)
+                docs = store.list_documents()
+                assert len(docs) == 2
+                titles = {d.title for d in docs}
+                assert "合同A" in titles
+                assert "合同B" in titles
+                assert result
+                store.close()
         finally:
             Path(zip_path).unlink(missing_ok=True)
-            if db_path:
-                Path(db_path).unlink(missing_ok=True)
 
     def test_parse_zip_skip_unsupported(self):
         """zip 中的不支持格式应被跳过。"""
@@ -413,26 +347,22 @@ class TestFileParsing:
 
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
             zip_path = f.name
-        db_path = ""
         try:
             with zipfile.ZipFile(zip_path, "w") as zf:
                 zf.writestr("doc.txt", "文本内容")
                 zf.writestr("image.png", b"fake_png")
 
-            with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f2:
-                db_path = f2.name
-            store = SqliteVectorStore(db_path)
-            emb = _MockEmbeddingProvider()
-            kb = KnowledgeBase(store, emb)
-            kb.add_file(zip_path)
-            docs = store.list_documents()
-            assert len(docs) == 1
-            assert docs[0].title == "doc"
-            store.close()
+            with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+                store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+                emb = _MockEmbeddingProvider()
+                kb = KnowledgeBase(store, emb)
+                kb.add_file(zip_path)
+                docs = store.list_documents()
+                assert len(docs) == 1
+                assert docs[0].title == "doc"
+                store.close()
         finally:
             Path(zip_path).unlink(missing_ok=True)
-            if db_path:
-                Path(db_path).unlink(missing_ok=True)
 
 
 class _MockReranker(Reranker):
@@ -487,10 +417,8 @@ class TestReranker:
 
     def test_query_with_reranker(self):
         """使用 reranker 时 query 应通过 reranker 返回结果。"""
-        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-            db_path = f.name
-        try:
-            store = SqliteVectorStore(db_path)
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
             store.add_document(Document(id="d1", title="条款"))
             store.add_chunks(
                 [
@@ -518,5 +446,3 @@ class TestReranker:
             assert len(results) == 2
             assert results[0].id != raw[0].id
             store.close()
-        finally:
-            Path(db_path).unlink(missing_ok=True)

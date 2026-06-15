@@ -76,6 +76,7 @@ conda activate contract-harness
 - fastapi + uvicorn（Web 界面）
 - pypdf + python-docx（文档解析）
 - sentence-transformers（本地 embedding / reranker）
+- chromadb（向量数据库）
 - python-dotenv（.env 加载）
 - ruff + pyright（代码规范）
 
@@ -105,3 +106,4 @@ conda activate contract-harness
 ## 更新记录
 
 - 2026-06-14: 新增 `load_dotenv()` 工具函数，CLI/Web 入口自动加载 `.env`；新增 `python-dotenv` 依赖；同步更新 pyproject.toml/environment.yml/README.md/AGENTS.md/CLAUDE.md。
+- 2026-06-15: 移除 SQLite 向量存储后端，统一使用 Chroma 向量数据库；添加 ChromaVectorStore 集成测试（4 个用例）；更新 create_vector_store 及 KnowledgeBase.from_config 默认后端为 chroma。

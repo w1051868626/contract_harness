@@ -53,11 +53,7 @@ class KnowledgeBase:
         cfg = config or HarnessConfig()
         import os
 
-        vs_backend = os.getenv("VECTOR_STORE_BACKEND", "sqlite")
-        if vs_backend == "chroma":
-            store = create_vector_store(cfg.kb_dir, backend="chroma")
-        else:
-            store = create_vector_store(Path(cfg.kb_dir) / "vector.db", backend="sqlite")
+        store = create_vector_store(cfg.kb_dir)
         embedding = create_embedding_provider(
             provider=cfg.embedding.provider,
             api_key=cfg.embedding.api_key,
