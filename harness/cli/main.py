@@ -277,7 +277,7 @@ def import_file(ctx: click.Context, file_path: str) -> None:
     kb_instance = KnowledgeBase.from_config(config)
     with console.status("正在导入文件..."):
         if file_path.lower().endswith(".zip"):
-            doc_ids = kb_instance._add_zip(Path(file_path))
+            doc_ids = kb_instance.add_zip(Path(file_path))
             if doc_ids:
                 console.print(f"[green]导入成功:[/green] {Path(file_path).name}")
                 for did in doc_ids:
@@ -308,7 +308,7 @@ def import_dir(ctx: click.Context, directory: str) -> None:
     for f in files:
         with console.status(f"正在导入 {f.name}..."):
             if f.suffix.lower() == ".zip":
-                doc_ids = kb_instance._add_zip(f)
+                doc_ids = kb_instance.add_zip(f)
                 console.print(f"  [green]✓[/green] {f.name} ({len(doc_ids)} 篇)")
             else:
                 doc_id = kb_instance.add_file(str(f))

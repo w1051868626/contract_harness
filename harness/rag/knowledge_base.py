@@ -175,7 +175,7 @@ class KnowledgeBase:
         """添加文件到知识库。"""
         path = Path(file_path)
         if path.suffix.lower() == ".zip":
-            doc_ids = self._add_zip(path, chunk_size, chunk_overlap, use_ai_chunking)
+            doc_ids = self.add_zip(path, chunk_size, chunk_overlap, use_ai_chunking)
             return doc_ids[0] if doc_ids else ""
         content = self._parse_file(path)
         return self.add_text(
@@ -187,7 +187,7 @@ class KnowledgeBase:
             use_ai_chunking=use_ai_chunking,
         )
 
-    def _add_zip(
+    def add_zip(
             self,
             path: Path,
             chunk_size: int = 512,
