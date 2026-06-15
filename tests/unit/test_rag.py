@@ -14,7 +14,7 @@ from harness.rag.embedding import (
 )
 from harness.rag.knowledge_base import KnowledgeBase
 from harness.rag.reranker import LocalReranker, OpenAIReranker, Reranker, create_reranker
-from harness.rag.vector_store import Chunk, Document, SqliteVectorStore
+from harness.rag.vector_store import Chunk, ChromaVectorStore, Document, SqliteVectorStore
 
 
 class _MockEmbeddingProvider(EmbeddingProvider):
@@ -84,6 +84,60 @@ class TestVectorStore:
             store.close()
         finally:
             Path(db_path).unlink(missing_ok=True)
+
+
+class TestChromaVectorStore:
+    """Chroma 向量存储的增删查操作测试。"""
+
+    def test_add_and_list_documents(self):
+        """添加文档后应能列出。"""
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            store.add_document(Document(id="d1", title="Test Doc", source="test.txt"))
+            docs = store.list_documents()
+            assert len(docs) == 1
+            assert docs[0].id == "d1"
+            assert docs[0].title == "Test Doc"
+            store.close()
+
+    def test_add_chunk_and_search(self):
+        """添加 Chunk 后应能按向量相似度搜索到。"""
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            store.add_document(Document(id="d1", title="法律条款"))
+            emb1 = [1.0, 0.0, 0.0]
+            emb2 = [0.0, 1.0, 0.0]
+            store.add_chunks(
+                [
+                    Chunk(id="c1", document_id="d1", content="保密条款", embedding=emb1, chunk_index=0),
+                    Chunk(id="c2", document_id="d1", content="违约责任", embedding=emb2, chunk_index=1),
+                ]
+            )
+            results = store.search([0.9, 0.1, 0.0], top_k=2)
+            assert len(results) == 2
+            assert results[0].id == "c1"
+            assert results[0].score > results[1].score
+            store.close()
+
+    def test_delete_document(self):
+        """删除文档后列表应清空。"""
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            store.add_document(Document(id="d1", title="Test"))
+            store.add_chunks(
+                [Chunk(id="c1", document_id="d1", content="test", embedding=[1.0, 0.0, 0.0])]
+            )
+            store.delete_document("d1")
+            assert store.list_documents() == []
+            store.close()
+
+    def test_empty_search(self):
+        """空库搜索应返回空列表。"""
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            results = store.search([1.0, 0.0, 0.0], top_k=5)
+            assert results == []
+            store.close()
 
 
 class TestKnowledgeBase:
