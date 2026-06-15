@@ -51,8 +51,6 @@ class KnowledgeBase:
     def from_config(cls, config: HarnessConfig | None = None) -> KnowledgeBase:
         """从 HarnessConfig 创建知识库实例。"""
         cfg = config or HarnessConfig()
-        import os
-
         store = create_vector_store(cfg.kb_dir)
         embedding = create_embedding_provider(
             provider=cfg.embedding.provider,

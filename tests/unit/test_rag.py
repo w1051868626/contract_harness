@@ -14,7 +14,7 @@ from harness.rag.embedding import (
 )
 from harness.rag.knowledge_base import KnowledgeBase
 from harness.rag.reranker import LocalReranker, OpenAIReranker, Reranker, create_reranker
-from harness.rag.vector_store import Chunk, ChromaVectorStore, Document
+from harness.rag.vector_store import ChromaVectorStore, Chunk, Document
 
 
 class _MockEmbeddingProvider(EmbeddingProvider):
@@ -25,7 +25,6 @@ class _MockEmbeddingProvider(EmbeddingProvider):
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         return [self.embed(t) for t in texts]
-
 
 
 class TestChromaVectorStore:
@@ -51,8 +50,12 @@ class TestChromaVectorStore:
             emb2 = [0.0, 1.0, 0.0]
             store.add_chunks(
                 [
-                    Chunk(id="c1", document_id="d1", content="保密条款", embedding=emb1, chunk_index=0),
-                    Chunk(id="c2", document_id="d1", content="违约责任", embedding=emb2, chunk_index=1),
+                    Chunk(
+                        id="c1", document_id="d1", content="保密条款", embedding=emb1, chunk_index=0
+                    ),
+                    Chunk(
+                        id="c2", document_id="d1", content="违约责任", embedding=emb2, chunk_index=1
+                    ),
                 ]
             )
             results = store.search([0.9, 0.1, 0.0], top_k=2)
