@@ -10,6 +10,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from docx import Document as DocxDocument
+
 from harness.agent.llm import LLMClient, LLMResponse
 from harness.core.config import HarnessConfig, LLMConfig
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
@@ -28,13 +30,13 @@ class KnowledgeBase:
     """知识库，管理文档的添加、分块、嵌入与检索。"""
 
     def __init__(
-        self,
-        store: VectorStore,
-        embedding: EmbeddingProvider,
-        llm: LLMClient | None = None,
-        reranker: Reranker | None = None,
-        chunk_model: str = "gpt-4o-mini",
-        chunk_llm: LLMClient | None = None,
+            self,
+            store: VectorStore,
+            embedding: EmbeddingProvider,
+            llm: LLMClient | None = None,
+            reranker: Reranker | None = None,
+            chunk_model: str = "gpt-4o-mini",
+            chunk_llm: LLMClient | None = None,
     ):
         """初始化知识库。"""
         self._store = store
@@ -85,14 +87,14 @@ class KnowledgeBase:
         )
 
     def add_text(
-        self,
-        title: str,
-        content: str,
-        source: str = "",
-        metadata: dict[str, Any] | None = None,
-        chunk_size: int = 512,
-        chunk_overlap: int = 64,
-        use_ai_chunking: bool = True,
+            self,
+            title: str,
+            content: str,
+            source: str = "",
+            metadata: dict[str, Any] | None = None,
+            chunk_size: int = 512,
+            chunk_overlap: int = 64,
+            use_ai_chunking: bool = True,
     ) -> str:
         """将文本添加到知识库。"""
         doc_id = uuid.uuid4().hex[:12]
@@ -113,12 +115,12 @@ class KnowledgeBase:
         return doc_id
 
     def _resolve_chunks(
-        self,
-        content: str,
-        doc_id: str,
-        chunk_size: int,
-        chunk_overlap: int,
-        use_ai: bool,
+            self,
+            content: str,
+            doc_id: str,
+            chunk_size: int,
+            chunk_overlap: int,
+            use_ai: bool,
     ) -> list[Chunk]:
         """根据配置选择 AI 分块、法律条文分块或传统分块。"""
         if use_ai and self._chunk_llm is not None:
@@ -164,11 +166,11 @@ class KnowledgeBase:
         ]
 
     def add_file(
-        self,
-        file_path: str | Path,
-        chunk_size: int = 512,
-        chunk_overlap: int = 64,
-        use_ai_chunking: bool = True,
+            self,
+            file_path: str | Path,
+            chunk_size: int = 512,
+            chunk_overlap: int = 64,
+            use_ai_chunking: bool = True,
     ) -> str:
         """添加文件到知识库。"""
         path = Path(file_path)
@@ -186,11 +188,11 @@ class KnowledgeBase:
         )
 
     def _add_zip(
-        self,
-        path: Path,
-        chunk_size: int = 512,
-        chunk_overlap: int = 64,
-        use_ai_chunking: bool = True,
+            self,
+            path: Path,
+            chunk_size: int = 512,
+            chunk_overlap: int = 64,
+            use_ai_chunking: bool = True,
     ) -> list[str]:
         """解压 zip 并以内部文件名为标题分别导入。"""
         supported = {".txt", ".md", ".json", ".pdf", ".docx"}
@@ -245,13 +247,8 @@ class KnowledgeBase:
             except ImportError:
                 return path.read_text(encoding="utf-8", errors="replace")
         if suffix == ".docx":
-            try:
-                from docx import Document as DocxDocument
-
-                doc = DocxDocument(str(path))
-                return "\n".join(p.text for p in doc.paragraphs)
-            except ImportError:
-                return path.read_text(encoding="utf-8", errors="replace")
+            doc = DocxDocument(str(path))
+            return "\n".join(p.text for p in doc.paragraphs)
         return path.read_text(encoding="utf-8")
 
     def query(self, text: str, top_k: int = 5) -> list[Chunk]:
@@ -272,10 +269,10 @@ class KnowledgeBase:
 
     @staticmethod
     def _chunk_legal_text(
-        text: str,
-        doc_id: str,
-        chunk_size: int,
-        overlap: int,
+            text: str,
+            doc_id: str,
+            chunk_size: int,
+            overlap: int,
     ) -> list[Chunk] | None:
         """法律条文专用分块：以「条」为原子单位，不切割条款。
 
@@ -381,10 +378,10 @@ class KnowledgeBase:
 
     @staticmethod
     def _chunk_text(
-        text: str,
-        doc_id: str,
-        chunk_size: int,
-        overlap: int,
+            text: str,
+            doc_id: str,
+            chunk_size: int,
+            overlap: int,
     ) -> list[Chunk]:
         """基于段落滑动窗口的传统分块算法。"""
         if not text.strip():
@@ -470,7 +467,7 @@ class KnowledgeBase:
             chunks.append(buf.strip())
 
         if len(chunks) <= 1 and len(text) > chunk_size:
-            return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+            return [text[i: i + chunk_size] for i in range(0, len(text), chunk_size)]
         return chunks if chunks else [text]
 
     @staticmethod
@@ -488,10 +485,10 @@ class KnowledgeBase:
 
     @staticmethod
     def _make_chunk(
-        segments: list[str],
-        doc_id: str,
-        idx: int,
-        metadata: dict[str, Any] | None = None,
+            segments: list[str],
+            doc_id: str,
+            idx: int,
+            metadata: dict[str, Any] | None = None,
     ) -> Chunk:
         """创建 Chunk 对象。"""
         return Chunk(
