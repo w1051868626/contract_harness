@@ -106,7 +106,7 @@ graph TB
         S1 --> S2["Step 2<br/>风险分析<br/>(RiskAnalyzer)"]:::step
         S2 --> S3["Step 3<br/>合规检查<br/>(ComplianceChecker)"]:::step
         S3 --> S4["Step 4<br/>生成摘要<br/>(LLM)"]:::step
-        S0 -.->|可选| KB[("SQLite 向量库<br/>KnowledgeBase")]
+        S0 -.->|可选| KB[("Chroma 向量库<br/>KnowledgeBase")]
     end
 
     subgraph LLM["LLM 层"]
@@ -150,7 +150,7 @@ agent = ContractAgent(llm, knowledge_base=kb)
 ```
 
 - **Embedding**：支持 OpenAI API（默认）和本地 sentence-transformers 模型
-- **向量存储**：SQLite 持久化，余弦相似度搜索
+- **向量存储**：Chroma 持久化，HNSW ANN 近似搜索
 - **文档解析**：支持 TXT / JSON / PDF / DOCX / ZIP（自动解压提取）格式
 - **分块策略**：AI 智能分块（可选 LLM 驱动）→ 段落级 → 句子级 → 字符回退
 - **重排序**：支持 Reranker 精排，在向量检索后对候选结果重新打分排序（OpenAI API / local cross-encoder）
@@ -200,6 +200,7 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `RERANK_API_KEY` | Reranker API 密钥 | 同 `OPENAI_API_KEY` |
 | `RERANK_API_BASE` | Reranker API 地址 | 同 `OPENAI_API_BASE` |
 | `RERANK_MODEL` | Reranker 模型 | `rerank-v1` |
+| `VECTOR_STORE_BACKEND` | 向量存储后端（已废弃，仅支持 chroma） | `chroma` |
 | `HTTP_PROXY` | 通用代理（回退） | - |
 | `HARNESS_DATA_DIR` | 数据根目录（知识库、回放等） | 项目下 `.harness/` |
 

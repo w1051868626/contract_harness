@@ -23,7 +23,7 @@ harness/
 - `harness/rag/embedding.py` — EmbeddingProvider / OpenAIEmbeddingProvider（离线 hash 回退）
 - `harness/rag/reranker.py` — Reranker ABC / OpenAIReranker / LocalReranker
 - `harness/rag/seed_laws.py` — 7 部内置法律种子数据
-- `harness/rag/vector_store.py` — SQLite 向量存储
+- `harness/rag/vector_store.py` — Chroma 向量存储（ANN 近似搜索）
 - `harness/cli/main.py` — 所有 Click CLI 命令入口（408 行）
 - `harness/agent/llm.py` — LLMClient（无 key 时自动回退 Mock 响应）
 - `harness/core/config.py` — HarnessConfig / LLMConfig / EmbeddingConfig
@@ -67,6 +67,7 @@ harness serve                              # 启动 Web 界面
 | `CHUNK_API_KEY` | AI 分块 API 密钥 |
 | `CHUNK_API_BASE` | AI 分块 API 地址 |
 | `CHUNK_MODEL` | AI 分块模型 |
+| `VECTOR_STORE_BACKEND` | 向量存储后端（已废弃，仅支持 chroma） |
 
 ### .env 文件
 
@@ -85,3 +86,4 @@ harness serve                              # 启动 Web 界面
 ## 更新记录
 
 - 2026-06-14: 新增 `load_dotenv()` 工具函数（`harness/utils/io.py`），CLI 入口和 Web 入口自动加载 `.env`；新增依赖 `python-dotenv`；同步更新文档。
+- 2026-06-15: 移除 SQLite 向量存储后端，统一使用 Chroma 向量数据库；添加 ChromaVectorStore 集成测试（4 个用例）；更新 create_vector_store 及 KnowledgeBase.from_config 默认后端为 chroma。
