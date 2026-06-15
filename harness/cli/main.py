@@ -25,6 +25,7 @@ from harness.replay.player import SessionPlayer
 from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
 from harness.utils.io import load_dotenv, read_text
+from harness.web.app import app
 
 load_dotenv()
 
@@ -103,8 +104,6 @@ def replay(ctx: click.Context, session_id: str, as_json: bool) -> None:
         return
 
     if as_json:
-        from harness.replay.recorder import SessionRecorder
-
         r = SessionRecorder()
         data = r._serialize(session)
         console.print(json.dumps(data, ensure_ascii=False, indent=2))
@@ -254,8 +253,6 @@ def diff(ctx: click.Context, session_a: str, session_b: str) -> None:
 @click.option("--reload", is_flag=True, help="热重载")
 def serve(host: str, port: int, reload: bool) -> None:
     """启动 FastAPI Web 界面。"""
-    from harness.web.app import app
-
     console.print(f"[green]正在启动 Web 界面:[/green] http://{host}:{port}")
     if reload:
         console.print("[yellow]热重载已启用[/yellow]")
