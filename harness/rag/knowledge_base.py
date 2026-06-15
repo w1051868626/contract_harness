@@ -140,7 +140,7 @@ class KnowledgeBase:
             try:
                 return self._chunk_with_ai(content, doc_id)
             except Exception:
-                pass
+                logger.warning("AI 分块失败，回退到传统分块", exc_info=True)
         legal = self._chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
         if legal is not None:
             logger.debug("使用法律条文分块: chunks=%d", len(legal))
@@ -150,7 +150,8 @@ class KnowledgeBase:
 
     def _chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
         """使用 LLM 对文本进行智能分块。"""
-        assert self._chunk_llm is not None
+        if self._chunk_llm is None:
+            raise RuntimeError("chunk_llm 未初始化")
         logger.debug("AI 分块开始: text_len=%d, model=%s", len(text), self._chunk_model)
         prompt = CHUNK_PROMPT.format(text=text[:8000])
         resp: LLMResponse = self._chunk_llm.chat(
@@ -242,6 +243,7 @@ class KnowledgeBase:
                     )
                     doc_ids.append(doc_id)
                 except Exception:
+                    logger.warning("ZIP 中文件处理失败: filename=%s", info.filename, exc_info=True)
                     continue
         return doc_ids
 
@@ -289,7 +291,7 @@ class KnowledgeBase:
         logger.debug("列出文档: count=%d", len(docs))
         return docs
 
-    def delete_document(self, document_id: str):
+    def delete_document(self, document_id: str) -> None:
         """删除指定文档及其分块。"""
         logger.debug("删除文档: doc_id=%s", document_id)
         self._store.delete_document(document_id)

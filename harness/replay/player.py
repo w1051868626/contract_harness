@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from datetime import datetime
 from typing import Any
 
@@ -50,7 +51,7 @@ class SessionPlayer:
         """列出所有录制会话。"""
         return self._storage.list_sessions()
 
-    def step_through(self, session_id: str):
+    def step_through(self, session_id: str) -> Generator[AgentStep, None, None]:
         """逐步骤生成器，遍历会话步骤。"""
         session = self.load(session_id)
         if session is None:
@@ -58,7 +59,7 @@ class SessionPlayer:
         for step in session.steps:
             yield step
 
-    def _deserialize(self, data: dict) -> AgentSession:
+    def _deserialize(self, data: dict[str, Any]) -> AgentSession:
         """将字典反序列化为 AgentSession。"""
         doc = ContractDocument(
             id=data["document"]["id"],
@@ -103,7 +104,7 @@ class SessionPlayer:
             metadata=data.get("metadata", {}),
         )
 
-    def _deserialize_report(self, data: dict) -> ReviewReport:
+    def _deserialize_report(self, data: dict[str, Any]) -> ReviewReport:
         """将字典反序列化为 ReviewReport。"""
         return ReviewReport(
             document_id=data["document_id"],

@@ -43,9 +43,9 @@ class VectorStore(ABC):
     def add_document(self, document: Document) -> str: ...
 
     @abstractmethod
-    def add_chunk(self, chunk: Chunk): ...
+    def add_chunk(self, chunk: Chunk) -> None: ...
 
-    def add_chunks(self, chunks: list[Chunk]):
+    def add_chunks(self, chunks: list[Chunk]) -> None:
         for chunk in chunks:
             self.add_chunk(chunk)
 
@@ -56,10 +56,10 @@ class VectorStore(ABC):
     def list_documents(self) -> list[Document]: ...
 
     @abstractmethod
-    def delete_document(self, document_id: str): ...
+    def delete_document(self, document_id: str) -> None: ...
 
     @abstractmethod
-    def close(self): ...
+    def close(self) -> None: ...
 
 
 class ChromaVectorStore(VectorStore):
@@ -93,7 +93,7 @@ class ChromaVectorStore(VectorStore):
         )
         return document.id
 
-    def add_chunk(self, chunk: Chunk):
+    def add_chunk(self, chunk: Chunk) -> None:
         if not chunk.embedding:
             return
         metadata = dict(chunk.metadata)
@@ -106,7 +106,7 @@ class ChromaVectorStore(VectorStore):
             documents=[chunk.content],
         )
 
-    def add_chunks(self, chunks: list[Chunk]):
+    def add_chunks(self, chunks: list[Chunk]) -> None:
         ids: list[str] = []
         embeddings: list[list[float]] = []
         metadatas: list[dict[str, Any]] = []
@@ -180,7 +180,7 @@ class ChromaVectorStore(VectorStore):
             )
         return docs
 
-    def delete_document(self, document_id: str):
+    def delete_document(self, document_id: str) -> None:
         logger.debug("删除文档: document_id=%s", document_id)
         meta_key = f"doc_meta_{document_id}"
         try:
@@ -191,7 +191,7 @@ class ChromaVectorStore(VectorStore):
         if results and results.get("ids"):
             self._collection.delete(ids=results["ids"])
 
-    def close(self):
+    def close(self) -> None:
         pass
 
 

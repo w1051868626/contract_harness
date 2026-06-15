@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from harness.core.types import AgentSession
+from harness.core.types import AgentSession, Clause, ComplianceCheck, RiskAssessment
 from harness.replay.player import SessionPlayer
 from harness.utils.io import write_text
 from harness.utils.log import logger
@@ -62,13 +62,15 @@ class OutputComparator:
             raise ValueError("无法加载会话")
         return self.compare(session_a, session_b)
 
-    def _compare_clauses(self, clauses_a: list, clauses_b: list) -> list[dict]:
+    def _compare_clauses(
+        self, clauses_a: list[Clause], clauses_b: list[Clause]
+    ) -> list[dict[str, Any]]:
         """对比条款列表，返回增删改差异。"""
         diffs = []
         types_a = {c.clause_type: c for c in clauses_a}
         types_b = {c.clause_type: c for c in clauses_b}
 
-        for ctype in set(list(types_a.keys()) + list(types_b.keys())):
+        for ctype in types_a.keys() | types_b.keys():
             if ctype not in types_a:
                 diffs.append({"type": ctype, "change": "removed"})
             elif ctype not in types_b:
@@ -78,7 +80,9 @@ class OutputComparator:
 
         return diffs
 
-    def _compare_risks(self, risks_a: list, risks_b: list) -> list[dict]:
+    def _compare_risks(
+        self, risks_a: list[RiskAssessment], risks_b: list[RiskAssessment]
+    ) -> list[dict[str, Any]]:
         """对比风险评估列表，返回等级变化与增删差异。"""
         diffs = []
         min_len = min(len(risks_a), len(risks_b))
@@ -101,13 +105,15 @@ class OutputComparator:
 
         return diffs
 
-    def _compare_compliance(self, comp_a: list, comp_b: list) -> list[dict]:
+    def _compare_compliance(
+        self, comp_a: list[ComplianceCheck], comp_b: list[ComplianceCheck]
+    ) -> list[dict[str, Any]]:
         """对比合规检查列表，返回状态变化与增删差异。"""
         diffs = []
         regs_a = {c.regulation: c for c in comp_a}
         regs_b = {c.regulation: c for c in comp_b}
 
-        for reg in set(list(regs_a.keys()) + list(regs_b.keys())):
+        for reg in regs_a.keys() | regs_b.keys():
             if reg not in regs_a:
                 diffs.append({"regulation": reg, "change": "removed"})
             elif reg not in regs_b:

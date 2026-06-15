@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from abc import ABC, abstractmethod
 from typing import Any
@@ -50,8 +51,11 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         return self.embed_batch([text])[0]
 
     def _hash_embed(self, text: str) -> list[float]:
-        """基于哈希的伪嵌入（离线回退）。"""
-        return [(hash(c) % 1000) / 1000.0 for c in text[:16]] or [0.0]
+        """基于哈希的伪嵌入（离线回退），使用 SHA256 确保跨运行确定性。"""
+        h = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        return [(int(h[i : i + 2], 16) % 1000) / 1000.0 for i in range(0, min(32, len(h)), 2)] or [
+            0.0
+        ]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """批量调用 OpenAI 嵌入 API。"""
@@ -68,6 +72,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             logger.debug("Successfully embedded {} texts", len(items))
             return [item["embedding"] for item in items]
         except Exception:
+            logger.warning("Embedding API 调用失败，回退到哈希伪嵌入（结果不精确）", exc_info=True)
             return [self._hash_embed(t) for t in texts]
 
 
@@ -80,7 +85,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
         self._model: Any = None
         self._loaded = False
 
-    def _load(self):
+    def _load(self) -> None:
         """惰性加载本地嵌入模型。"""
         if self._loaded:
             return
@@ -102,7 +107,8 @@ class LocalEmbeddingProvider(EmbeddingProvider):
         """批量使用本地模型编码文本。"""
         logger.debug("Local embedding batch of {} texts with model={}", len(texts), self.model_name)
         self._load()
-        assert self._model is not None
+        if self._model is None:
+            raise RuntimeError("本地嵌入模型未加载")
         return self._model.encode(texts).tolist()
 
 

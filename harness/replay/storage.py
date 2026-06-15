@@ -66,7 +66,7 @@ class ReplayStorage:
                         "finished_at": data.get("finished_at", ""),
                     }
                 )
-            except (json.JSONDecodeError, Exception):
+            except (json.JSONDecodeError, KeyError, TypeError):
                 continue
         return sessions
 

@@ -23,6 +23,8 @@ from harness.utils.log import logger, setup_logging
 
 load_dotenv()
 
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+
 HERE = Path(__file__).parent
 
 config = HarnessConfig()
@@ -104,7 +106,17 @@ async def review_submit(
 ):
     """处理合同审查提交：接受文本或文件上传，返回审查结果。"""
     if file and file.filename:
-        raw = (await file.read()).decode("utf-8")
+        raw_bytes = await file.read()
+        if len(raw_bytes) > MAX_UPLOAD_SIZE:
+            return _render(
+                "review.html",
+                request,
+                error=f"文件大小超过限制（最大 {MAX_UPLOAD_SIZE // 1024 // 1024}MB）",
+            )
+        try:
+            raw = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            return _render("review.html", request, error="文件编码不是 UTF-8，无法解析")
         title = file.filename
     else:
         raw = content

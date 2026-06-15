@@ -47,18 +47,22 @@ class OpenAIReranker(Reranker):
         )
         if not candidates:
             return []
-        resp = self._http_client.post(
-            f"{self.api_base}/rerank",
-            json={
-                "model": self.model,
-                "query": query,
-                "documents": [c.content for c in candidates],
-                "top_n": top_k,
-            },
-            headers={"Authorization": f"Bearer {self.api_key}"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            resp = self._http_client.post(
+                f"{self.api_base}/rerank",
+                json={
+                    "model": self.model,
+                    "query": query,
+                    "documents": [c.content for c in candidates],
+                    "top_n": top_k,
+                },
+                headers={"Authorization": f"Bearer {self.api_key}"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception:
+            logger.warning("Rerank API 调用失败，返回原始排序", exc_info=True)
+            return candidates[:top_k]
         results: list[Chunk] = []
         for item in data.get("results", []):
             idx = item["index"]
@@ -75,7 +79,7 @@ class LocalReranker(Reranker):
         self.model_name = model_name
         self._model: Any = None
 
-    def _load(self):
+    def _load(self) -> None:
         if self._model is not None:
             return
         try:
@@ -97,7 +101,8 @@ class LocalReranker(Reranker):
         if not candidates:
             return []
         self._load()
-        assert self._model is not None
+        if self._model is None:
+            raise RuntimeError("本地重排序模型未加载")
         pairs = [(query, c.content) for c in candidates]
         scores = self._model.predict(pairs)
         for chunk, score in zip(candidates, scores):

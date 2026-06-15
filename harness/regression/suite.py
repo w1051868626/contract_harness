@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from harness.core.types import RegressionResult
+from harness.core.types import EvalResult, RegressionResult
 from harness.eval.dataset import EvalDataset
 from harness.eval.scorer import EvalScorer
 from harness.utils.io import read_json, write_json
@@ -27,17 +27,22 @@ class RegressionSuite:
         self._baseline_dir.mkdir(parents=True, exist_ok=True)
         self._scorer = scorer or EvalScorer()
 
+    def _aggregate_metrics(self, results: list[EvalResult]) -> dict[str, float]:
+        """汇总多条评测结果的指标，计算平均值。"""
+        metrics: dict[str, float] = {}
+        for r in results:
+            for m in r.metrics:
+                metrics[m.name] = metrics.get(m.name, 0.0) + m.value
+        if results:
+            for k in metrics:
+                metrics[k] /= len(results)
+        return metrics
+
     def run(self, dataset: EvalDataset, version: str = "") -> RegressionResult:
         """运行回归测试：评分、对比基线、返回结果。"""
         logger.info("Running regression test on {} items", len(dataset.items))
         results = self._scorer.run(dataset)
-        current_metrics: dict[str, float] = {}
-        for r in results:
-            for m in r.metrics:
-                current_metrics[m.name] = current_metrics.get(m.name, 0.0) + m.value
-        if results:
-            for k in current_metrics:
-                current_metrics[k] /= len(results)
+        current_metrics = self._aggregate_metrics(results)
 
         baseline = self._load_baseline()
         result = RegressionResult(
@@ -75,13 +80,7 @@ class RegressionSuite:
         """手动保存当前评测结果作为基线。"""
         logger.debug("Saving baseline version={}", version)
         results = self._scorer.run(dataset)
-        metrics: dict[str, float] = {}
-        for r in results:
-            for m in r.metrics:
-                metrics[m.name] = metrics.get(m.name, 0.0) + m.value
-        if results:
-            for k in metrics:
-                metrics[k] /= len(results)
+        metrics = self._aggregate_metrics(results)
 
         result_path = self._save_baseline(metrics, version)
         logger.debug("Baseline saved to {}", result_path)

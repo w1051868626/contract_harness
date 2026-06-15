@@ -14,8 +14,11 @@ from harness.agent.tools.risk_analyzer import RiskAnalyzer
 from harness.core.types import (
     AgentSession,
     AgentStep,
+    Clause,
+    ComplianceCheck,
     ContractDocument,
     ReviewReport,
+    RiskAssessment,
     RiskLevel,
     ToolCall,
 )
@@ -75,39 +78,36 @@ class ContractAgent:
         session.steps.append(step1)
         logger.info("Extracted {} clauses from document", len(clauses))
 
-        # Step 2: 风险分析
+        # Step 2: 批量风险分析（单次 LLM 调用）
         step2 = AgentStep(step_index=2, timestamp=datetime.now(timezone.utc).isoformat())
         step2.agent_message = "正在进行风险分析..."
-        risks = []
-        for clause in clauses:
-            tc = ToolCall(
-                tool_name="risk_analyzer",
-                input={"clause_type": clause.clause_type},
-                started_at=datetime.now(timezone.utc).isoformat(),
-            )
-            risk = self._risk_analyzer.analyze(clause)
-            tc.output = risk.__dict__
-            tc.finished_at = datetime.now(timezone.utc).isoformat()
-            step2.tool_calls.append(tc)
-            risks.append(risk)
+        tc = ToolCall(
+            tool_name="risk_analyzer",
+            input={"clause_count": len(clauses)},
+            started_at=datetime.now(timezone.utc).isoformat(),
+        )
+        risks = self._risk_analyzer.batch_analyze(clauses)
+        tc.output = [r.__dict__ for r in risks]
+        tc.finished_at = datetime.now(timezone.utc).isoformat()
+        step2.tool_calls.append(tc)
         session.steps.append(step2)
         logger.info("Analyzed {} clauses for risk", len(risks))
 
-        # Step 3: 合规检查
+        # Step 3: 批量合规检查（每个条款一次 LLM 调用，替代 N×5 次）
         step3 = AgentStep(step_index=3, timestamp=datetime.now(timezone.utc).isoformat())
         step3.agent_message = "正在进行合规检查..."
-        all_compliance = []
-        for clause in clauses:
-            tc = ToolCall(
-                tool_name="compliance_checker",
-                input={"clause_type": clause.clause_type},
-                started_at=datetime.now(timezone.utc).isoformat(),
-            )
-            checks = self._compliance_checker.check(clause)
-            tc.output = [c.__dict__ for c in checks]
-            tc.finished_at = datetime.now(timezone.utc).isoformat()
-            step3.tool_calls.append(tc)
+        tc = ToolCall(
+            tool_name="compliance_checker",
+            input={"clause_count": len(clauses)},
+            started_at=datetime.now(timezone.utc).isoformat(),
+        )
+        compliance_results = self._compliance_checker.batch_check(clauses)
+        all_compliance: list[ComplianceCheck] = []
+        for checks in compliance_results:
             all_compliance.extend(checks)
+        tc.output = [c.__dict__ for c in all_compliance]
+        tc.finished_at = datetime.now(timezone.utc).isoformat()
+        step3.tool_calls.append(tc)
         session.steps.append(step3)
         logger.info("Performed {} compliance checks", len(all_compliance))
 
@@ -134,7 +134,7 @@ class ContractAgent:
 
         return report, session
 
-    def _compute_overall_risk(self, risks: list) -> RiskLevel:
+    def _compute_overall_risk(self, risks: list[RiskAssessment]) -> RiskLevel:
         """根据所有风险项计算综合风险等级。"""
         if not risks:
             return RiskLevel.INFO
@@ -149,7 +149,13 @@ class ContractAgent:
             return RiskLevel.LOW
         return RiskLevel.INFO
 
-    def _generate_summary(self, clauses, risks, compliance, kb_context: str = "") -> str:
+    def _generate_summary(
+        self,
+        clauses: list[Clause],
+        risks: list[RiskAssessment],
+        compliance: list[ComplianceCheck],
+        kb_context: str = "",
+    ) -> str:
         """调用 LLM 生成审查报告摘要文本。"""
         clauses_summary = f"共发现 {len(clauses)} 个条款"
         high_risks = [r for r in risks if r.risk_level in (RiskLevel.CRITICAL, RiskLevel.HIGH)]

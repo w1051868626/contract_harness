@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
-from harness.core.types import AgentSession
+from harness.core.types import AgentSession, ReviewReport
 from harness.utils.io import write_json
 from harness.utils.log import logger
 
@@ -28,7 +29,7 @@ class SessionRecorder:
         logger.info("Session recorded to {}", filepath)
         return filepath
 
-    def _serialize(self, session: AgentSession) -> dict:
+    def _serialize(self, session: AgentSession) -> dict[str, Any]:
         """将 AgentSession 序列化为字典。"""
         return {
             "session_id": session.session_id,
@@ -64,7 +65,7 @@ class SessionRecorder:
             "metadata": session.metadata,
         }
 
-    def _serialize_report(self, report) -> dict | None:
+    def _serialize_report(self, report: ReviewReport | None) -> dict[str, Any] | None:
         """将 ReviewReport 序列化为字典。"""
         if report is None:
             return None

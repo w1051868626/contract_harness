@@ -30,7 +30,7 @@ class LLMConfig:
     chunk_api_base: str = ""
 
     def __post_init__(self):
-        """从环境变量自动补充缺失的 API 密钥与地址。"""
+        """从环境变量自动补充缺失的 API 密钥与地址，并校验参数范围。"""
         self.provider = os.getenv("LLM_PROVIDER", self.provider)
         if not self.api_key:
             provider_key = f"{self.provider.upper()}_API_KEY"
@@ -45,6 +45,16 @@ class LLMConfig:
             self.chunk_api_key = os.getenv("CHUNK_API_KEY", self.api_key)
         if not self.chunk_api_base:
             self.chunk_api_base = os.getenv("CHUNK_API_BASE", self.api_base)
+        self._validate()
+
+    def _validate(self) -> None:
+        """校验配置参数范围。"""
+        if self.temperature < 0.0 or self.temperature > 2.0:
+            raise ValueError(f"temperature 必须在 [0.0, 2.0] 范围内，当前值: {self.temperature}")
+        if self.max_tokens <= 0:
+            raise ValueError(f"max_tokens 必须为正整数，当前值: {self.max_tokens}")
+        if self.timeout <= 0:
+            raise ValueError(f"timeout 必须为正整数，当前值: {self.timeout}")
 
 
 @dataclass
@@ -117,7 +127,7 @@ class HarnessConfig:
         if not self.report_dir:
             self.report_dir = str(root / "reports")
 
-    def ensure_dirs(self):
+    def ensure_dirs(self) -> None:
         """确保所有配置中的数据目录存在。"""
         for d in [
             self.data_dir,

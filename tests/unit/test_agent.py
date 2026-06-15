@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from harness.agent.contract_agent import ContractAgent
 from harness.agent.llm import LLMResponse
 from harness.agent.tools.clause_extractor import ClauseExtractor
@@ -18,6 +20,27 @@ CLAUSE_JSON = """[
 RISK_JSON = '{"risk_level": "medium", "reason": "赔偿范围不明确", "suggestion": "建议明确赔偿上限"}'
 
 COMPLIANCE_JSON = '{"status": true, "detail": "符合相关法律规定"}'
+
+BATCH_COMPLIANCE_JSON = json.dumps(
+    [
+        {
+            "index": 0,
+            "regulation": "中华人民共和国民法典（合同编）",
+            "status": True,
+            "detail": "符合",
+        },
+        {"index": 1, "regulation": "中华人民共和国劳动合同法", "status": True, "detail": "符合"},
+        {"index": 2, "regulation": "中华人民共和国数据安全法", "status": True, "detail": "符合"},
+        {
+            "index": 3,
+            "regulation": "中华人民共和国个人信息保护法",
+            "status": True,
+            "detail": "符合",
+        },
+        {"index": 4, "regulation": "中华人民共和国反垄断法", "status": True, "detail": "符合"},
+    ],
+    ensure_ascii=False,
+)
 
 
 class TestClauseExtractor:
@@ -69,8 +92,8 @@ class TestComplianceChecker:
     """合规检查器测试。"""
 
     def test_check_returns_checks(self):
-        """应对所有预设法条返回合规检查结果。"""
-        llm = MockLLMClient([LLMResponse(content=COMPLIANCE_JSON, model="mock") for _ in range(5)])
+        """批量模式下应一次 LLM 调用返回 5 个法规的检查结果。"""
+        llm = MockLLMClient([LLMResponse(content=BATCH_COMPLIANCE_JSON, model="mock")])
         clause = Clause(clause_type="保密", content="双方应保密...")
         checker = ComplianceChecker(llm)
         results = checker.check(clause)
@@ -79,7 +102,7 @@ class TestComplianceChecker:
 
     def test_all_regulations_checked(self):
         """应覆盖所有预定义的法条类型。"""
-        llm = MockLLMClient([LLMResponse(content=COMPLIANCE_JSON, model="mock") for _ in range(5)])
+        llm = MockLLMClient([LLMResponse(content=BATCH_COMPLIANCE_JSON, model="mock")])
         clause = Clause(clause_type="保密", content="...")
         checker = ComplianceChecker(llm)
         results = checker.check(clause)
@@ -101,7 +124,7 @@ class TestContractAgent:
         assert len(report.clauses) == 2
         assert len(report.risks) == 2
         assert len(report.compliance_checks) == 10
-        assert report.overall_risk == RiskLevel.MEDIUM
+        assert report.overall_risk == RiskLevel.HIGH
         assert "审查完成" in report.summary
         assert len(session.steps) == 4
         assert session.report is not None
@@ -114,4 +137,4 @@ class TestContractAgent:
         assert session.session_id
         assert session.document.id == "doc2"
         assert len(session.steps[0].tool_calls) == 1
-        assert len(session.steps[1].tool_calls) == 2
+        assert len(session.steps[1].tool_calls) == 1

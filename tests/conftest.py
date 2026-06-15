@@ -38,14 +38,35 @@ def clause_extract_response() -> str:
 
 @pytest.fixture
 def risk_analysis_response() -> str:
-    """返回模拟的风险分析 JSON 响应。"""
+    """返回模拟的单条风险分析 JSON 响应。"""
     return '{"risk_level": "medium", "reason": "赔偿范围不明确", "suggestion": "建议明确赔偿上限"}'
 
 
 @pytest.fixture
+def batch_risk_response() -> str:
+    """返回模拟的批量风险分析 JSON 响应（覆盖多个条款）。"""
+    return """[
+        {"index": 0, "risk_level": "medium", "reason": "赔偿范围不明确", "suggestion": "建议明确赔偿上限"},
+        {"index": 1, "risk_level": "high", "reason": "违约金过高", "suggestion": "建议调整违约金比例"}
+    ]"""
+
+
+@pytest.fixture
 def compliance_response() -> str:
-    """返回模拟的合规检查 JSON 响应。"""
+    """返回模拟的单条合规检查 JSON 响应。"""
     return '{"status": true, "detail": "符合相关法律规定"}'
+
+
+@pytest.fixture
+def batch_compliance_response() -> str:
+    """返回模拟的批量合规检查 JSON 响应（覆盖 5 部法规）。"""
+    return """[
+        {"index": 0, "regulation": "中华人民共和国民法典（合同编）", "status": true, "detail": "符合相关法律规定"},
+        {"index": 1, "regulation": "中华人民共和国劳动合同法", "status": true, "detail": "符合相关法律规定"},
+        {"index": 2, "regulation": "中华人民共和国数据安全法", "status": true, "detail": "符合相关法律规定"},
+        {"index": 3, "regulation": "中华人民共和国个人信息保护法", "status": true, "detail": "符合相关法律规定"},
+        {"index": 4, "regulation": "中华人民共和国反垄断法", "status": true, "detail": "符合相关法律规定"}
+    ]"""
 
 
 @pytest.fixture
@@ -57,17 +78,16 @@ def summary_response() -> str:
 @pytest.fixture
 def mock_llm(
     clause_extract_response: str,
-    risk_analysis_response: str,
-    compliance_response: str,
+    batch_risk_response: str,
+    batch_compliance_response: str,
     summary_response: str,
 ) -> MockLLMClient:
-    """每个工具 + 1次summary，共需 1 + 2 + 2*5 + 1 = 14个响应"""
+    """批量处理模式：1 次条款提取 + 1 次风险批量 + 2 次合规批量 + 1 次摘要 = 5 个响应。"""
     responses: list[LLMResponse] = [
         LLMResponse(content=clause_extract_response, model="mock"),
+        LLMResponse(content=batch_risk_response, model="mock"),
+        LLMResponse(content=batch_compliance_response, model="mock"),
+        LLMResponse(content=batch_compliance_response, model="mock"),
+        LLMResponse(content=summary_response, model="mock"),
     ]
-    for _ in range(2):
-        responses.append(LLMResponse(content=risk_analysis_response, model="mock"))
-    for _ in range(10):
-        responses.append(LLMResponse(content=compliance_response, model="mock"))
-    responses.append(LLMResponse(content=summary_response, model="mock"))
     return MockLLMClient(responses)
