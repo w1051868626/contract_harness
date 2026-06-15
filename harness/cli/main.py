@@ -25,6 +25,7 @@ from harness.replay.player import SessionPlayer
 from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
 from harness.utils.io import load_dotenv, read_text
+from harness.utils.log import logger, setup_logging
 from harness.web.app import app
 
 load_dotenv()
@@ -37,12 +38,14 @@ console = Console()
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool) -> None:
     """合同审查 Agent 系统 CLI。"""
+    setup_logging(verbose=verbose)
     ctx.ensure_object(dict)
     config = HarnessConfig()
     config.verbose = verbose
     if verbose:
         config.ensure_dirs()
     ctx.obj["config"] = config
+    logger.debug("CLI 启动 (verbose=%s)", verbose)
 
 
 @cli.command()
@@ -253,6 +256,8 @@ def diff(ctx: click.Context, session_a: str, session_b: str) -> None:
 @click.option("--reload", is_flag=True, help="热重载")
 def serve(host: str, port: int, reload: bool) -> None:
     """启动 FastAPI Web 界面。"""
+    setup_logging()
+    logger.info("启动 Web 界面: http://{}:{}", host, port)
     console.print(f"[green]正在启动 Web 界面:[/green] http://{host}:{port}")
     if reload:
         console.print("[yellow]热重载已启用[/yellow]")

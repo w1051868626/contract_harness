@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 import tempfile
-import unittest.mock
 import zipfile
 from pathlib import Path
 
@@ -308,14 +307,14 @@ class TestFileParsing:
             Path(path).unlink(missing_ok=True)
 
     def test_parse_pdf_fallback(self):
-        """当 pypdf 未安装时，退回到按字节读取"""
+        """PDF 解析失败时退回到按文本读取"""
         with tempfile.NamedTemporaryFile(mode="wb", suffix=".pdf", delete=False) as f:
-            f.write(b"%PDF-1.4 garbage content")
+            f.write(b"not a real pdf content")
             path = f.name
         try:
-            with unittest.mock.patch.dict("sys.modules", {"pypdf": None}):
-                content = KnowledgeBase._parse_file(Path(path))
-                assert content is not None
+            content = KnowledgeBase._parse_file(Path(path))
+            assert content is not None
+            assert "not a real pdf content" in content
         finally:
             Path(path).unlink(missing_ok=True)
 

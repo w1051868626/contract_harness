@@ -11,12 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from docx import Document as DocxDocument
+from pypdf import PdfReader
 
 from harness.agent.llm import LLMClient, LLMResponse
 from harness.core.config import HarnessConfig, LLMConfig
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.reranker import Reranker, create_reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore, create_vector_store
+from harness.utils.log import logger
 
 CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑结构拆分成有意义的片段。
 每个片段应该是一个完整的主题、章节或逻辑段落，不要切割句子。
@@ -30,13 +32,13 @@ class KnowledgeBase:
     """知识库，管理文档的添加、分块、嵌入与检索。"""
 
     def __init__(
-            self,
-            store: VectorStore,
-            embedding: EmbeddingProvider,
-            llm: LLMClient | None = None,
-            reranker: Reranker | None = None,
-            chunk_model: str = "gpt-4o-mini",
-            chunk_llm: LLMClient | None = None,
+        self,
+        store: VectorStore,
+        embedding: EmbeddingProvider,
+        llm: LLMClient | None = None,
+        reranker: Reranker | None = None,
+        chunk_model: str = "gpt-4o-mini",
+        chunk_llm: LLMClient | None = None,
     ):
         """初始化知识库。"""
         self._store = store
@@ -87,14 +89,14 @@ class KnowledgeBase:
         )
 
     def add_text(
-            self,
-            title: str,
-            content: str,
-            source: str = "",
-            metadata: dict[str, Any] | None = None,
-            chunk_size: int = 512,
-            chunk_overlap: int = 64,
-            use_ai_chunking: bool = True,
+        self,
+        title: str,
+        content: str,
+        source: str = "",
+        metadata: dict[str, Any] | None = None,
+        chunk_size: int = 512,
+        chunk_overlap: int = 64,
+        use_ai_chunking: bool = True,
     ) -> str:
         """将文本添加到知识库。"""
         doc_id = uuid.uuid4().hex[:12]
@@ -112,15 +114,18 @@ class KnowledgeBase:
             for chunk, emb in zip(chunks, embeddings):
                 chunk.embedding = emb
             self._store.add_chunks(chunks)
+            logger.debug("添加文本: title=%s, doc_id=%s, chunks=%d", title, doc_id, len(chunks))
+        else:
+            logger.warning("添加文本无分块: title=%s, doc_id=%s", title, doc_id)
         return doc_id
 
     def _resolve_chunks(
-            self,
-            content: str,
-            doc_id: str,
-            chunk_size: int,
-            chunk_overlap: int,
-            use_ai: bool,
+        self,
+        content: str,
+        doc_id: str,
+        chunk_size: int,
+        chunk_overlap: int,
+        use_ai: bool,
     ) -> list[Chunk]:
         """根据配置选择 AI 分块、法律条文分块或传统分块。"""
         if use_ai and self._chunk_llm is not None:
@@ -166,14 +171,15 @@ class KnowledgeBase:
         ]
 
     def add_file(
-            self,
-            file_path: str | Path,
-            chunk_size: int = 512,
-            chunk_overlap: int = 64,
-            use_ai_chunking: bool = True,
+        self,
+        file_path: str | Path,
+        chunk_size: int = 512,
+        chunk_overlap: int = 64,
+        use_ai_chunking: bool = True,
     ) -> str:
         """添加文件到知识库。"""
         path = Path(file_path)
+        logger.info("添加文件: %s", path.name)
         if path.suffix.lower() == ".zip":
             doc_ids = self.add_zip(path, chunk_size, chunk_overlap, use_ai_chunking)
             return doc_ids[0] if doc_ids else ""
@@ -188,11 +194,11 @@ class KnowledgeBase:
         )
 
     def add_zip(
-            self,
-            path: Path,
-            chunk_size: int = 512,
-            chunk_overlap: int = 64,
-            use_ai_chunking: bool = True,
+        self,
+        path: Path,
+        chunk_size: int = 512,
+        chunk_overlap: int = 64,
+        use_ai_chunking: bool = True,
     ) -> list[str]:
         """解压 zip 并以内部文件名为标题分别导入。"""
         supported = {".txt", ".md", ".json", ".pdf", ".docx"}
@@ -240,11 +246,10 @@ class KnowledgeBase:
             return str(data)
         if suffix == ".pdf":
             try:
-                from pypdf import PdfReader
-
                 reader = PdfReader(str(path))
                 return "\n".join(page.extract_text() or "" for page in reader.pages)
-            except ImportError:
+            except Exception:
+                logger.warning("PDF 解析失败，按文本读取: %s", path)
                 return path.read_text(encoding="utf-8", errors="replace")
         if suffix == ".docx":
             doc = DocxDocument(str(path))
@@ -253,10 +258,14 @@ class KnowledgeBase:
 
     def query(self, text: str, top_k: int = 5) -> list[Chunk]:
         """语义检索最相关的文本块（支持可选的 rerank 精排）。"""
+        logger.debug("检索: query=%s, top_k=%d", text[:50], top_k)
         query_emb = self._embedding.embed(text)
         candidates = self._store.search(query_emb, top_k=top_k * 2 if self._reranker else top_k)
         if self._reranker and len(candidates) > 1:
-            return self._reranker.rerank(text, candidates, top_k=top_k)
+            result = self._reranker.rerank(text, candidates, top_k=top_k)
+            logger.debug("检索完成 (rerank): results=%d", len(result))
+            return result
+        logger.debug("检索完成: results=%d", len(candidates[:top_k]))
         return candidates[:top_k]
 
     def list_documents(self) -> list[Document]:
@@ -269,10 +278,10 @@ class KnowledgeBase:
 
     @staticmethod
     def _chunk_legal_text(
-            text: str,
-            doc_id: str,
-            chunk_size: int,
-            overlap: int,
+        text: str,
+        doc_id: str,
+        chunk_size: int,
+        overlap: int,
     ) -> list[Chunk] | None:
         """法律条文专用分块：以「条」为原子单位，不切割条款。
 
@@ -378,10 +387,10 @@ class KnowledgeBase:
 
     @staticmethod
     def _chunk_text(
-            text: str,
-            doc_id: str,
-            chunk_size: int,
-            overlap: int,
+        text: str,
+        doc_id: str,
+        chunk_size: int,
+        overlap: int,
     ) -> list[Chunk]:
         """基于段落滑动窗口的传统分块算法。"""
         if not text.strip():
@@ -467,7 +476,7 @@ class KnowledgeBase:
             chunks.append(buf.strip())
 
         if len(chunks) <= 1 and len(text) > chunk_size:
-            return [text[i: i + chunk_size] for i in range(0, len(text), chunk_size)]
+            return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
         return chunks if chunks else [text]
 
     @staticmethod
@@ -485,10 +494,10 @@ class KnowledgeBase:
 
     @staticmethod
     def _make_chunk(
-            segments: list[str],
-            doc_id: str,
-            idx: int,
-            metadata: dict[str, Any] | None = None,
+        segments: list[str],
+        doc_id: str,
+        idx: int,
+        metadata: dict[str, Any] | None = None,
     ) -> Chunk:
         """创建 Chunk 对象。"""
         return Chunk(

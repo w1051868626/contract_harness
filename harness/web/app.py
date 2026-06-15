@@ -19,8 +19,11 @@ from harness.replay.player import SessionPlayer
 from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
 from harness.utils.io import load_dotenv
+from harness.utils.log import logger, setup_logging
 
 load_dotenv()
+
+setup_logging(verbose=True)
 
 HERE = Path(__file__).parent
 
@@ -28,6 +31,7 @@ config = HarnessConfig()
 config.ensure_dirs()
 
 app = FastAPI(title="contract-harness")
+logger.info("FastAPI 应用已创建 (config_dir=%s)", config.data_dir)
 app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 templates = Jinja2Templates(directory=str(HERE / "templates"))
 

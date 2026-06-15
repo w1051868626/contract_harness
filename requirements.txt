@@ -9,6 +9,9 @@ python-dotenv>=1.0
 # Vector Store
 chromadb>=0.5.0
 
+# Logging
+loguru>=0.7
+
 # Agent (LLM)
 openai>=1.0
 

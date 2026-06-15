@@ -10,6 +10,8 @@ from typing import Any
 import chromadb
 from chromadb.config import Settings
 
+from harness.utils.log import logger
+
 
 @dataclass
 class Chunk:
@@ -80,6 +82,9 @@ class ChromaVectorStore(VectorStore):
             name=collection_name,
             metadata={"hnsw:space": "cosine"},
         )
+        logger.debug(
+            "ChromaVectorStore 初始化: persist_dir=%s, collection=%s", persist_path, collection_name
+        )
 
     def add_document(self, document: Document) -> str:
         self._client.get_or_create_collection(
@@ -125,6 +130,7 @@ class ChromaVectorStore(VectorStore):
             )
 
     def search(self, query_embedding: list[float], top_k: int = 5) -> list[Chunk]:
+        logger.debug("向量检索: top_k=%d", top_k)
         raw: Any = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
@@ -175,6 +181,7 @@ class ChromaVectorStore(VectorStore):
         return docs
 
     def delete_document(self, document_id: str):
+        logger.debug("删除文档: document_id=%s", document_id)
         meta_key = f"doc_meta_{document_id}"
         try:
             self._client.delete_collection(meta_key)

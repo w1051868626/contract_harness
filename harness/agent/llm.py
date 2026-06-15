@@ -10,6 +10,7 @@ import httpx
 from openai import OpenAI
 
 from harness.core.config import LLMConfig
+from harness.utils.log import logger
 
 
 @dataclass
@@ -54,6 +55,7 @@ class LLMClient:
 
     def _mock_chat(self, messages: list[dict[str, str]]) -> LLMResponse:
         """无 API 密钥时返回模拟响应，确保流水线不中断。"""
+        logger.warning("使用模拟 LLM 响应（未设置 API 密钥）")
         combined = " ".join(m.get("content", "") for m in messages)
 
         if "合同条款提取" in combined:
@@ -127,7 +129,13 @@ class LLMClient:
         try:
             resp = self.client.chat.completions.create(**params)
             choice = resp.choices[0]
+            logger.debug(
+                "LLM 调用成功: model=%s, input_tokens=%s",
+                resp.model,
+                resp.usage.total_tokens if resp.usage else "N/A",
+            )
         except ValueError:
+            logger.warning("LLM API 密钥缺失，回退到模拟响应")
             return self._mock_chat(messages)
 
         return LLMResponse(
