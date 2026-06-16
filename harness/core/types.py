@@ -4,7 +4,53 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, NotRequired, TypedDict
+
+
+class ExpectedMetrics(TypedDict, total=False):
+    """评测期望值，用于指标计算。"""
+    clauses: list[dict[str, Any]]
+    risks: list[dict[str, Any]]
+    compliance: list[dict[str, Any]]
+    overall_risk: str
+
+
+class DiffResult(TypedDict):
+    """两份审查报告的差异对比结果。"""
+    summary_changed: bool
+    risk_level_changed: bool
+    clause_diffs: list[dict[str, Any]]
+    risk_diffs: list[dict[str, Any]]
+    compliance_diffs: list[dict[str, Any]]
+
+
+class ReviewResult(TypedDict):
+    """Web 审查接口返回的结构化结果。"""
+    session_id: str
+    summary: str
+    overall_risk: str
+    clauses: list[dict[str, Any]]
+    risks: list[dict[str, Any]]
+    compliance: list[dict[str, Any]]
+
+
+class SessionData(TypedDict):
+    """反序列化会话数据的字典结构。"""
+    session_id: str
+    document: dict[str, Any]
+    started_at: str
+    finished_at: NotRequired[str | None]
+    steps: list[dict[str, Any]]
+    report: NotRequired[dict[str, Any] | None]
+    metadata: dict[str, Any]
+
+
+class SessionSummary(TypedDict):
+    """会话摘要列表中的单条记录。"""
+    session_id: str
+    document_title: str
+    started_at: str
+    finished_at: str
 
 
 class RiskLevel(str, Enum):

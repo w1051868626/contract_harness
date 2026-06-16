@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -30,12 +29,6 @@ class OpenAIReranker(Reranker):
         model: str = "rerank-v1",
         proxy: str | None = None,
     ):
-        if not api_key:
-            api_key = os.getenv("RERANK_API_KEY", os.getenv("OPENAI_API_KEY", ""))
-        if not api_base:
-            api_base = os.getenv(
-                "RERANK_API_BASE", os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-            )
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
         self.model = model
@@ -60,7 +53,7 @@ class OpenAIReranker(Reranker):
             )
             resp.raise_for_status()
             data = resp.json()
-        except Exception:
+        except (httpx.HTTPStatusError, httpx.RequestError):
             logger.warning("Rerank API 调用失败，返回原始排序", exc_info=True)
             return candidates[:top_k]
         results: list[Chunk] = []

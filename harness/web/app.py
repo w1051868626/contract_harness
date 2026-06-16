@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from harness.agent.contract_agent import ContractAgent
 from harness.agent.llm import LLMClient
 from harness.core.config import HarnessConfig
-from harness.core.types import ContractDocument
+from harness.core.types import ContractDocument, ReviewResult
 from harness.replay.player import SessionPlayer
 from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
@@ -30,7 +30,7 @@ HERE = Path(__file__).parent
 config = HarnessConfig()
 config.ensure_dirs()
 
-setup_logging(verbose=True, log_dir=config.log_dir)
+setup_logging(verbose=config.verbose, log_dir=config.log_dir)
 
 app = FastAPI(title="contract-harness")
 logger.info("FastAPI 应用已创建 (config_dir=%s)", config.data_dir)
@@ -38,7 +38,7 @@ app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 templates = Jinja2Templates(directory=str(HERE / "templates"))
 
 
-def _run_review(content: str, title: str) -> dict[str, Any]:
+def _run_review(content: str, title: str) -> ReviewResult:
     """执行合同审查并记录会话，返回结构化结果。"""
     doc = ContractDocument(
         id=uuid.uuid4().hex[:12],

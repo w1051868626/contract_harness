@@ -94,6 +94,7 @@ class ChromaVectorStore(VectorStore):
         return document.id
 
     def add_chunk(self, chunk: Chunk) -> None:
+        """添加单个 Chunk（已废弃，请使用 add_chunks 批量添加）。"""
         if not chunk.embedding:
             return
         metadata = dict(chunk.metadata)

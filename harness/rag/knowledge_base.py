@@ -12,9 +12,11 @@ from typing import Any
 
 from docx import Document as DocxDocument
 from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 
 from harness.agent.llm import LLMClient, LLMResponse
 from harness.core.config import HarnessConfig, LLMConfig
+from harness.core.exceptions import ChunkingError
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.reranker import Reranker, create_reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore, create_vector_store
@@ -26,6 +28,8 @@ CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑�
 
 文档：
 {text}"""
+
+CHUNK_MAX_CHARS = 8000
 
 
 class KnowledgeBase:
@@ -141,48 +145,56 @@ class KnowledgeBase:
                 return self._chunk_with_ai(content, doc_id)
             except Exception:
                 logger.warning("AI 分块失败，回退到传统分块", exc_info=True)
-        legal = self._chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
-        if legal is not None:
-            logger.debug("使用法律条文分块: chunks=%d", len(legal))
-            return legal
-        logger.debug("使用通用文本分块")
-        return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
+        try:
+            legal = self._chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
+            if legal is not None:
+                logger.debug("使用法律条文分块: chunks=%d", len(legal))
+                return legal
+            logger.debug("使用通用文本分块")
+            return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
+        except Exception as exc:
+            raise ChunkingError(f"所有分块策略均失败: {exc}") from exc
 
     def _chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
-        """使用 LLM 对文本进行智能分块。"""
+        """使用 LLM 对文本进行智能分块，超长文本自动分段后合并。"""
         if self._chunk_llm is None:
             raise RuntimeError("chunk_llm 未初始化")
         logger.debug("AI 分块开始: text_len=%d, model=%s", len(text), self._chunk_model)
-        prompt = CHUNK_PROMPT.format(text=text[:8000])
-        resp: LLMResponse = self._chunk_llm.chat(
-            [
-                {
-                    "role": "system",
-                    "content": "你是文档分块专家，严格按 JSON 格式输出。",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            model=self._chunk_model,
-            temperature=0.0,
-        )
-        raw = resp.content.strip()
-        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw)
-        data = json.loads(raw)
-        if not isinstance(data, list):
-            raise ValueError("AI chunking did not return a list")
-        chunks = [
-            Chunk(
-                id=uuid.uuid4().hex[:12],
-                document_id=doc_id,
-                content=item["content"],
-                chunk_index=i,
+
+        all_chunks: list[Chunk] = []
+        for i in range(0, len(text), CHUNK_MAX_CHARS):
+            segment = text[i : i + CHUNK_MAX_CHARS]
+            prompt = CHUNK_PROMPT.format(text=segment)
+            resp: LLMResponse = self._chunk_llm.chat(
+                [
+                    {
+                        "role": "system",
+                        "content": "你是文档分块专家，严格按 JSON 格式输出。",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                model=self._chunk_model,
+                temperature=0.0,
             )
-            for i, item in enumerate(data)
-            if item.get("content", "").strip()
-        ]
-        logger.debug("AI 分块完成: chunks=%d", len(chunks))
-        return chunks
+            raw = resp.content.strip()
+            raw = re.sub(r"^```(?:json)?\s*", "", raw)
+            raw = re.sub(r"\s*```$", "", raw)
+            data = json.loads(raw)
+            if not isinstance(data, list):
+                raise ValueError("AI chunking did not return a list")
+            for item in data:
+                content = item.get("content", "").strip()
+                if content:
+                    all_chunks.append(
+                        Chunk(
+                            id=uuid.uuid4().hex[:12],
+                            document_id=doc_id,
+                            content=content,
+                            chunk_index=len(all_chunks),
+                        )
+                    )
+        logger.debug("AI 分块完成: chunks=%d", len(all_chunks))
+        return all_chunks
 
     def add_file(
         self,
@@ -242,7 +254,7 @@ class KnowledgeBase:
                         use_ai_chunking=use_ai_chunking,
                     )
                     doc_ids.append(doc_id)
-                except Exception:
+                except (json.JSONDecodeError, KeyError, OSError, zipfile.BadZipFile):
                     logger.warning("ZIP 中文件处理失败: filename=%s", info.filename, exc_info=True)
                     continue
         return doc_ids
@@ -265,7 +277,7 @@ class KnowledgeBase:
             try:
                 reader = PdfReader(str(path))
                 return "\n".join(page.extract_text() or "" for page in reader.pages)
-            except Exception:
+            except (PdfReadError, KeyError, IndexError):
                 logger.warning("PDF 解析失败，按文本读取: %s", path)
                 return path.read_text(encoding="utf-8", errors="replace")
         if suffix == ".docx":
@@ -284,6 +296,10 @@ class KnowledgeBase:
             return result
         logger.debug("检索完成: results=%d", len(candidates[:top_k]))
         return candidates[:top_k]
+
+    def clear_cache(self) -> None:
+        """清除知识库内部缓存（当前无缓存，预留接口）。"""
+        pass
 
     def list_documents(self) -> list[Document]:
         """列出所有文档。"""

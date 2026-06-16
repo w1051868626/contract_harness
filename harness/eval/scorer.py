@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from importlib.metadata import version as _pkg_version
 from typing import Any
 
 from harness.agent.contract_agent import ContractAgent
-from harness.core.types import EvalResult
+from harness.core.types import EvalResult, ExpectedMetrics
 from harness.eval.dataset import EvalDataset
 from harness.eval.metrics import MetricsCalculator
 from harness.utils.log import logger
@@ -30,7 +31,7 @@ class EvalScorer:
         for item in dataset.items:
             report, _ = self._agent.review(item.document)
 
-            expected = {
+            expected: ExpectedMetrics = {
                 "clauses": item.expected_clauses,
                 "risks": item.expected_risks,
                 "compliance": item.expected_compliance,
@@ -42,7 +43,7 @@ class EvalScorer:
             results.append(
                 EvalResult(
                     dataset_name=item.document.title,
-                    agent_version="0.1.0",
+                    agent_version=_pkg_version("contract-harness"),
                     metrics=metrics,
                     detailed_results=[
                         {

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from harness.core.types import EvalMetric, EvalResult, ReviewReport
+from harness.core.types import EvalMetric, EvalResult, ExpectedMetrics, ReviewReport
 from harness.utils.log import logger
 
 
@@ -14,7 +12,7 @@ class MetricsCalculator:
     def calculate(
         self,
         report: ReviewReport,
-        expected: dict[str, Any],
+        expected: ExpectedMetrics,
     ) -> list[EvalMetric]:
         """计算单份审查报告的各项指标。"""
         logger.info("Calculating metrics for document_id={}", report.document_id)
@@ -42,7 +40,7 @@ class MetricsCalculator:
         logger.debug("Aggregated metrics: {}", aggregated)
         return aggregated
 
-    def _clause_coverage(self, report: ReviewReport, expected: dict) -> EvalMetric:
+    def _clause_coverage(self, report: ReviewReport, expected: ExpectedMetrics) -> EvalMetric:
         """计算条款类型覆盖比例。"""
         expected_types = {c.get("clause_type") for c in expected.get("clauses", [])}
         actual_types = {c.clause_type for c in report.clauses}
@@ -54,7 +52,7 @@ class MetricsCalculator:
         value = len(intersection) / len(expected_types)
         return EvalMetric(name="clause_coverage", value=round(value, 4))
 
-    def _risk_accuracy(self, report: ReviewReport, expected: dict) -> EvalMetric:
+    def _risk_accuracy(self, report: ReviewReport, expected: ExpectedMetrics) -> EvalMetric:
         """计算风险识别匹配准确率。"""
         expected_risks = expected.get("risks", [])
         if not expected_risks:
@@ -73,7 +71,7 @@ class MetricsCalculator:
         value = matches / len(expected_risks)
         return EvalMetric(name="risk_accuracy", value=round(value, 4))
 
-    def _compliance_accuracy(self, report: ReviewReport, expected: dict) -> EvalMetric:
+    def _compliance_accuracy(self, report: ReviewReport, expected: ExpectedMetrics) -> EvalMetric:
         """计算合规检查匹配准确率。"""
         expected_checks = expected.get("compliance", [])
         if not expected_checks:
@@ -92,7 +90,7 @@ class MetricsCalculator:
         value = matches / len(expected_checks)
         return EvalMetric(name="compliance_accuracy", value=round(value, 4))
 
-    def _risk_level_accuracy(self, report: ReviewReport, expected: dict) -> EvalMetric:
+    def _risk_level_accuracy(self, report: ReviewReport, expected: ExpectedMetrics) -> EvalMetric:
         """计算整体风险等级判断准确率。"""
         expected_level = expected.get("overall_risk", "info")
         actual_level = report.overall_risk.value

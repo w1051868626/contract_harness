@@ -5,7 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from harness.core.types import AgentSession, Clause, ComplianceCheck, RiskAssessment
+from harness.core.types import (
+    AgentSession,
+    Clause,
+    ComplianceCheck,
+    DiffResult,
+    RiskAssessment,
+)
 from harness.replay.player import SessionPlayer
 from harness.utils.io import write_text
 from harness.utils.log import logger
@@ -18,10 +24,10 @@ class OutputComparator:
         """注入 SessionPlayer，用于按 ID 加载会话。"""
         self._player = player or SessionPlayer()
 
-    def compare(self, session_a: AgentSession, session_b: AgentSession) -> dict[str, Any]:
+    def compare(self, session_a: AgentSession, session_b: AgentSession) -> DiffResult:
         """对比两个会话的审查结果，返回差异字典。"""
         logger.info("Comparing sessions {} and {}", session_a.session_id, session_b.session_id)
-        diff = {
+        diff: DiffResult = {
             "summary_changed": False,
             "risk_level_changed": False,
             "clause_diffs": [],
@@ -53,7 +59,7 @@ class OutputComparator:
         )
         return diff
 
-    def compare_by_session_id(self, session_id_a: str, session_id_b: str) -> dict[str, Any]:
+    def compare_by_session_id(self, session_id_a: str, session_id_b: str) -> DiffResult:
         """通过会话 ID 加载并对比。"""
         logger.debug("Comparing sessions by ID: {} vs {}", session_id_a, session_id_b)
         session_a = self._player.load(session_id_a)

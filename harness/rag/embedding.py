@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-import os
+import json
 from abc import ABC, abstractmethod
 from typing import Any
 
 import httpx
 
+from harness.core.exceptions import EmbeddingError
 from harness.utils.log import logger
 
 
@@ -35,12 +36,6 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         proxy: str | None = None,
     ):
         """初始化 OpenAI 嵌入客户端。"""
-        if not api_key:
-            api_key = os.getenv("EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", ""))
-        if not api_base:
-            api_base = os.getenv(
-                "EMBEDDING_API_BASE", os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-            )
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
         self.model = model
@@ -60,6 +55,8 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """批量调用 OpenAI 嵌入 API。"""
         logger.debug("Embedding batch of {} texts with model={}", len(texts), self.model)
+        if not self.api_key:
+            raise EmbeddingError("API 密钥未配置")
         try:
             resp = self._http_client.post(
                 f"{self.api_base}/embeddings",
@@ -71,9 +68,12 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             items = sorted(data["data"], key=lambda x: x["index"])
             logger.debug("Successfully embedded {} texts", len(items))
             return [item["embedding"] for item in items]
-        except Exception:
-            logger.warning("Embedding API 调用失败，回退到哈希伪嵌入（结果不精确）", exc_info=True)
-            return [self._hash_embed(t) for t in texts]
+        except httpx.HTTPStatusError as exc:
+            raise EmbeddingError(f"Embedding API HTTP 错误: {exc.response.status_code}") from exc
+        except httpx.RequestError as exc:
+            raise EmbeddingError(f"Embedding API 请求失败: {exc}") from exc
+        except (KeyError, ValueError, json.JSONDecodeError) as exc:
+            raise EmbeddingError(f"Embedding API 响应解析失败: {exc}") from exc
 
 
 class LocalEmbeddingProvider(EmbeddingProvider):

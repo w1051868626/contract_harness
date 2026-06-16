@@ -15,6 +15,8 @@ from harness.core.types import (
     ReviewReport,
     RiskAssessment,
     RiskLevel,
+    SessionData,
+    SessionSummary,
     ToolCall,
 )
 from harness.replay.storage import ReplayStorage
@@ -47,7 +49,7 @@ class SessionPlayer:
             logger.info("Session loaded session_id={}", session_id)
         return session
 
-    def list_sessions(self) -> list[dict[str, Any]]:
+    def list_sessions(self) -> list[SessionSummary]:
         """列出所有录制会话。"""
         return self._storage.list_sessions()
 
@@ -59,7 +61,7 @@ class SessionPlayer:
         for step in session.steps:
             yield step
 
-    def _deserialize(self, data: dict[str, Any]) -> AgentSession:
+    def _deserialize(self, data: SessionData) -> AgentSession:
         """将字典反序列化为 AgentSession。"""
         doc = ContractDocument(
             id=data["document"]["id"],

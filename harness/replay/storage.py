@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 from harness.core.config import HarnessConfig
+from harness.core.types import SessionData, SessionSummary
 from harness.utils.io import read_json, write_json
 from harness.utils.log import logger
 
@@ -30,14 +30,14 @@ class ReplayStorage:
         logger.debug("Session saved to {}", filepath)
         return filepath
 
-    def load(self, session_id: str) -> dict[str, Any] | None:
+    def load(self, session_id: str) -> SessionData | None:
         """加载会话数据。"""
         logger.debug("Loading session session_id={}", session_id)
         filepath = self._filepath(session_id)
         if not filepath.exists():
             logger.debug("Session file not found session_id={}", session_id)
             return None
-        data = read_json(filepath)
+        data: SessionData = read_json(filepath)  # type: ignore[assignment]
         logger.debug("Session loaded session_id={}", session_id)
         return data
 
@@ -52,7 +52,7 @@ class ReplayStorage:
         logger.debug("Session not found for deletion session_id={}", session_id)
         return False
 
-    def list_sessions(self) -> list[dict[str, Any]]:
+    def list_sessions(self) -> list[SessionSummary]:
         """列出所有会话摘要信息。"""
         sessions = []
         for f in sorted(self._dir.glob("session_*.json"), reverse=True):

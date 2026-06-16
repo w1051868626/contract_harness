@@ -29,3 +29,15 @@ class RegressionError(HarnessError):
     """回归测试相关异常。"""
 
     pass
+
+
+class ChunkingError(HarnessError):
+    """文档分块相关异常。"""
+
+    pass
+
+
+class EmbeddingError(HarnessError):
+    """嵌入向量生成相关异常。"""
+
+    pass
