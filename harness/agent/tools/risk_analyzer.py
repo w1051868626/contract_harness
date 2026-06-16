@@ -46,8 +46,6 @@ class RiskAnalyzer:
         """批量分析多个条款的风险，单次 LLM 调用完成。"""
         if not clauses:
             return []
-        if len(clauses) == 1:
-            return [self.analyze(clauses[0])]
 
         logger.info("Batch analyzing risk for {} clauses", len(clauses))
         sections = []

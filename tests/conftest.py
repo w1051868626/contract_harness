@@ -59,13 +59,18 @@ def compliance_response() -> str:
 
 @pytest.fixture
 def batch_compliance_response() -> str:
-    """返回模拟的批量合规检查 JSON 响应（覆盖 5 部法规）。"""
+    """返回模拟的批量合规检查 JSON 响应（2 个条款 × 5 部法规）。"""
     return """[
-        {"index": 0, "regulation": "中华人民共和国民法典（合同编）", "status": true, "detail": "符合相关法律规定"},
-        {"index": 1, "regulation": "中华人民共和国劳动合同法", "status": true, "detail": "符合相关法律规定"},
-        {"index": 2, "regulation": "中华人民共和国数据安全法", "status": true, "detail": "符合相关法律规定"},
-        {"index": 3, "regulation": "中华人民共和国个人信息保护法", "status": true, "detail": "符合相关法律规定"},
-        {"index": 4, "regulation": "中华人民共和国反垄断法", "status": true, "detail": "符合相关法律规定"}
+        {"clause_index": 0, "regulation": "中华人民共和国民法典（合同编）", "status": true, "detail": "符合相关法律规定"},
+        {"clause_index": 0, "regulation": "中华人民共和国劳动合同法", "status": true, "detail": "符合相关法律规定"},
+        {"clause_index": 0, "regulation": "中华人民共和国数据安全法", "status": true, "detail": "符合相关法律规定"},
+        {"clause_index": 0, "regulation": "中华人民共和国个人信息保护法", "status": true, "detail": "符合相关法律规定"},
+        {"clause_index": 0, "regulation": "中华人民共和国反垄断法", "status": true, "detail": "符合相关法律规定"},
+        {"clause_index": 1, "regulation": "中华人民共和国民法典（合同编）", "status": true, "detail": "符合相关法律规定"},
+        {"clause_index": 1, "regulation": "中华人民共和国劳动合同法", "status": true, "detail": "符合相关法律规定"},
+        {"clause_index": 1, "regulation": "中华人民共和国数据安全法", "status": true, "detail": "符合相关法律规定"},
+        {"clause_index": 1, "regulation": "中华人民共和国个人信息保护法", "status": true, "detail": "符合相关法律规定"},
+        {"clause_index": 1, "regulation": "中华人民共和国反垄断法", "status": true, "detail": "符合相关法律规定"}
     ]"""
 
 
@@ -82,11 +87,10 @@ def mock_llm(
     batch_compliance_response: str,
     summary_response: str,
 ) -> MockLLMClient:
-    """批量处理模式：1 次条款提取 + 1 次风险批量 + 2 次合规批量 + 1 次摘要 = 5 个响应。"""
+    """批量处理模式：1 次条款提取 + 1 次风险批量 + 1 次合规批量 + 1 次摘要 = 4 个响应。"""
     responses: list[LLMResponse] = [
         LLMResponse(content=clause_extract_response, model="mock"),
         LLMResponse(content=batch_risk_response, model="mock"),
-        LLMResponse(content=batch_compliance_response, model="mock"),
         LLMResponse(content=batch_compliance_response, model="mock"),
         LLMResponse(content=summary_response, model="mock"),
     ]

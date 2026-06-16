@@ -1,4 +1,4 @@
-"""评测系统指标计算单元测试。"""
+"""评测系统指标计算与报告生成单元测试。"""
 
 import pytest
 
@@ -8,6 +8,7 @@ from harness.core.types import (
     RiskLevel,
 )
 from harness.eval.metrics import MetricsCalculator
+from harness.eval.reporters import EvalReporter
 
 
 class TestEval:
@@ -53,3 +54,49 @@ class TestEval:
         expected_wrong = {"overall_risk": "low"}
         metrics = calc._risk_level_accuracy(report, expected_wrong)
         assert metrics.value == 0.0
+
+
+class TestEvalReporter:
+    """评测报告生成器测试。"""
+
+    SAMPLE_DATA = {
+        "timestamp": "2026-01-01T00:00:00",
+        "total_items": 2,
+        "aggregated_metrics": {"clause_coverage": 0.85, "risk_accuracy": 0.75},
+        "per_item_results": [
+            {"document_id": "doc1", "metrics": {"clause_coverage": 0.9, "risk_accuracy": 0.8}},
+            {"document_id": "doc2", "metrics": {"clause_coverage": 0.8, "risk_accuracy": 0.7}},
+        ],
+    }
+
+    def test_report_json(self, tmp_path):
+        """生成 JSON 报告应写入文件且内容正确。"""
+        reporter = EvalReporter(tmp_path)
+        path = reporter.report_json(self.SAMPLE_DATA, "test_report")
+        assert path.exists()
+        import json as _json
+
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        assert data["total_items"] == 2
+        assert data["aggregated_metrics"]["clause_coverage"] == 0.85
+
+    def test_report_markdown(self, tmp_path):
+        """生成 Markdown 报告应包含指标和结果。"""
+        reporter = EvalReporter(tmp_path)
+        path = reporter.report_markdown(self.SAMPLE_DATA, "test_report")
+        assert path.exists()
+        content = path.read_text(encoding="utf-8")
+        assert "评测报告" in content
+        assert "clause_coverage" in content
+        assert "85.00" in content
+        assert "doc1" in content
+
+    def test_report_html(self, tmp_path):
+        """生成 HTML 报告应包含表格结构。"""
+        reporter = EvalReporter(tmp_path)
+        path = reporter.report_html(self.SAMPLE_DATA, "test_report")
+        assert path.exists()
+        content = path.read_text(encoding="utf-8")
+        assert "<html" in content
+        assert "<table>" in content
+        assert "clause_coverage" in content

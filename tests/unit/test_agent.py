@@ -24,20 +24,20 @@ COMPLIANCE_JSON = '{"status": true, "detail": "符合相关法律规定"}'
 BATCH_COMPLIANCE_JSON = json.dumps(
     [
         {
-            "index": 0,
+            "clause_index": 0,
             "regulation": "中华人民共和国民法典（合同编）",
             "status": True,
             "detail": "符合",
         },
-        {"index": 1, "regulation": "中华人民共和国劳动合同法", "status": True, "detail": "符合"},
-        {"index": 2, "regulation": "中华人民共和国数据安全法", "status": True, "detail": "符合"},
+        {"clause_index": 0, "regulation": "中华人民共和国劳动合同法", "status": True, "detail": "符合"},
+        {"clause_index": 0, "regulation": "中华人民共和国数据安全法", "status": True, "detail": "符合"},
         {
-            "index": 3,
+            "clause_index": 0,
             "regulation": "中华人民共和国个人信息保护法",
             "status": True,
             "detail": "符合",
         },
-        {"index": 4, "regulation": "中华人民共和国反垄断法", "status": True, "detail": "符合"},
+        {"clause_index": 0, "regulation": "中华人民共和国反垄断法", "status": True, "detail": "符合"},
     ],
     ensure_ascii=False,
 )
