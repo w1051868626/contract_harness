@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-
-from harness.core.config import HarnessConfig
 from typing import Any
 
+from harness.core.config import HarnessConfig
 from harness.core.types import SessionData, SessionSummary
 from harness.utils.io import read_json, write_json
 from harness.utils.log import logger
