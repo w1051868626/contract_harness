@@ -78,7 +78,7 @@ harness serve                              # 启动 Web 界面
 
 ## 约定
 
-- 每次更改后 commit + push
+- **⚠️ 每次变更后必须先更新 README.md、AGENTS.md、CLAUDE.md，再 commit + push**
 - 新增依赖同步更新 `environment.yml` 和 `pyproject.toml`
 - 新增功能必须添加测试用例
 - docstring 必须在 `from __future__ import annotations` 之前（ruff E402）
