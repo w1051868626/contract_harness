@@ -36,7 +36,9 @@ class ComplianceChecker:
         """对单一条款执行多法规合规检查。"""
         return self.batch_check([clause])[0] if clause else []
 
-    def batch_check(self, clauses: list[Clause]) -> list[list[ComplianceCheck]]:
+    def batch_check(
+        self, clauses: list[Clause], memory_context: str = ""
+    ) -> list[list[ComplianceCheck]]:
         """批量对多个条款执行合规检查，单次 LLM 调用完成所有条款和法规检查。"""
         if not clauses:
             return []
@@ -49,6 +51,8 @@ class ComplianceChecker:
             clause_sections="\n\n".join(sections),
             regulations="\n".join(f"{i + 1}. {r}" for i, r in enumerate(self.REGULATIONS)),
         )
+        if memory_context:
+            prompt += "\n\n" + memory_context
         resp = self._llm.chat(
             [
                 {

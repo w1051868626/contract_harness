@@ -42,7 +42,9 @@ class RiskAnalyzer:
         logger.debug("Risk level for {}: {}", clause.clause_type, result.risk_level.value)
         return result
 
-    def batch_analyze(self, clauses: list[Clause]) -> list[RiskAssessment]:
+    def batch_analyze(
+        self, clauses: list[Clause], memory_context: str = ""
+    ) -> list[RiskAssessment]:
         """批量分析多个条款的风险，单次 LLM 调用完成。"""
         if not clauses:
             return []
@@ -52,6 +54,8 @@ class RiskAnalyzer:
         for i, c in enumerate(clauses):
             sections.append(f"--- 条款 {i} ---\n类型: {c.clause_type}\n内容: {c.content}")
         prompt = _BATCH_RISK_PROMPT.format(clause_sections="\n\n".join(sections))
+        if memory_context:
+            prompt += "\n\n" + memory_context
 
         resp = self._llm.chat(
             [

@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 
 from harness.agent.llm import LLMClient
+from harness.agent.memory import MemoryStore
 from harness.agent.prompts import REVIEW_SUMMARY_PROMPT, SYSTEM_PROMPT
 from harness.agent.tools.clause_extractor import ClauseExtractor
 from harness.agent.tools.compliance_checker import ComplianceChecker
@@ -29,10 +30,16 @@ from harness.utils.log import logger
 class ContractAgent:
     """合同审查 Agent，串联 LLM 与各分析工具执行完整审查流程。"""
 
-    def __init__(self, llm: LLMClient | None = None, knowledge_base: KnowledgeBase | None = None):
+    def __init__(
+        self,
+        llm: LLMClient | None = None,
+        knowledge_base: KnowledgeBase | None = None,
+        memory_store: MemoryStore | None = None,
+    ):
         """初始化 Agent，注入 LLM 客户端与知识库实例。"""
         self._llm = llm or LLMClient()
         self._kb = knowledge_base
+        self._memory = memory_store
         self._clause_extractor = ClauseExtractor(self._llm)
         self._risk_analyzer = RiskAnalyzer(self._llm)
         self._compliance_checker = ComplianceChecker(self._llm)
@@ -78,6 +85,21 @@ class ContractAgent:
         session.steps.append(step1)
         logger.info("Extracted {} clauses from document", len(clauses))
 
+        # 从记忆中检索相似案例作为参考上下文
+        mem_risk_ctx = ""
+        mem_compliance_ctx = ""
+        if self._memory and self._memory.enabled:
+            memories: list = []
+            seen: set[str] = set()
+            for c in clauses:
+                for m in self._memory.recall(c.content, top_k=2):
+                    if m.clause_content not in seen:
+                        seen.add(m.clause_content)
+                        memories.append(m)
+            if memories:
+                mem_risk_ctx = self._memory.format_memory_context(memories)
+                mem_compliance_ctx = mem_risk_ctx
+
         # Step 2: 批量风险分析（单次 LLM 调用）
         step2 = AgentStep(step_index=2, timestamp=datetime.now(timezone.utc).isoformat())
         step2.agent_message = "正在进行风险分析..."
@@ -86,7 +108,7 @@ class ContractAgent:
             input={"clause_count": len(clauses)},
             started_at=datetime.now(timezone.utc).isoformat(),
         )
-        risks = self._risk_analyzer.batch_analyze(clauses)
+        risks = self._risk_analyzer.batch_analyze(clauses, memory_context=mem_risk_ctx)
         tc.output = [r.__dict__ for r in risks]
         tc.finished_at = datetime.now(timezone.utc).isoformat()
         step2.tool_calls.append(tc)
@@ -101,7 +123,9 @@ class ContractAgent:
             input={"clause_count": len(clauses)},
             started_at=datetime.now(timezone.utc).isoformat(),
         )
-        compliance_results = self._compliance_checker.batch_check(clauses)
+        compliance_results = self._compliance_checker.batch_check(
+            clauses, memory_context=mem_compliance_ctx
+        )
         all_compliance: list[ComplianceCheck] = []
         for checks in compliance_results:
             all_compliance.extend(checks)
@@ -130,6 +154,16 @@ class ContractAgent:
         )
         session.report = report
         session.finished_at = datetime.now(timezone.utc).isoformat()
+
+        # 将本次审查结果存入持久化记忆
+        if self._memory and self._memory.enabled:
+            self._memory.remember_session(
+                clauses=clauses,
+                risks=risks,
+                compliance=compliance_results,
+                session_id=session.session_id,
+            )
+
         logger.info("Review completed for document_id={}", document.id)
 
         return report, session

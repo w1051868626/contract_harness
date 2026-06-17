@@ -107,6 +107,9 @@ class HarnessConfig:
     eval_dir: str = ""
     regression_dir: str = ""
     report_dir: str = ""
+    memory_dir: str = ""
+    memory_enabled: bool = True
+    memory_top_k: int = 3
     verbose: bool = False
 
     def __post_init__(self):
@@ -126,6 +129,8 @@ class HarnessConfig:
             self.regression_dir = str(root / "regression")
         if not self.report_dir:
             self.report_dir = str(root / "reports")
+        if not self.memory_dir:
+            self.memory_dir = str(root / "memory")
 
     def ensure_dirs(self) -> None:
         """确保所有配置中的数据目录存在。"""
@@ -137,5 +142,6 @@ class HarnessConfig:
             self.eval_dir,
             self.regression_dir,
             self.report_dir,
+            self.memory_dir,
         ]:
             Path(d).mkdir(parents=True, exist_ok=True)

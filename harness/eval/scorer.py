@@ -7,6 +7,7 @@ from importlib.metadata import version as _pkg_version
 from typing import Any
 
 from harness.agent.contract_agent import ContractAgent
+from harness.agent.memory import MemoryStore
 from harness.core.types import EvalResult, ExpectedMetrics
 from harness.eval.dataset import EvalDataset
 from harness.eval.metrics import MetricsCalculator
@@ -20,13 +21,20 @@ class EvalScorer:
         self,
         agent: ContractAgent | None = None,
         metrics_calc: MetricsCalculator | None = None,
+        memory_store: MemoryStore | None = None,
     ):
         self._agent = agent or ContractAgent()
         self._metrics = metrics_calc or MetricsCalculator()
+        self._memory = memory_store
 
-    def run(self, dataset: EvalDataset) -> list[EvalResult]:
-        """对数据集逐项运行审查，返回各评测结果。"""
-        logger.info("Starting scoring run on {} items", len(dataset.items))
+    def run(self, dataset: EvalDataset, learn: bool = False) -> list[EvalResult]:
+        """对数据集逐项运行审查，返回各评测结果。
+
+        Args:
+            dataset: 评测数据集。
+            learn: 若为 True, 将评测期望结果作为修正信号存入记忆（自演进）。
+        """
+        logger.info("Starting scoring run on {} items (learn={})", len(dataset.items), learn)
         results: list[EvalResult] = []
         for item in dataset.items:
             report, _ = self._agent.review(item.document)
@@ -39,6 +47,10 @@ class EvalScorer:
             }
 
             metrics = self._metrics.calculate(report, expected)
+
+            # 自演进：将评测期望作为修正信号存入记忆
+            if learn and self._memory and self._memory.enabled:
+                self._feed_corrections(report, item)
 
             results.append(
                 EvalResult(
@@ -57,6 +69,41 @@ class EvalScorer:
 
         logger.info("Scoring completed: {} results", len(results))
         return results
+
+    def _feed_corrections(self, report: Any, item: Any) -> None:
+        """根据评测期望结果，将修正信号注入记忆。"""
+        if not self._memory:
+            return
+        expected_risks = item.expected_risks or []
+        expected_compliance = item.expected_compliance or []
+        for i, clause in enumerate(report.clauses):
+            if i < len(expected_risks):
+                er = expected_risks[i]
+                actual_risk = report.risks[i].risk_level.value if i < len(report.risks) else ""
+                expected_risk = er.get("risk_level", "")
+                if actual_risk != expected_risk:
+                    self._memory.correct(
+                        clause_type=clause.clause_type,
+                        clause_content=clause.content,
+                        field="risk_level",
+                        correct_value=expected_risk,
+                    )
+            if i < len(expected_compliance):
+                ec = expected_compliance[i]
+                for check in ec:
+                    regulation = check.get("regulation", "")
+                    expected_status = check.get("status", True)
+                    actual = next(
+                        (c for c in report.compliance_checks if c.regulation == regulation),
+                        None,
+                    )
+                    if actual and actual.status != expected_status:
+                        self._memory.correct(
+                            clause_type=clause.clause_type,
+                            clause_content=clause.content,
+                            field=f"compliance:{regulation}",
+                            correct_value="合规" if expected_status else "不合规",
+                        )
 
     def score(self, dataset: EvalDataset) -> dict[str, Any]:
         """运行评测并返回聚合后的评分结果。"""
