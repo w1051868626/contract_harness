@@ -42,4 +42,48 @@
   </p>
 </section>
 {% endif %}
+
+<section>
+  <h3>追问</h3>
+
+  {% if session.metadata and session.metadata.conversation %}
+  <div class="conversation">
+    {% for turn in session.metadata.conversation %}
+    <div class="conversation-turn {{ 'turn-user' if turn.role == 'user' else 'turn-assistant' }}">
+      <div class="turn-role">{{ '👤 用户' if turn.role == 'user' else '🤖 Agent' }}</div>
+      <div class="turn-content">{{ turn.content }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if answer %}
+  <div class="conversation-turn turn-assistant">
+    <div class="turn-role">🤖 Agent</div>
+    <div class="turn-content">{{ answer }}</div>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/sessions/{{ session.session_id }}/converse" class="converse-form" id="converseForm">
+    <div class="form-group">
+      <label for="query">输入问题</label>
+      <div class="converse-input-row">
+        <input type="text" name="query" id="query" placeholder="例如：这个保密条款风险高吗？" required>
+        <button type="submit" class="btn" id="converseBtn">发送</button>
+      </div>
+    </div>
+    <div id="converseLoading" class="loading" style="display:none">🤖 思考中...</div>
+  </form>
+</section>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<script>
+document.getElementById('converseForm')?.addEventListener('submit', function() {
+  document.getElementById('converseBtn').style.display = 'none';
+  document.getElementById('converseLoading').style.display = 'block';
+});
+</script>
 {% endblock %}

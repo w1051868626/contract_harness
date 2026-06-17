@@ -11,12 +11,22 @@
     <label>或直接粘贴合同内容</label>
     <textarea name="content" rows="10" placeholder="在此粘贴合同文本..."></textarea>
   </div>
-  <button type="submit" class="btn">开始审查</button>
+  <div class="form-actions">
+    <button type="submit" class="btn" id="reviewBtn">开始审查</button>
+    <div id="reviewLoading" class="loading" style="display:none">🔍 正在分析合同...</div>
+  </div>
 </form>
 
 {% if error %}
 <div class="error">{{ error }}</div>
 {% endif %}
+
+<script>
+document.querySelector('.form')?.addEventListener('submit', function() {
+  document.getElementById('reviewBtn').style.display = 'none';
+  document.getElementById('reviewLoading').style.display = 'block';
+});
+</script>
 
 {% if result %}
 <div class="result">

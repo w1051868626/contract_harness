@@ -63,3 +63,18 @@ pre { background: #f1f5f9; padding: .75rem; border-radius: 4px; overflow-x: auto
 
 .empty { color: #999; padding: 2rem 0; text-align: center; }
 section { margin-bottom: 1.5rem; }
+
+/* Loading spinner */
+.loading { color: #666; font-size: 1rem; padding: 1rem 0; }
+.form-actions { display: flex; align-items: center; gap: 1rem; }
+
+/* Converse */
+.converse-form { margin-top: 1rem; }
+.converse-input-row { display: flex; gap: .5rem; }
+.converse-input-row input[type="text"] { flex: 1; padding: .5rem; border: 1px solid #ddd; border-radius: 4px; font-size: .9rem; }
+.conversation { margin: 1rem 0; }
+.conversation-turn { margin-bottom: .75rem; padding: .75rem; border-radius: 6px; }
+.turn-user { background: #e8f4fd; }
+.turn-assistant { background: #f0fdf4; }
+.turn-role { font-weight: 600; font-size: .85rem; margin-bottom: .25rem; }
+.turn-content { font-size: .9rem; line-height: 1.5; white-space: pre-wrap; }

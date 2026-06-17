@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from pathlib import Path
 from typing import Any
@@ -126,7 +127,7 @@ async def review_submit(
         return _render("review.html", request, error="请输入合同内容或上传文件")
 
     try:
-        result = _run_review(raw, title)
+        result = await asyncio.to_thread(_run_review, raw, title)
         return _render("review.html", request, result=result)
     except Exception as e:
         return _render("review.html", request, error=str(e))
@@ -157,7 +158,7 @@ async def session_converse(request: Request, session_id: str, query: str = Form(
         return _render("session_detail.html", request, error="请输入问题")
     try:
         agent = ContractAgent(LLMClient(config.llm))
-        answer = agent.converse(session_id, query)
+        answer = await asyncio.to_thread(agent.converse, session_id, query)
     except Exception as e:
         return _render("session_detail.html", request, error=str(e))
     player = SessionPlayer(ReplayStorage(config.replay_dir))
