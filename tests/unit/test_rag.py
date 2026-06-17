@@ -20,10 +20,10 @@ from tests.conftest import MockLLMClient
 
 
 class _MockEmbeddingProvider(EmbeddingProvider):
-    """模拟嵌入提供者，基于字符哈希生成伪向量。"""
+    """模拟嵌入提供者，基于有序索引生成确定性伪向量。"""
 
     def embed(self, text: str) -> list[float]:
-        return [hash(c) % 100 / 100.0 for c in text[:4]] or [0.0]
+        return [float(ord(c) % 100) / 100.0 for c in text[:4]] or [0.0]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         return [self.embed(t) for t in texts]
@@ -219,12 +219,21 @@ class TestKnowledgeBase:
                     LLMResponse(content="保密条款\n保密义务\n信息披露", model="mock"),
                 ]
             )
-            kb = KnowledgeBase(store, emb, llm=mock_llm)
-            kb.add_text(
-                "保密法规",
-                "双方应对合同内容严格保密，未经对方书面同意不得向第三方披露",
+            store.add_document(Document(id="d_low", title="示例"))
+            # 插入零向量 chunk，与任何查询的余弦相似度均为 0 → score ≈ 0
+            store.add_chunks(
+                [
+                    Chunk(
+                        id="c_low",
+                        document_id="d_low",
+                        content="劳动法相关条款内容",
+                        embedding=[0.0, 0.0, 0.0, 0.0],
+                        chunk_index=0,
+                    ),
+                ]
             )
-            chunks = kb.query("保密义务", top_k=3, expansion_threshold=0.9)
+            kb = KnowledgeBase(store, emb, llm=mock_llm)
+            chunks = kb.query("保密义务", top_k=3, expansion_threshold=0.5)
             assert len(chunks) >= 1
             assert mock_llm.call_count > 0
 
