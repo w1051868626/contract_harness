@@ -303,6 +303,58 @@ class TestKnowledgeBase:
         assert merged[1].id == "b"
 
 
+class TestChunkMarkdown:
+    """Markdown 结构化分块测试。"""
+
+    def test_non_markdown_returns_none(self):
+        """不含 Markdown 标题时返回 None。"""
+        text = "这是一段纯文本\n没有标题\n只有段落"
+        result = KnowledgeBase._chunk_markdown(text, "doc1", 200, 30)
+        assert result is None
+
+    def test_markdown_single_chunk(self):
+        """短 Markdown 文本应合并为单个 Chunk。"""
+        text = "# 第一章\n\n第一条 依法成立的合同，自成立时生效。"
+        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 500, 30)
+        assert chunks is not None
+        assert len(chunks) == 1
+        assert "第一章" in chunks[0].content
+
+    def test_markdown_split_by_heading(self):
+        """标题应作为 chunk 分割边界。"""
+        text = (
+            "# 第一章 总则\n\n"
+            "第一条 为了保护合同当事人的合法权益，制定本法。\n\n"
+            "# 第二章 合同的订立\n\n"
+            "第二条 本法所称合同是平等主体的自然人之间设立民事权利义务关系的协议。"
+        )
+        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 40, 10)
+        assert chunks is not None
+        assert len(chunks) >= 2
+        assert any("第一章" in c.content for c in chunks)
+        assert any("第二章" in c.content for c in chunks)
+
+    def test_markdown_heading_stays_with_content(self):
+        """标题应与其后内容在同个 Chunk 中。"""
+        text = "# 保密条款\n\n双方应对合同内容严格保密。"
+        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 500, 30)
+        assert chunks is not None
+        assert len(chunks) == 1
+        assert chunks[0].content.startswith("# 保密条款")
+
+    def test_markdown_in_resolve_chains(self):
+        """_resolve_chunks 应为 Markdown 文本选择结构化分块。"""
+        text = "# 第一章\n\n第一条 保密义务。\n\n# 第二章\n\n第二条 违约责任。"
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            from harness.rag.vector_store import ChromaVectorStore
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            emb = _MockEmbeddingProvider()
+            kb = KnowledgeBase(store, emb)
+            chunks = kb._resolve_chunks(text, "doc1", 200, 20, use_ai=False)
+            assert len(chunks) >= 1
+            store.close()
+
+
 class TestEmbeddingProvider:
     """嵌入提供者工厂与 Mock 实现测试。"""
 

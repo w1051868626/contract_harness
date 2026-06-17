@@ -166,6 +166,10 @@ class KnowledgeBase:
             if legal is not None:
                 logger.debug("使用法律条文分块: chunks={}", len(legal))
                 return legal
+            md = self._chunk_markdown(content, doc_id, chunk_size, chunk_overlap)
+            if md is not None:
+                logger.debug("使用 Markdown 结构化分块: chunks={}", len(md))
+                return md
             logger.debug("使用通用文本分块")
             return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
         except Exception as exc:
@@ -417,6 +421,63 @@ class KnowledgeBase:
         """删除指定文档及其分块。"""
         logger.debug("删除文档: doc_id={}", document_id)
         self._store.delete_document(document_id)
+
+    @staticmethod
+    def _chunk_markdown(
+        text: str,
+        doc_id: str,
+        chunk_size: int,
+        overlap: int,
+    ) -> list[Chunk] | None:
+        """Markdown 结构化分块：以标题为界保持章节完整。
+
+        检测 Markdown 标题行（#/##/###），以此为分割边界；同标题群
+        合并到 chunk_size；单段超长回退到段落级分块。非 Markdown 返回 None。
+        """
+        if not re.search(r'^#{1,6}\s+\S', text, re.MULTILINE):
+            return None
+
+        sections = re.split(r'(?=^#{1,6}\s)', text.strip(), flags=re.MULTILINE)
+        sections = [s.strip() for s in sections if s.strip()]
+
+        chunks: list[Chunk] = []
+        idx = 0
+        buffer: list[str] = []
+        buf_len = 0
+
+        def _flush() -> None:
+            nonlocal idx, buffer, buf_len
+            if buffer:
+                chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx))
+                idx += 1
+                carry = KnowledgeBase._carry_overlap(buffer, overlap)
+                buffer = carry
+                buf_len = sum(len(s) for s in carry)
+
+        for sec in sections:
+            sl = len(sec)
+            if buf_len + sl <= chunk_size:
+                buffer.append(sec)
+                buf_len += sl
+            else:
+                _flush()
+                if sl <= chunk_size:
+                    buffer = [sec]
+                    buf_len = sl
+                else:
+                    sub_segments = KnowledgeBase._split_segments(sec)
+                    for sub in sub_segments:
+                        if buf_len + len(sub) <= chunk_size:
+                            buffer.append(sub)
+                            buf_len += len(sub)
+                        else:
+                            _flush()
+                            buffer = [sub]
+                            buf_len = len(sub)
+
+        _flush()
+        logger.debug("Markdown 分块完成: chunks={}", len(chunks))
+        return chunks
 
     @staticmethod
     def _chunk_legal_text(
