@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 
 from harness.agent.contract_agent import ContractAgent
 from harness.agent.llm import LLMResponse
@@ -10,6 +11,7 @@ from harness.agent.tools.clause_extractor import ClauseExtractor
 from harness.agent.tools.compliance_checker import ComplianceChecker
 from harness.agent.tools.risk_analyzer import RiskAnalyzer
 from harness.core.types import Clause, ContractDocument, RiskLevel
+from harness.replay.storage import ReplayStorage
 from tests.conftest import MockLLMClient
 
 CLAUSE_JSON = """[
@@ -153,3 +155,64 @@ class TestContractAgent:
         assert session.document.id == "doc2"
         assert len(session.steps[0].tool_calls) == 1
         assert len(session.steps[1].tool_calls) == 1
+
+    def test_converse_nonexistent_session(self):
+        """对不存在的会话追问应返回错误信息。"""
+        agent = ContractAgent()
+        answer = agent.converse("nonexistent", "这个合同有什么风险？")
+        assert "未找到会话" in answer
+
+    def test_converse_returns_answer(self):
+        """对已有会话追问应返回回答。"""
+        # 使用独立 mock：4 次审查 + 1 次追问 = 5 个响应
+        conv_llm = MockLLMClient(
+            [
+                LLMResponse(content=CLAUSE_JSON, model="mock"),
+                LLMResponse(
+                    content='[{"index": 0, "risk_level": "low", "reason": "标准", "suggestion": ""},{"index": 1, "risk_level": "medium", "reason": "模糊", "suggestion": ""}]',
+                    model="mock",
+                ),
+                LLMResponse(content=BATCH_COMPLIANCE_JSON, model="mock"),
+                LLMResponse(content="审查完成，无异议", model="mock"),
+                LLMResponse(content="该保密条款风险为低，属于标准表述", model="mock"),
+            ]
+        )
+        doc = ContractDocument(id="conv_test", title="测试", content="本合同保密条款...")
+        agent = ContractAgent(conv_llm)
+        report, session = agent.review(doc)
+        assert session.session_id
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage = ReplayStorage(tmpdir)
+            storage.save(
+                session.session_id,
+                {
+                    "session_id": session.session_id,
+                    "document": {
+                        "id": session.document.id,
+                        "title": session.document.title,
+                        "content": session.document.content,
+                    },
+                    "started_at": session.started_at,
+                    "finished_at": session.finished_at or "",
+                    "steps": [],
+                    "report": {
+                        "summary": report.summary,
+                        "overall_risk": report.overall_risk.value,
+                        "clauses": [
+                            {"clause_type": c.clause_type, "content": c.content}
+                            for c in report.clauses
+                        ],
+                        "risks": [
+                            {"risk_level": r.risk_level.value, "reason": r.reason}
+                            for r in report.risks
+                        ],
+                        "compliance_checks": [
+                            {"regulation": c.regulation, "status": c.status}
+                            for c in report.compliance_checks
+                        ],
+                    },
+                    "metadata": {},
+                },
+            )
+            answer = agent.converse(session.session_id, "保密条款风险高吗？", replay_dir=tmpdir)
+            assert answer, "应返回回答"

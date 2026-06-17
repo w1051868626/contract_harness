@@ -24,7 +24,29 @@ from harness.core.types import (
     ToolCall,
 )
 from harness.rag.knowledge_base import KnowledgeBase
+from harness.replay.storage import ReplayStorage
 from harness.utils.log import logger
+
+CONVERSE_PROMPT = """你是一位资深法律合同审查专家。以下是之前对一份合同的审查报告：
+
+## 审查摘要
+{summary}
+
+## 整体风险
+{overall_risk}
+
+## 条款清单
+{clauses_section}
+
+## 风险分析
+{risks_section}
+
+## 合规检查
+{compliance_section}
+
+用户现在有一个后续问题，请结合以上审查结果回答：
+
+{query}"""
 
 
 class ContractAgent:
@@ -167,6 +189,85 @@ class ContractAgent:
         logger.info("Review completed for document_id={}", document.id)
 
         return report, session
+
+    def converse(self, session_id: str, query: str, replay_dir: str | None = None) -> str:
+        """根据会话 ID 继续对话，回答对上次审查的追问。
+
+        Args:
+            session_id: 已有审查会话的 ID。
+            query: 用户的后续问题。
+            replay_dir: 回放存储目录（测试用），默认使用配置路径。
+
+        Returns:
+            Agent 的回答文本。
+        """
+        storage = ReplayStorage(replay_dir) if replay_dir else ReplayStorage()
+        data = storage.load(session_id)
+        if not data:
+            return f"未找到会话: {session_id}"
+
+        report = data.get("report")
+        if not report:
+            return "该会话没有审查报告，无法继续对话"
+
+        # 重建报告上下文
+        summary = report.get("summary", "无摘要")
+        overall_risk = report.get("overall_risk", "info")
+        clauses = report.get("clauses", [])
+        risks = report.get("risks", [])
+        compliance = report.get("compliance_checks", [])
+
+        clauses_section = (
+            "\n".join(
+                f"- [{c.get('clause_type', '?')}] {c.get('content', '')[:200]}" for c in clauses
+            )
+            or "无"
+        )
+
+        risks_section = (
+            "\n".join(f"- [{r.get('risk_level', '?')}] {r.get('reason', '')[:200]}" for r in risks)
+            or "无"
+        )
+
+        compliance_section = (
+            "\n".join(
+                f"- {c.get('regulation', '?')}: {'✅合规' if c.get('status') else '❌不合规'}"
+                for c in compliance[:10]
+            )
+            or "无"
+        )
+
+        # 读取历史对话记录
+        conversation: list[dict[str, str]] = data.get("metadata", {}).get("conversation", [])  # type: ignore[arg-type]
+
+        prompt = CONVERSE_PROMPT.format(
+            summary=summary,
+            overall_risk=overall_risk,
+            clauses_section=clauses_section,
+            risks_section=risks_section,
+            compliance_section=compliance_section,
+            query=query,
+        )
+
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": "你是一位资深法律合同审查专家。"},
+        ]
+        # 注入历史对话作为上下文
+        for turn in conversation:
+            messages.append({"role": turn.get("role", "user"), "content": turn.get("content", "")})
+        messages.append({"role": "user", "content": prompt})
+
+        resp = self._llm.chat(messages)
+        answer = resp.content
+
+        # 更新对话记录
+        conversation.append({"role": "user", "content": query})
+        conversation.append({"role": "assistant", "content": answer})
+        data.setdefault("metadata", {})["conversation"] = conversation
+        storage.save(session_id, data)  # type: ignore[arg-type]
+
+        logger.info("Converse updated: session_id={}, turns={}", session_id, len(conversation) // 2)
+        return answer
 
     def _compute_overall_risk(self, risks: list[RiskAssessment]) -> RiskLevel:
         """根据所有风险项计算综合风险等级。"""

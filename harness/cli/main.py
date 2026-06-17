@@ -81,7 +81,22 @@ def review(ctx: click.Context, contract_file: str, save: bool, model: str) -> No
     if save:
         recorder = SessionRecorder(config.replay_dir)
         path = recorder.record(session)
-        logger.info("回放已保存: {}", path)
+        logger.info("回放已保存: {} (会话 ID: {})", path, session.session_id)
+
+
+@cli.command()
+@click.argument("session_id")
+@click.argument("query", nargs=-1, required=True)
+@click.option("--model", default="", help="LLM 模型名称")
+@click.pass_context
+def converse(ctx: click.Context, session_id: str, query: tuple[str], model: str) -> None:
+    """对已有审查会话继续追问。"""
+    config: HarnessConfig = ctx.obj["config"]
+    if model:
+        config.llm.model = model
+    agent = ContractAgent(LLMClient(config.llm))
+    answer = agent.converse(session_id, " ".join(query))
+    logger.info(answer)
 
 
 @cli.command()

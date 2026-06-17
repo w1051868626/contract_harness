@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 
 from harness.core.config import HarnessConfig
+from typing import Any
+
 from harness.core.types import SessionData, SessionSummary
 from harness.utils.io import read_json, write_json
 from harness.utils.log import logger
@@ -22,7 +24,7 @@ class ReplayStorage:
             self._dir = Path(HarnessConfig().replay_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
 
-    def save(self, session_id: str, data: dict) -> Path:
+    def save(self, session_id: str, data: dict[str, Any]) -> Path:
         """保存会话数据到文件。"""
         logger.debug("Saving session session_id={}", session_id)
         filepath = self._filepath(session_id)

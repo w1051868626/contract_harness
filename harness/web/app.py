@@ -148,3 +148,18 @@ async def session_detail(request: Request, session_id: str):
     if session is None:
         return _render("sessions.html", request, error=f"会话 {session_id} 不存在")
     return _render("session_detail.html", request, session=session)
+
+
+@app.post("/sessions/{session_id}/converse", response_class=HTMLResponse)
+async def session_converse(request: Request, session_id: str, query: str = Form("")):
+    """对已有审查会话继续追问。"""
+    if not query.strip():
+        return _render("session_detail.html", request, error="请输入问题")
+    try:
+        agent = ContractAgent(LLMClient(config.llm))
+        answer = agent.converse(session_id, query)
+    except Exception as e:
+        return _render("session_detail.html", request, error=str(e))
+    player = SessionPlayer(ReplayStorage(config.replay_dir))
+    session = player.load(session_id)
+    return _render("session_detail.html", request, session=session, answer=answer)
