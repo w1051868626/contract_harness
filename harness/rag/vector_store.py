@@ -131,7 +131,7 @@ class ChromaVectorStore(VectorStore):
             )
 
     def search(self, query_embedding: list[float], top_k: int = 5) -> list[Chunk]:
-        logger.debug("向量检索: top_k=%d", top_k)
+        logger.debug("向量检索: top_k={}", top_k)
         raw: Any = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
@@ -182,7 +182,7 @@ class ChromaVectorStore(VectorStore):
         return docs
 
     def delete_document(self, document_id: str) -> None:
-        logger.debug("删除文档: document_id=%s", document_id)
+        logger.debug("删除文档: document_id={}", document_id)
         meta_key = f"doc_meta_{document_id}"
         try:
             self._client.delete_collection(meta_key)

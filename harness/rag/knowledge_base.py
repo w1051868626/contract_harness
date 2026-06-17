@@ -141,9 +141,9 @@ class KnowledgeBase:
             for chunk, emb in zip(chunks, embeddings):
                 chunk.embedding = emb
             self._store.add_chunks(chunks)
-            logger.debug("添加文本: title=%s, doc_id=%s, chunks=%d", title, doc_id, len(chunks))
+            logger.debug("添加文本: title={}, doc_id={}, chunks={}", title, doc_id, len(chunks))
         else:
-            logger.warning("添加文本无分块: title=%s, doc_id=%s", title, doc_id)
+            logger.warning("添加文本无分块: title={}, doc_id={}", title, doc_id)
         return doc_id
 
     def _resolve_chunks(
@@ -164,7 +164,7 @@ class KnowledgeBase:
         try:
             legal = self._chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
             if legal is not None:
-                logger.debug("使用法律条文分块: chunks=%d", len(legal))
+                logger.debug("使用法律条文分块: chunks={}", len(legal))
                 return legal
             logger.debug("使用通用文本分块")
             return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
@@ -175,7 +175,7 @@ class KnowledgeBase:
         """使用 LLM 对文本进行智能分块，超长文本自动分段后合并。"""
         if self._chunk_llm is None:
             raise RuntimeError("chunk_llm 未初始化")
-        logger.debug("AI 分块开始: text_len=%d, model=%s", len(text), self._chunk_model)
+        logger.debug("AI 分块开始: text_len={}, model={}", len(text), self._chunk_model)
 
         all_chunks: list[Chunk] = []
         for i in range(0, len(text), CHUNK_MAX_CHARS):
@@ -209,7 +209,7 @@ class KnowledgeBase:
                             chunk_index=len(all_chunks),
                         )
                     )
-        logger.debug("AI 分块完成: chunks=%d", len(all_chunks))
+        logger.debug("AI 分块完成: chunks={}", len(all_chunks))
         return all_chunks
 
     def add_file(
@@ -221,7 +221,7 @@ class KnowledgeBase:
     ) -> str:
         """添加文件到知识库。"""
         path = Path(file_path)
-        logger.info("添加文件: %s", path.name)
+        logger.info("添加文件: {}", path.name)
         if path.suffix.lower() == ".zip":
             doc_ids = self.add_zip(path, chunk_size, chunk_overlap, use_ai_chunking)
             return doc_ids[0] if doc_ids else ""
@@ -245,7 +245,7 @@ class KnowledgeBase:
         """解压 zip 并以内部文件名为标题分别导入。"""
         supported = {".txt", ".md", ".json", ".pdf", ".docx"}
         doc_ids: list[str] = []
-        logger.debug("解压 zip 导入: path=%s", path)
+        logger.debug("解压 zip 导入: path={}", path)
         with zipfile.ZipFile(path) as zf:
             for info in zf.infolist():
                 if info.is_dir():
@@ -271,7 +271,7 @@ class KnowledgeBase:
                     )
                     doc_ids.append(doc_id)
                 except (json.JSONDecodeError, KeyError, OSError, zipfile.BadZipFile):
-                    logger.warning("ZIP 中文件处理失败: filename=%s", info.filename, exc_info=True)
+                    logger.warning("ZIP 中文件处理失败: filename={}", info.filename, exc_info=True)
                     continue
         return doc_ids
 
@@ -279,20 +279,20 @@ class KnowledgeBase:
     def _parse_file(path: Path) -> str:
         """解析文件内容（支持 txt/md/json/pdf/docx，可选 Docling）。"""
         suffix = path.suffix.lower()
-        logger.debug("解析文件: path=%s, suffix=%s", path.name, suffix)
+        logger.debug("解析文件: path={}, suffix={}", path.name, suffix)
 
         # 可选：Docling 结构化解析（支持 PDF/DOCX/PPTX/图片等）
         docling_parser = getattr(KnowledgeBase, "_docling_parser", None)
         if docling_parser and docling_parser.available and docling_parser.supports(path):
-            logger.info("Docling 解析: path=%s, suffix=%s", path.name, suffix)
+            logger.info("Docling 解析: path={}, suffix={}", path.name, suffix)
             try:
                 md = docling_parser.parse_to_markdown(path)
                 if md.strip():
-                    logger.info("Docling 解析成功: path=%s (%d 字符)", path.name, len(md))
+                    logger.info("Docling 解析成功: path={} ({} 字符)", path.name, len(md))
                     return md
-                logger.info("Docling 返回空内容，回退: path=%s", path.name)
+                logger.info("Docling 返回空内容，回退: path={}", path.name)
             except RuntimeError:
-                logger.info("Docling 解析失败，回退: path=%s", path.name, exc_info=True)
+                logger.info("Docling 解析失败，回退: path={}", path.name)
 
         if suffix in (".txt", ".md"):
             return path.read_text(encoding="utf-8")
@@ -308,7 +308,7 @@ class KnowledgeBase:
                 reader = PdfReader(str(path))
                 return "\n".join(page.extract_text() or "" for page in reader.pages)
             except (PdfReadError, KeyError, IndexError):
-                logger.warning("PDF 解析失败，按文本读取: %s", path)
+                logger.warning("PDF 解析失败，按文本读取: {}", path)
                 return path.read_text(encoding="utf-8", errors="replace")
         if suffix == ".docx":
             doc = DocxDocument(str(path))
@@ -336,7 +336,7 @@ class KnowledgeBase:
                 当最高分低于此值时，用 LLM 生成同义查询重试。
                 设为 0 可禁用扩展。
         """
-        logger.debug("检索: query=%s, top_k=%d", text[:50], top_k)
+        logger.debug("检索: query={}, top_k={}", text[:50], top_k)
         candidates = self._search_single(text, top_k)
         if not candidates:
             return []
@@ -353,7 +353,7 @@ class KnowledgeBase:
                 for q in expanded[1:]:
                     extra = self._search_single(q, top_k)
                     candidates = self._merge_results(candidates, extra, top_k)
-                logger.debug("扩展检索完成: results=%d", len(candidates))
+                logger.debug("扩展检索完成: results={}", len(candidates))
         return candidates[:top_k]
 
     def _search_single(self, text: str, top_k: int) -> list[Chunk]:
@@ -381,7 +381,7 @@ class KnowledgeBase:
             )
             variants = [line.strip() for line in resp.content.strip().split("\n") if line.strip()]
             result = [query] + variants[:num_variants]
-            logger.debug("扩展检索词: %s", result)
+            logger.debug("扩展检索词: {}", result)
             return result
         except Exception:
             logger.warning("AI 扩展检索词失败，使用原始查询", exc_info=True)
@@ -410,12 +410,12 @@ class KnowledgeBase:
     def list_documents(self) -> list[Document]:
         """列出所有文档。"""
         docs = self._store.list_documents()
-        logger.debug("列出文档: count=%d", len(docs))
+        logger.debug("列出文档: count={}", len(docs))
         return docs
 
     def delete_document(self, document_id: str) -> None:
         """删除指定文档及其分块。"""
-        logger.debug("删除文档: doc_id=%s", document_id)
+        logger.debug("删除文档: doc_id={}", document_id)
         self._store.delete_document(document_id)
 
     @staticmethod
@@ -525,7 +525,7 @@ class KnowledgeBase:
                     buf_len = 0
 
         _flush(buffer)
-        logger.debug("法律条文分块完成: chunks=%d", len(chunks))
+        logger.debug("法律条文分块完成: chunks={}", len(chunks))
         return chunks
 
     @staticmethod
@@ -542,7 +542,7 @@ class KnowledgeBase:
         segments = KnowledgeBase._split_segments(text)
 
         if len(segments) == 1 and len(text) <= chunk_size:
-            logger.debug("通用分块: text_len=%d, single_chunk", len(text))
+            logger.debug("通用分块: text_len={}, single_chunk", len(text))
             return [
                 Chunk(
                     id=uuid.uuid4().hex[:12],
@@ -593,7 +593,7 @@ class KnowledgeBase:
         if buffer:
             chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx))
 
-        logger.debug("通用分块完成: text_len=%d, chunks=%d", len(text), len(chunks))
+        logger.debug("通用分块完成: text_len={}, chunks={}", len(text), len(chunks))
         return chunks
 
     @staticmethod

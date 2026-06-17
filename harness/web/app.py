@@ -34,7 +34,7 @@ config.ensure_dirs()
 setup_logging(verbose=config.verbose, log_dir=config.log_dir)
 
 app = FastAPI(title="contract-harness")
-logger.info("FastAPI 应用已创建 (config_dir=%s)", config.data_dir)
+logger.info("FastAPI 应用已创建 (config_dir={})", config.data_dir)
 app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 templates = Jinja2Templates(directory=str(HERE / "templates"))
 

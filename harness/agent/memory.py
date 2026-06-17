@@ -160,7 +160,7 @@ class MemoryStore:
         """将一次审查的条款级结果存入记忆。"""
         if not self._enabled or not self._store:
             return
-        logger.debug("记忆存储: clauses=%d, session=%s", len(clauses), session_id)
+        logger.debug("记忆存储: clauses={}, session={}", len(clauses), session_id)
         chunks: list[Chunk] = []
         risk_map: dict[int, RiskAssessment] = {i: r for i, r in enumerate(risks)}
         for i, clause in enumerate(clauses):
@@ -188,7 +188,7 @@ class MemoryStore:
                 for chunk, emb in zip(chunks, embeddings):
                     chunk.embedding = emb
                 self._store.add_chunks(chunks)
-                logger.debug("记忆存储完成: entries=%d", len(chunks))
+                logger.debug("记忆存储完成: entries={}", len(chunks))
             except Exception:
                 logger.warning("记忆存储失败", exc_info=True)
 
@@ -228,7 +228,7 @@ class MemoryStore:
             if self._embedding:
                 chunk.embedding = self._embedding.embed(clause_content)
             self._store.add_chunks([chunk])
-            logger.info("记忆修正已存储: field=%s, value=%s", field, correct_value)
+            logger.info("记忆修正已存储: field={}, value={}", field, correct_value)
         except Exception:
             logger.warning("记忆修正存储失败", exc_info=True)
 

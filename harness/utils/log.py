@@ -37,7 +37,7 @@ def setup_logging(verbose: bool = False, log_dir: str | Path | None = None) -> N
             encoding="utf-8",
         )
 
-    logger.debug("日志系统初始化完成 (level=%s, log_dir=%s)", level, log_dir)
+    logger.debug("日志系统初始化完成 (level={}, log_dir={})", level, log_dir)
 
 
 __all__ = ["logger", "setup_logging"]

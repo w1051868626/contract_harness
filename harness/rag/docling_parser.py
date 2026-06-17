@@ -60,7 +60,7 @@ class DoclingParser:
             logger.info("Docling 未安装，回退到传统解析器")
             self._available = False
         except Exception as exc:
-            logger.warning("Docling 初始化失败: %s", exc)
+            logger.warning("Docling 初始化失败: {}", exc)
             self._available = False
 
     @property
@@ -77,7 +77,7 @@ class DoclingParser:
         """解析文档为 Markdown 格式，保留标题层级、表格、列表等结构。"""
         if not self._available:
             raise RuntimeError(DOCLING_NOT_AVAILABLE)
-        logger.debug("Docling 解析为 Markdown: path=%s", path)
+        logger.debug("Docling 解析为 Markdown: path={}", path)
         result = self._converter.convert(str(path))
         return result.document.export_to_markdown()
 
@@ -85,6 +85,6 @@ class DoclingParser:
         """解析文档为纯文本，失去结构化信息但内容更简洁。"""
         if not self._available:
             raise RuntimeError(DOCLING_NOT_AVAILABLE)
-        logger.debug("Docling 解析为纯文本: path=%s", path)
+        logger.debug("Docling 解析为纯文本: path={}", path)
         result = self._converter.convert(str(path))
         return result.document.text
