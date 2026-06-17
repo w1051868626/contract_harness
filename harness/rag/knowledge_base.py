@@ -429,15 +429,17 @@ class KnowledgeBase:
         chunk_size: int,
         overlap: int,
     ) -> list[Chunk] | None:
-        """Markdown 结构化分块：以标题为界保持章节完整。
+        """结构化分块：以标题为界保持章节完整。
 
-        检测 Markdown 标题行（#/##/###），以此为分割边界；同标题群
-        合并到 chunk_size；单段超长回退到段落级分块。非 Markdown 返回 None。
+        检测 Markdown 标题行（#/##/###）或中文法律章节标题
+        （第X章/节/编/条），以此为分割边界；同标题群合并到
+        chunk_size；单段超长回退到段落级分块。无标题结构则 None。
         """
-        if not re.search(r'^#{1,6}\s+\S', text, re.MULTILINE):
+        heading_pat = r'(?:#|第[一二三四五六七八九十百千零\d]+[章节分编条])'
+        if not re.search(rf'^{heading_pat}\s', text, re.MULTILINE):
             return None
 
-        sections = re.split(r'(?=^#{1,6}\s)', text.strip(), flags=re.MULTILINE)
+        sections = re.split(rf'(?=^{heading_pat}\s)', text.strip(), flags=re.MULTILINE)
         sections = [s.strip() for s in sections if s.strip()]
 
         chunks: list[Chunk] = []
