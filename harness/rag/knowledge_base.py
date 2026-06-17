@@ -31,6 +31,19 @@ CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑�
 
 CHUNK_MAX_CHARS = 8000
 
+QUERY_EXPANSION_PROMPT = (
+    "你是一个法律合同检索专家。用户的原始查询可能措辞不准确，导致语义检索效果不佳。\n"
+    "请根据原始查询，生成 {num_variants} 个同义但措辞不同的搜索查询，"
+    "用于从法律知识库中检索相关条款。\n"
+    "要求：\n"
+    "- 保持法律含义不变\n"
+    "- 使用专业法律术语\n"
+    "- 每个查询独立成行，不要编号\n"
+    "- 直接输出查询文本，每行一个，不要额外解释\n"
+    "\n"
+    "原始查询：{query}"
+)
+
 
 class KnowledgeBase:
     """知识库，管理文档的添加、分块、嵌入与检索。"""
@@ -285,17 +298,82 @@ class KnowledgeBase:
             return "\n".join(p.text for p in doc.paragraphs)
         return path.read_text(encoding="utf-8")
 
-    def query(self, text: str, top_k: int = 5) -> list[Chunk]:
-        """语义检索最相关的文本块（支持可选的 rerank 精排）。"""
+    def query(self, text: str, top_k: int = 5, expansion_threshold: float = 0.6) -> list[Chunk]:
+        """语义检索最相关的文本块（支持可选的 rerank 精排和 AI 扩展检索词）。
+
+        Args:
+            text: 查询文本。
+            top_k: 返回结果数量。
+            expansion_threshold: AI 扩展检索词的相似度阈值。
+                当最高分低于此值时，用 LLM 生成同义查询重试。
+                设为 0 可禁用扩展。
+        """
         logger.debug("检索: query=%s, top_k=%d", text[:50], top_k)
+        candidates = self._search_single(text, top_k)
+        if not candidates:
+            return []
+
+        max_score = candidates[0].score
+        if expansion_threshold > 0 and max_score < expansion_threshold and self._llm is not None:
+            logger.info(
+                "检索结果分数偏低 (max=%.3f < %.2f)，使用 AI 扩展检索词",
+                max_score,
+                expansion_threshold,
+            )
+            expanded = self._expand_query(text)
+            if len(expanded) > 1:
+                for q in expanded[1:]:
+                    extra = self._search_single(q, top_k)
+                    candidates = self._merge_results(candidates, extra, top_k)
+                logger.debug("扩展检索完成: results=%d", len(candidates))
+        return candidates[:top_k]
+
+    def _search_single(self, text: str, top_k: int) -> list[Chunk]:
+        """单次语义检索（含可选的 rerank）。"""
         query_emb = self._embedding.embed(text)
         candidates = self._store.search(query_emb, top_k=top_k * 2 if self._reranker else top_k)
         if self._reranker and len(candidates) > 1:
-            result = self._reranker.rerank(text, candidates, top_k=top_k)
-            logger.debug("检索完成 (rerank): results=%d", len(result))
-            return result
-        logger.debug("检索完成: results=%d", len(candidates[:top_k]))
+            return self._reranker.rerank(text, candidates, top_k=top_k)
         return candidates[:top_k]
+
+    def _expand_query(self, query: str, num_variants: int = 2) -> list[str]:
+        """使用 LLM 生成同义检索词变体，返回包含原始查询的列表。"""
+        assert self._llm is not None
+        prompt = QUERY_EXPANSION_PROMPT.format(query=query, num_variants=num_variants)
+        try:
+            resp: LLMResponse = self._llm.chat(
+                [
+                    {
+                        "role": "system",
+                        "content": "你是法律合同检索专家，输出每行一个搜索查询。",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+            )
+            variants = [line.strip() for line in resp.content.strip().split("\n") if line.strip()]
+            result = [query] + variants[:num_variants]
+            logger.debug("扩展检索词: %s", result)
+            return result
+        except Exception:
+            logger.warning("AI 扩展检索词失败，使用原始查询", exc_info=True)
+            return [query]
+
+    @staticmethod
+    def _merge_results(
+        existing: list[Chunk],
+        new_results: list[Chunk],
+        top_k: int,
+    ) -> list[Chunk]:
+        """合并两组检索结果，按 id 去重并保留最高分。"""
+        seen: dict[str, Chunk] = {}
+        for chunk in existing + new_results:
+            if chunk.id in seen:
+                seen[chunk.id].score = max(seen[chunk.id].score, chunk.score)
+            else:
+                seen[chunk.id] = chunk
+        merged = sorted(seen.values(), key=lambda c: c.score, reverse=True)
+        return merged[:top_k]
 
     def clear_cache(self) -> None:
         """清除知识库内部缓存（当前无缓存，预留接口）。"""

@@ -7,6 +7,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from harness.agent.llm import LLMResponse
 from harness.rag.embedding import (
     EmbeddingProvider,
     OpenAIEmbeddingProvider,
@@ -15,6 +16,7 @@ from harness.rag.embedding import (
 from harness.rag.knowledge_base import KnowledgeBase
 from harness.rag.reranker import LocalReranker, OpenAIReranker, Reranker, create_reranker
 from harness.rag.vector_store import ChromaVectorStore, Chunk, Document
+from tests.conftest import MockLLMClient
 
 
 class _MockEmbeddingProvider(EmbeddingProvider):
@@ -206,6 +208,90 @@ class TestKnowledgeBase:
         assert chunks[0].metadata.get("chapter") == "第一章 总则"
         has_articles = any("articles" in c.metadata for c in chunks)
         assert has_articles, "应包含 articles 范围信息"
+
+    def test_query_expansion_called_on_low_score(self):
+        """分数低于阈值时调用 LLM 扩展检索词。"""
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            emb = _MockEmbeddingProvider()
+            mock_llm = MockLLMClient(
+                [
+                    LLMResponse(content="保密条款\n保密义务\n信息披露", model="mock"),
+                ]
+            )
+            kb = KnowledgeBase(store, emb, llm=mock_llm)
+            kb.add_text(
+                "保密法规",
+                "双方应对合同内容严格保密，未经对方书面同意不得向第三方披露",
+            )
+            chunks = kb.query("保密义务", top_k=3, expansion_threshold=0.9)
+            assert len(chunks) >= 1
+            assert mock_llm.call_count > 0
+
+    def test_query_expansion_skipped_on_high_score(self):
+        """分数高于阈值时不进行扩展。"""
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            emb = _MockEmbeddingProvider()
+            mock_llm = MockLLMClient(
+                [
+                    LLMResponse(content="保密条款\n保密义务\n信息披露", model="mock"),
+                ]
+            )
+            kb = KnowledgeBase(store, emb, llm=mock_llm)
+            kb.add_text("测试", "双方应对合同内容严格保密")
+            chunks = kb.query("双方应对合同内容严格保密", top_k=3, expansion_threshold=0.6)
+            assert len(chunks) >= 1
+            assert mock_llm.call_count == 0
+
+    def test_query_expansion_disabled_with_zero_threshold(self):
+        """threshold=0 时不进行扩展。"""
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            emb = _MockEmbeddingProvider()
+            mock_llm = MockLLMClient(
+                [
+                    LLMResponse(content="保密条款\n保密义务\n信息披露", model="mock"),
+                ]
+            )
+            kb = KnowledgeBase(store, emb, llm=mock_llm)
+            kb.add_text("保密法规", "双方应对合同内容严格保密")
+            chunks = kb.query("保密义务", top_k=3, expansion_threshold=0.0)
+            assert len(chunks) >= 1
+            assert mock_llm.call_count == 0
+
+    def test_query_expansion_no_llm(self):
+        """无 LLM 时不进行扩展。"""
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            emb = _MockEmbeddingProvider()
+            kb = KnowledgeBase(store, emb)
+            kb.add_text("保密法规", "双方应对合同内容严格保密")
+            chunks = kb.query("保密义务", top_k=3, expansion_threshold=0.9)
+            assert len(chunks) >= 1
+
+    def test_merge_results_dedup(self):
+        """_merge_results 应对相同 id 去重并保留最高分。"""
+        c1 = Chunk(id="a", document_id="d1", content="第一段", chunk_index=0, score=0.5)
+        c2 = Chunk(id="b", document_id="d1", content="第二段", chunk_index=1, score=0.3)
+        c3 = Chunk(id="a", document_id="d1", content="第一段", chunk_index=0, score=0.7)
+        merged = KnowledgeBase._merge_results([c1, c2], [c3], top_k=5)
+        assert len(merged) == 2
+        ids = {c.id for c in merged}
+        assert ids == {"a", "b"}
+        for c in merged:
+            if c.id == "a":
+                assert c.score == 0.7
+
+    def test_merge_results_top_k(self):
+        """_merge_results 应截断到 top_k。"""
+        c1 = Chunk(id="a", document_id="d1", content="第一段", chunk_index=0, score=0.9)
+        c2 = Chunk(id="b", document_id="d1", content="第二段", chunk_index=1, score=0.8)
+        c3 = Chunk(id="c", document_id="d1", content="第三段", chunk_index=2, score=0.7)
+        merged = KnowledgeBase._merge_results([c1, c2], [c3], top_k=2)
+        assert len(merged) == 2
+        assert merged[0].id == "a"
+        assert merged[1].id == "b"
 
 
 class TestEmbeddingProvider:
