@@ -113,6 +113,7 @@ class HarnessConfig:
     memory_enabled: bool = True
     memory_top_k: int = 3
     agent_mode: AgentMode = AgentMode.PIPELINE
+    use_docling: bool = False
     verbose: bool = False
 
     def __post_init__(self):

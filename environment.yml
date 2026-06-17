@@ -24,3 +24,4 @@ dependencies:
     - loguru>=0.7
     - sentence-transformers>=3.0
     - pyright>=1.1
+    - docling>=2.0

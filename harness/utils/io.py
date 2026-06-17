@@ -22,8 +22,10 @@ def load_dotenv(dotenv_path: str | Path | None = None) -> bool:
 
 
 def read_text(path: str | Path) -> str:
-    """读取文本文件（UTF-8）。"""
-    return Path(path).read_text(encoding="utf-8")
+    """读取文本文件（UTF-8），同时清理全角空格等非标准空白字符。"""
+    text = Path(path).read_text(encoding="utf-8")
+    text = text.replace("\u3000", " ")
+    return text
 
 
 def write_text(path: str | Path, content: str) -> None:

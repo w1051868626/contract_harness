@@ -123,6 +123,8 @@ async def review_submit(
         raw = content
         title = "paste.txt"
 
+    raw = raw.replace("\u3000", " ")
+
     if not raw.strip():
         return _render("review.html", request, error="请输入合同内容或上传文件")
 

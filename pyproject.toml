@@ -50,6 +50,9 @@ dev = [
 local = [
     "sentence-transformers>=3.0",
 ]
+docling = [
+    "docling>=2.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

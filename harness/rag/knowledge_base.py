@@ -17,6 +17,7 @@ from pypdf.errors import PdfReadError
 from harness.agent.llm import LLMClient, LLMResponse
 from harness.core.config import HarnessConfig, LLMConfig
 from harness.core.exceptions import ChunkingError
+from harness.rag.docling_parser import DoclingParser
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.reranker import Reranker, create_reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore, create_vector_store
@@ -74,6 +75,8 @@ class KnowledgeBase:
     def from_config(cls, config: HarnessConfig | None = None) -> KnowledgeBase:
         """从 HarnessConfig 创建知识库实例。"""
         cfg = config or HarnessConfig()
+        if cfg.use_docling:
+            cls.enable_docling()
         store = create_vector_store(cfg.kb_dir)
         embedding = create_embedding_provider(
             provider=cfg.embedding.provider,
@@ -274,9 +277,21 @@ class KnowledgeBase:
 
     @staticmethod
     def _parse_file(path: Path) -> str:
-        """解析文件内容（支持 txt/md/json/pdf/docx）。"""
+        """解析文件内容（支持 txt/md/json/pdf/docx，可选 Docling）。"""
         suffix = path.suffix.lower()
         logger.debug("解析文件: path=%s, suffix=%s", path.name, suffix)
+
+        # 可选：Docling 结构化解析（支持 PDF/DOCX/PPTX/图片等）
+        docling_parser = getattr(KnowledgeBase, "_docling_parser", None)
+        if docling_parser and docling_parser.available and docling_parser.supports(path):
+            try:
+                md = docling_parser.parse_to_markdown(path)
+                if md.strip():
+                    return md
+                logger.warning("Docling 返回空内容，回退: path=%s", path.name)
+            except RuntimeError:
+                logger.warning("Docling 解析失败，回退: path=%s", path.name, exc_info=True)
+
         if suffix in (".txt", ".md"):
             return path.read_text(encoding="utf-8")
         if suffix == ".json":
@@ -297,6 +312,17 @@ class KnowledgeBase:
             doc = DocxDocument(str(path))
             return "\n".join(p.text for p in doc.paragraphs)
         return path.read_text(encoding="utf-8")
+
+    @classmethod
+    def enable_docling(cls) -> None:
+        """启用 Docling 解析器（在 KnowledgeBase 级共享单例）。"""
+        parser = DoclingParser()
+        if parser.available:
+            cls._docling_parser = parser
+            logger.info("Docling 解析器已启用")
+        else:
+            logger.warning("Docling 解析器不可用（未安装或初始化失败）")
+            cls._docling_parser = None
 
     def query(self, text: str, top_k: int = 5, expansion_threshold: float = 0.6) -> list[Chunk]:
         """语义检索最相关的文本块（支持可选的 rerank 精排和 AI 扩展检索词）。
