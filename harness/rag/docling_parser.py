@@ -74,12 +74,20 @@ class DoclingParser:
         return Path(path).suffix.lower() in _SUPPORTED_SUFFIXES
 
     def parse_to_markdown(self, path: str | Path) -> str:
-        """解析文档为 Markdown 格式，保留标题层级、表格、列表等结构。"""
+        """解析文档为 Markdown 格式，保留标题层级、表格、列表等结构。
+
+        优先使用 export_to_markdown() 保留结构；若输出过短（<100 字符）
+        则说明 markdown 导出遗漏内容，回退到 result.document.text 提取所有页文本。
+        """
         if not self._available:
             raise RuntimeError(DOCLING_NOT_AVAILABLE)
         logger.debug("Docling 解析为 Markdown: path={}", path)
         result = self._converter.convert(str(path))
-        return result.document.export_to_markdown()
+        md = result.document.export_to_markdown()
+        if len(md.strip()) >= 100:
+            return md
+        logger.info("Docling markdown 输出过短 ({} 字符)，回退到全部页文本", len(md.strip()))
+        return result.document.text
 
     def parse_to_text(self, path: str | Path) -> str:
         """解析文档为纯文本，失去结构化信息但内容更简洁。"""
