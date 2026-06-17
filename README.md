@@ -163,7 +163,7 @@ agent = ContractAgent(llm, knowledge_base=kb)
 
 - **Embedding**：支持 OpenAI API（默认）和本地 sentence-transformers 模型
 - **向量存储**：Chroma 持久化，HNSW ANN 近似搜索
-- **文档解析**：支持 TXT / JSON / PDF / DOCX / ZIP（自动解压提取）格式
+- **文档解析**：支持 TXT / JSON / PDF / DOCX / ZIP（自动解压提取）格式；可选 Docling 引擎（PDF/DOCX/PPTX/图片 → 结构化 Markdown）
 - **分块策略**：AI 智能分块（可选 LLM 驱动）→ 段落级 → 句子级 → 字符回退
 - **重排序**：支持 Reranker 精排，在向量检索后对候选结果重新打分排序（OpenAI API / local cross-encoder）
 - **种子数据**：内置 7 部常用法律条文（民法典合同编、劳动合同法、数据安全法、个人信息保护法、反垄断法、公司法、商标法），`harness kb seed` 一键导入
@@ -201,6 +201,25 @@ POST /sessions/{id}/converse
 ```
 
 Agent 会加载历史审查报告重建上下文，回答追问，并将对话历史持久化到 session 文件中，支持多轮连续追问。
+
+## Docling 文档解析（可选）
+
+处理 PDF / DOCX / PPTX / 图片等复杂格式文件时，可用 Docling 替代 pypdf/python-docx 获得结构化 Markdown 输出（保留标题层级、表格、列表）：
+
+```bash
+pip install "contract-harness[docling]"
+```
+
+```python
+from harness.core.config import HarnessConfig
+from harness.rag.knowledge_base import KnowledgeBase
+
+config = HarnessConfig()
+config.use_docling = True
+kb = KnowledgeBase.from_config(config)
+```
+
+Docling 不可用时自动静默回退到原有解析器，不影响已有功能。
 
 ## 自定义 LLM 供应商
 

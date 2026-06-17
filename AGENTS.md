@@ -79,6 +79,7 @@ conda activate contract-harness
 - jinja2（报告模板）
 - fastapi + uvicorn（Web 界面）
 - pypdf + python-docx（文档解析）
+- docling（可选，高质量结构化文档解析）
 - sentence-transformers（本地 embedding / reranker）
 - chromadb（向量数据库）
 - python-dotenv（.env 加载）
@@ -118,3 +119,4 @@ conda activate contract-harness
 - 2026-06-17: 持久化记忆 + 自演进——新增 `MemoryStore`（ChromaDB 存储条款级分析结果），支持 `remember_session`/`recall`/`correct`/`format_memory_context`；`EvalScorer.run(learn=True)` 自动回写修正信号实现自演进；新增 9 个测试用例。
 - 2026-06-17: 继续对话——`ContractAgent.converse(session_id, query)` 加载历史会话重建上下文并回答追问；CLI `harness converse` + Web `POST /sessions/{id}/converse`；对话记录持久化到 session metadata；新增 2 个测试用例。
 - 2026-06-17: ReAct + Reflection 模式——新增 `AgentMode` 枚举（pipeline/react/reflection）；`react_loop.py` 实现 LLM 自主决策工具调用的 ReAct 循环；`reflection.py` 实现管道审查后追加自审修正；`ContractAgent.review()` 按 mode 自动 dispatch；`HarnessConfig` 新增 `agent_mode` 配置字段；新增 13 个测试用例，累计 107 个。
+- 2026-06-17: Docling 文档解析器——新增 `DoclingParser` 封装（可选依赖），PDF/DOCX/PPTX/图片 → 结构化 Markdown；`HarnessConfig.use_docling` 配置字段；`KnowledgeBase._parse_file()` 支持 docling 优先解析，不替换原有 pypdf/python-docx 功能；新增 9 个测试用例，累计 116 个。
