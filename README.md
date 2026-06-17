@@ -37,6 +37,14 @@ harness review examples/contracts/sample_nda.json
 
 审查流程：条款提取 → 风险分析 → 合规检查 → 生成报告
 
+### 继续对话（追问）
+
+```bash
+harness converse <session_id> "这个保密条款风险高吗？"
+```
+
+多轮追问，Agent 基于上次审查报告上下文回答。
+
 ### 回放审查会话
 
 ```bash
@@ -81,15 +89,16 @@ harness kb search <query>          # 检索知识库
 
 ```
 harness/
-├── agent/        合同审查 Agent（LLM 编排 + 工具调用）
+├── agent/        合同审查 Agent（LLM 编排 + 工具调用 + 记忆）
+│   └── memory.py         持久化记忆 + 自演进（ChromaDB）
 ├── replay/       回放系统（录制 + 回放 + 存储管理）
 ├── eval/         评测系统（数据集 + 指标 + 评分流水线）
 ├── regression/   回归系统（测试套件 + 对比器）
-├── rag/          知识库（Embedding + 向量存储 + 检索）
-├── web/          FastAPI Web 界面（审查 + 会话）
+├── rag/          知识库（Embedding + 向量存储 + 检索 + Reranker）
+├── web/          FastAPI Web 界面（审查 + 会话 + 追问）
 ├── cli/          命令行入口（click + rich）
 ├── core/         核心类型（pydantic）、配置、异常
-└── utils/        工具函数
+└── utils/        工具函数（含 load_dotenv、文件读写等）
 ```
 
 ### 流程图
@@ -97,7 +106,7 @@ harness/
 ```mermaid
 graph TB
     subgraph CLI["CLI 入口"]
-        CMD["harness review &lt;file&gt;<br/>harness replay &lt;session&gt;<br/>harness eval run<br/>harness regression run"]
+        CMD["harness review &lt;file&gt;<br/>harness converse &lt;id&gt; &lt;query&gt;<br/>harness replay &lt;session&gt;<br/>harness eval run<br/>harness regression run"]
     end
 
     subgraph AGENT["Agent 流水线"]
@@ -106,6 +115,9 @@ graph TB
         S1 --> S2["Step 2<br/>风险分析<br/>(RiskAnalyzer)"]:::step
         S2 --> S3["Step 3<br/>合规检查<br/>(ComplianceChecker)"]:::step
         S3 --> S4["Step 4<br/>生成摘要<br/>(LLM)"]:::step
+        S4 -.->|自动存入| MEM[("持久化记忆<br/>MemoryStore")]
+        S1 -.->|检索参考| MEM
+        S2 -.->|检索参考| MEM
         S0 -.->|可选| KB[("Chroma 向量库<br/>KnowledgeBase")]
     end
 
@@ -121,7 +133,7 @@ graph TB
 
     subgraph HARNESS["Harness 系统"]
         REPLAY["ReplaySystem<br/>录制 → JSON → 回放"]
-        EVAL["EvalSystem<br/>Ground Truth → 4 项指标"]
+        EVAL["EvalSystem<br/>Ground Truth → 4 项指标<br/>learn=True → 回写修正到记忆"]
         REGR["RegressionSystem<br/>基线对比 → pass/fail"]
     end
 
@@ -155,6 +167,40 @@ agent = ContractAgent(llm, knowledge_base=kb)
 - **分块策略**：AI 智能分块（可选 LLM 驱动）→ 段落级 → 句子级 → 字符回退
 - **重排序**：支持 Reranker 精排，在向量检索后对候选结果重新打分排序（OpenAI API / local cross-encoder）
 - **种子数据**：内置 7 部常用法律条文（民法典合同编、劳动合同法、数据安全法、个人信息保护法、反垄断法、公司法、商标法），`harness kb seed` 一键导入
+
+## 持久化记忆与自演进
+
+系统内置基于 ChromaDB 的持久化记忆机制：
+
+1. **自动记忆** — 每次审查完成后，条款级分析结果（风险等级、合规状态）自动存入记忆库
+2. **参考回溯** — 新审查时自动检索相似历史案例，注入 LLM Prompt 作为参考
+3. **修正信号** — 评测时设置 `learn=True`，将期望结果与 Agent 输出的差异作为修正信号存入记忆；下次遇到同类条款时，修正结果自动优先展示
+
+```bash
+# Python 中使用
+from harness.agent.memory import MemoryStore
+from harness.core.config import HarnessConfig
+
+config = HarnessConfig()
+store = MemoryStore(config.memory_dir)
+store.remember_session(clauses, risks, compliance, session_id)
+memories = store.recall("保密条款内容", top_k=3)
+store.correct("违约", "违约金条款", "risk_level", "high")
+```
+
+## 继续对话（追问）
+
+审查完成后可通过 `session_id` 继续追问：
+
+```bash
+# CLI
+harness converse a1b2c3 "为什么这个条款判为高风险？"
+
+# Web
+POST /sessions/{id}/converse
+```
+
+Agent 会加载历史审查报告重建上下文，回答追问，并将对话历史持久化到 session 文件中，支持多轮连续追问。
 
 ## 自定义 LLM 供应商
 
@@ -202,7 +248,7 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `RERANK_MODEL` | Reranker 模型 | `rerank-v1` |
 | `VECTOR_STORE_BACKEND` | 向量存储后端（已废弃，仅支持 chroma） | `chroma` |
 | `HTTP_PROXY` | 通用代理（回退） | - |
-| `HARNESS_DATA_DIR` | 数据根目录（知识库、回放等） | 项目下 `.harness/` |
+| `HARNESS_DATA_DIR` | 数据根目录（知识库、回放、记忆等） | 项目下 `.harness/` |
 
 ## CLI 架构（Click 用法）
 
@@ -279,7 +325,7 @@ def search(ctx: click.Context, query: str, top_k: int) -> None:
 ```bash
 conda activate contract-harness
 pip install -e ".[dev]"
-pytest tests/ -v             # 运行 34 个单元测试
+pytest tests/ -v             # 运行 94 个单元测试
 ruff check harness/ tests/   # 代码检查
 ruff format --check harness/ tests/  # 格式检查
 pyright harness/             # 类型检查

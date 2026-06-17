@@ -6,12 +6,13 @@
 
 ```
 harness/
-├── agent/        合同审查 Agent（LLM 编排 + 工具调用）
+├── agent/        合同审查 Agent（LLM 编排 + 工具调用 + 记忆）
+│   └── memory.py         持久化记忆 + 自演进（ChromaDB）
 ├── replay/       回放系统（录制 + 回放 + 存储管理）
 ├── eval/         评测系统（数据集 + 指标 + 评分流水线）
 ├── regression/   回归系统（测试套件 + 对比器）
 ├── rag/          知识库（Embedding + 向量存储 + 检索 + Reranker）
-├── web/          FastAPI Web 界面（审查 + 会话）
+├── web/          FastAPI Web 界面（审查 + 会话 + 追问）
 ├── cli/          命令行入口（click + rich）
 ├── core/         核心类型（pydantic）、配置、异常
 └── utils/        工具函数（含 load_dotenv、文件读写等）
@@ -26,6 +27,7 @@ harness/
 - `harness/rag/vector_store.py` — Chroma 向量存储（ANN 近似搜索）
 - `harness/cli/main.py` — 所有 Click CLI 命令入口（408 行）
 - `harness/agent/llm.py` — LLMClient（无 key 时自动回退 Mock 响应）
+- `harness/agent/memory.py` — MemoryStore（ChromaDB 持久化记忆 + 自演进）
 - `harness/core/config.py` — HarnessConfig / LLMConfig / EmbeddingConfig
 - `debug.py` — PyCharm 调试入口
 
@@ -48,6 +50,7 @@ harness kb seed                            # 导入内置法律条文
 harness kb import-file <file>              # 导入单个文件（支持 txt/md/json/pdf/docx/zip）
 harness kb search <query>                  # 检索知识库
 harness review <file>                      # 审查合同
+harness converse <session_id> <query>      # 继续对话
 harness replay <session_id>               # 回放会话
 harness eval run <dataset>                 # 评测
 harness regression run <dataset>           # 回归测试
@@ -89,3 +92,4 @@ harness serve                              # 启动 Web 界面
 - 2026-06-15: 移除 SQLite 向量存储后端，统一使用 Chroma 向量数据库；添加 ChromaVectorStore 集成测试（4 个用例）；更新 create_vector_store 及 KnowledgeBase.from_config 默认后端为 chroma。
 - 2026-06-16: 全面优化——性能（风险/合规批量 LLM 调用、正则预编译、hash_embed 确定性）、安全（Web 上传大小限制、assert 替换运行时检查）、错误处理（修复静默吞异常、补全 reranker 异常处理）、代码质量（新增 llm_utils.py 消除重复、补全类型注解、清理未使用依赖 pyyaml/tabulate、Config 参数校验）；同步更新 pyproject.toml/tests/conftest.py/tests/unit/test_agent.py。
 - 2026-06-17: 大规模优化——合规检查 `batch_check` 合并为单次 LLM 调用、risk_analyzer 移除单条款特殊分支、依赖清单清理（移除 pyyaml/tabulate）、新增测试覆盖（CLI/Web/Reporter/Suite/Storage 共 28 个新用例，总计 77 个）、修复 5 处静默吞异常（新增 ChunkingError/EmbeddingError 异常类）、Env 回退逻辑去重、TypedDict 注解替代 dict[str, Any]、AI 分块 `CHUNK_MAX_CHARS` 配置化支持超长文本分段、Web 日志 verbose 统一跟随 config、VectorStore.add_chunk 标记废弃、Agent 版本号从 importlib.metadata 动态获取。
+- 2026-06-17: RAG 查询扩展 + 持久化记忆 + 继续对话。新增 `expansion_threshold` 参数、MemoryStore、`converse()` 方法；CLI/Web 全面打通；累计 94 个测试用例。
