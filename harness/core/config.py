@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from harness.core.types import AgentMode
+
 
 def _default_data_root() -> Path:
     """返回项目根目录下的 .harness 目录。"""
@@ -110,6 +112,7 @@ class HarnessConfig:
     memory_dir: str = ""
     memory_enabled: bool = True
     memory_top_k: int = 3
+    agent_mode: AgentMode = AgentMode.PIPELINE
     verbose: bool = False
 
     def __post_init__(self):

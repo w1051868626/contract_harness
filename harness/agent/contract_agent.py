@@ -8,11 +8,14 @@ from datetime import datetime, timezone
 from harness.agent.llm import LLMClient
 from harness.agent.memory import MemoryStore
 from harness.agent.prompts import REVIEW_SUMMARY_PROMPT, SYSTEM_PROMPT
+from harness.agent.react_loop import ReActLoop
+from harness.agent.reflection import reflect_on_report
 from harness.agent.tools.clause_extractor import ClauseExtractor
 from harness.agent.tools.compliance_checker import ComplianceChecker
 from harness.agent.tools.knowledge_retriever import KnowledgeRetriever
 from harness.agent.tools.risk_analyzer import RiskAnalyzer
 from harness.core.types import (
+    AgentMode,
     AgentSession,
     AgentStep,
     Clause,
@@ -57,11 +60,13 @@ class ContractAgent:
         llm: LLMClient | None = None,
         knowledge_base: KnowledgeBase | None = None,
         memory_store: MemoryStore | None = None,
+        mode: AgentMode = AgentMode.PIPELINE,
     ):
         """初始化 Agent，注入 LLM 客户端与知识库实例。"""
         self._llm = llm or LLMClient()
         self._kb = knowledge_base
         self._memory = memory_store
+        self._mode = mode
         self._clause_extractor = ClauseExtractor(self._llm)
         self._risk_analyzer = RiskAnalyzer(self._llm)
         self._compliance_checker = ComplianceChecker(self._llm)
@@ -69,12 +74,39 @@ class ContractAgent:
 
     def review(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
         """执行合同审查全流程，返回审查报告和会话记录。"""
+        if self._mode == AgentMode.REACT:
+            return self._review_react(document)
+        if self._mode == AgentMode.REFLECTION:
+            return self._review_reflection(document)
+        return self._review_pipeline(document)
+
+    def _review_react(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
+        """ReAct 模式：LLM 自主决策调用工具。"""
+        loop = ReActLoop(
+            llm=self._llm,
+            clause_extractor=self._clause_extractor,
+            risk_analyzer=self._risk_analyzer,
+            compliance_checker=self._compliance_checker,
+            knowledge_retriever=self._knowledge_retriever,
+            memory_store=self._memory,
+        )
+        return loop.run(document)
+
+    def _review_reflection(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
+        """Reflection 模式：管道审查 + 自审修正。"""
+        report, session = self._review_pipeline(document)
+        revised_report = reflect_on_report(self._llm, report)
+        session.report = revised_report
+        return revised_report, session
+
+    def _review_pipeline(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
+        """管道模式：固定步骤串联执行（默认行为）。"""
         session = AgentSession(
             session_id=uuid.uuid4().hex[:12],
             document=document,
             started_at=datetime.now(timezone.utc).isoformat(),
         )
-        logger.info("Starting contract review for document_id={}", document.id)
+        logger.info("Starting pipeline review for document_id={}", document.id)
 
         # Step 0: 知识库检索（可选）
         kb_context = ""
@@ -137,7 +169,7 @@ class ContractAgent:
         session.steps.append(step2)
         logger.info("Analyzed {} clauses for risk", len(risks))
 
-        # Step 3: 批量合规检查（每个条款一次 LLM 调用，替代 N×5 次）
+        # Step 3: 批量合规检查（单次 LLM 调用）
         step3 = AgentStep(step_index=3, timestamp=datetime.now(timezone.utc).isoformat())
         step3.agent_message = "正在进行合规检查..."
         tc = ToolCall(
@@ -186,7 +218,7 @@ class ContractAgent:
                 session_id=session.session_id,
             )
 
-        logger.info("Review completed for document_id={}", document.id)
+        logger.info("Pipeline review completed for document_id={}", document.id)
 
         return report, session
 

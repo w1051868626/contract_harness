@@ -58,6 +58,14 @@ class SessionSummary(TypedDict):
     finished_at: str
 
 
+class AgentMode(str, Enum):
+    """Agent 运行模式枚举。"""
+
+    PIPELINE = "pipeline"
+    REACT = "react"
+    REFLECTION = "reflection"
+
+
 class RiskLevel(str, Enum):
     """风险等级枚举。"""
 
