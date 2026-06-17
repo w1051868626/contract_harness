@@ -55,9 +55,7 @@ class TestReplay:
     def test_storage_delete_existing(self, tmp_path):
         """删除存在的会话应返回 True 且文件不复存在。"""
         doc = ContractDocument(id="test", title="测试", content="内容")
-        session = AgentSession(
-            session_id="del_test", document=doc, started_at="now"
-        )
+        session = AgentSession(session_id="del_test", document=doc, started_at="now")
         recorder = SessionRecorder()
         recorder.record(session, output_dir=tmp_path)
         storage = ReplayStorage(storage_dir=tmp_path)

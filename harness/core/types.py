@@ -9,6 +9,7 @@ from typing import Any, NotRequired, TypedDict
 
 class ExpectedMetrics(TypedDict, total=False):
     """评测期望值，用于指标计算。"""
+
     clauses: list[dict[str, Any]]
     risks: list[dict[str, Any]]
     compliance: list[dict[str, Any]]
@@ -17,6 +18,7 @@ class ExpectedMetrics(TypedDict, total=False):
 
 class DiffResult(TypedDict):
     """两份审查报告的差异对比结果。"""
+
     summary_changed: bool
     risk_level_changed: bool
     clause_diffs: list[dict[str, Any]]
@@ -26,6 +28,7 @@ class DiffResult(TypedDict):
 
 class ReviewResult(TypedDict):
     """Web 审查接口返回的结构化结果。"""
+
     session_id: str
     summary: str
     overall_risk: str
@@ -36,6 +39,7 @@ class ReviewResult(TypedDict):
 
 class SessionData(TypedDict):
     """反序列化会话数据的字典结构。"""
+
     session_id: str
     document: dict[str, Any]
     started_at: str
@@ -47,6 +51,7 @@ class SessionData(TypedDict):
 
 class SessionSummary(TypedDict):
     """会话摘要列表中的单条记录。"""
+
     session_id: str
     document_title: str
     started_at: str
