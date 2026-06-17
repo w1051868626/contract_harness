@@ -47,12 +47,18 @@ def cli(ctx: click.Context, verbose: bool) -> None:
 @click.argument("contract_file", type=click.Path(exists=True))
 @click.option("--save/--no-save", default=True, help="是否保存回放记录")
 @click.option("--model", default="", help="LLM 模型名称")
+@click.option("--docling", is_flag=True, help="使用 Docling 解析（保留结构）")
 @click.pass_context
-def review(ctx: click.Context, contract_file: str, save: bool, model: str) -> None:
+def review(ctx: click.Context, contract_file: str, save: bool, model: str, docling: bool) -> None:
     """审查一份合同并展示结果。"""
     config: HarnessConfig = ctx.obj["config"]
     filepath = Path(contract_file)
-    content = read_text(filepath)
+    if docling:
+        config.use_docling = True
+        KnowledgeBase.enable_docling()
+        content = KnowledgeBase._parse_file(filepath)
+    else:
+        content = read_text(filepath)
 
     document = ContractDocument(
         id=filepath.stem,
