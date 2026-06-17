@@ -162,14 +162,14 @@ class KnowledgeBase:
             except Exception:
                 logger.warning("AI 分块失败，回退到传统分块", exc_info=True)
         try:
-            legal = self._chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
-            if legal is not None:
-                logger.debug("使用法律条文分块: chunks={}", len(legal))
-                return legal
             md = self._chunk_markdown(content, doc_id, chunk_size, chunk_overlap)
             if md is not None:
                 logger.debug("使用 Markdown 结构化分块: chunks={}", len(md))
                 return md
+            legal = self._chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
+            if legal is not None:
+                logger.debug("使用法律条文分块: chunks={}", len(legal))
+                return legal
             logger.debug("使用通用文本分块")
             return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
         except Exception as exc:
