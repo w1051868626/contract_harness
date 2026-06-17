@@ -294,9 +294,9 @@ class KnowledgeBase:
                 if md.strip():
                     logger.info("Docling 解析成功: path={} ({} 字符)", path.name, len(md))
                     return md
-                logger.info("Docling 返回空内容，回退: path={}", path.name)
-            except RuntimeError:
-                logger.info("Docling 解析失败，回退: path={}", path.name)
+                logger.warning("Docling 返回空内容，回退 path={}", path.name)
+            except RuntimeError as e:
+                logger.warning("Docling 解析失败，回退 path={}: {}", path.name, e)
 
         if suffix in (".txt", ".md"):
             return path.read_text(encoding="utf-8")
