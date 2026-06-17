@@ -284,13 +284,15 @@ class KnowledgeBase:
         # 可选：Docling 结构化解析（支持 PDF/DOCX/PPTX/图片等）
         docling_parser = getattr(KnowledgeBase, "_docling_parser", None)
         if docling_parser and docling_parser.available and docling_parser.supports(path):
+            logger.info("Docling 解析: path=%s, suffix=%s", path.name, suffix)
             try:
                 md = docling_parser.parse_to_markdown(path)
                 if md.strip():
+                    logger.info("Docling 解析成功: path=%s (%d 字符)", path.name, len(md))
                     return md
-                logger.warning("Docling 返回空内容，回退: path=%s", path.name)
+                logger.info("Docling 返回空内容，回退: path=%s", path.name)
             except RuntimeError:
-                logger.warning("Docling 解析失败，回退: path=%s", path.name, exc_info=True)
+                logger.info("Docling 解析失败，回退: path=%s", path.name, exc_info=True)
 
         if suffix in (".txt", ".md"):
             return path.read_text(encoding="utf-8")
