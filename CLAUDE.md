@@ -47,7 +47,7 @@ pyright harness/
 
 ```bash
 harness kb seed                            # 导入内置法律条文
-harness kb import-file <file>              # 导入单个文件（支持 txt/md/json/pdf/docx/zip）
+harness kb import-file <file>              # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析
 harness kb search <query>                  # 检索知识库
 harness review <file>                      # 审查合同
 harness converse <session_id> <query>      # 继续对话

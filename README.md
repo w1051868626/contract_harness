@@ -79,8 +79,8 @@ harness serve
 
 ```bash
 harness kb seed                    # 导入内置法律条文（民法典、劳动合同法等 7 部）
-harness kb import-file <file>      # 导入单个文件（支持 txt/md/json/pdf/docx/zip）
-harness kb import-dir <directory>  # 批量导入目录下所有文件
+harness kb import-file <file>      # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析
+harness kb import-dir <directory>  # 批量导入；--docling 启用结构解析
 harness kb list                    # 列出所有文档
 harness kb search <query>          # 检索知识库
 ```
