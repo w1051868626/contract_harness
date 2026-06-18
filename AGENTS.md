@@ -126,7 +126,7 @@ conda activate contract-harness
 ## 规则
 
 - **⚠️ 每次变更后必须先更新 README.md、AGENTS.md、CLAUDE.md，再提交（commit）并推送（push）**
-- 新增依赖时同步更新 `environment.yml` 和 `pyproject.toml`（二者必须保持一致）
+- 新增依赖时同步更新 `pyproject.toml`、`environment.yml`、`requirements.txt`（三者必须保持一致）
 - 增加新功能时必须同步添加相应的测试用例
 
 ## 目标
