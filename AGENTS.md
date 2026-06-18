@@ -33,6 +33,31 @@ ruff format --check harness/ tests/
 pyright harness/
 ```
 
+## 查看 GitHub Actions
+
+```bash
+# 查看最新 5 次运行状态
+curl -s https://api.github.com/repos/w1051868626/contract_harness/actions/runs?per_page=5 | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for run in data.get('workflow_runs', []):
+    print(f\"{run['name']}: {run['conclusion']} ({run['status']})\")
+    print(f\"  commit: {run['head_commit']['message'][:60]}\")
+    print(f\"  url: {run['html_url']}\")
+"
+
+# 查看某次运行中失败的 job
+curl -s https://api.github.com/repos/w1051868626/contract_harness/actions/runs/<RUN_ID>/jobs | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for job in data.get('jobs', []):
+    print(f\"Job: {job['name']} - {job['conclusion']}\")
+    for step in job.get('steps', []):
+        if step['conclusion'] == 'failure':
+            print(f\"  Failed step: {step['name']}\")
+"
+```
+
 ## 关键命令
 
 ```bash
