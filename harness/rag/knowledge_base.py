@@ -437,17 +437,17 @@ class KnowledgeBase:
         合并到 chunk_size；单段超长回退到段落级分块。无标题结构则 None。
         """
         heading_pat = (
-            r'#{1,6}'                                                       # # / ## / ###
-            r'|第[一二三四五六七八九十百千零\d]+[章节分编条]'                # 第X章/节/编/条
-            r'|[一二三四五六七八九十百千零\d]+[、．.]'                       # 一、/ 1.
-            r'|\d+\.[\d]+'                                                   # 1.1 / 2.1
-            r'|[（(][一二三四五六七八九十百千零\d]+[）)]'                    # （一）/(1)
+            r"#{1,6}"  # # / ## / ###
+            r"|第[一二三四五六七八九十百千零\d]+[章节分编条]"  # 第X章/节/编/条
+            r"|[一二三四五六七八九十百千零\d]+[、．.]"  # 一、/ 1.
+            r"|\d+\.[\d]+"  # 1.1 / 2.1
+            r"|[（(][一二三四五六七八九十百千零\d]+[）)]"  # （一）/(1)
         )
-        if not re.search(rf'^(?:{heading_pat})(?:\s|$|(?=[^\s]))', text, re.MULTILINE):
+        if not re.search(rf"^(?:{heading_pat})(?:\s|$|(?=[^\s]))", text, re.MULTILINE):
             return None
 
         sections = re.split(
-            rf'(?=^(?:{heading_pat})(?:\s|$|(?=[^\s])))', text.strip(), flags=re.MULTILINE
+            rf"(?=^(?:{heading_pat})(?:\s|$|(?=[^\s])))", text.strip(), flags=re.MULTILINE
         )
         sections = [s.strip() for s in sections if s.strip()]
 
@@ -483,7 +483,7 @@ class KnowledgeBase:
                 idx += 1
                 carry = KnowledgeBase._carry_overlap(buffer, overlap)
                 buffer = carry
-                buf_meta = buf_meta[-len(carry):] if carry else []
+                buf_meta = buf_meta[-len(carry) :] if carry else []
                 buf_len = sum(len(s) for s in carry)
 
         def _detect_meta(first_line: str) -> dict[str, str]:
@@ -512,8 +512,12 @@ class KnowledgeBase:
                 if "chapter" not in this_meta and "chapter" in buf_meta[-1]:
                     this_meta["chapter"] = buf_meta[-1]["chapter"]
 
-            if buf_len > 0 and this_meta.get("chapter") and (
-                not buf_meta[0].get("chapter") or this_meta["chapter"] != buf_meta[0]["chapter"]
+            if (
+                buf_len > 0
+                and this_meta.get("chapter")
+                and (
+                    not buf_meta[0].get("chapter") or this_meta["chapter"] != buf_meta[0]["chapter"]
+                )
             ):
                 _flush()
                 buffer = [sec]
@@ -615,7 +619,10 @@ class KnowledgeBase:
     def _extract_law_metadata(text: str, filename: str = "") -> dict[str, Any]:
         """从法律文本中提取元数据（法律名称、生效日期等）。"""
         meta: dict[str, Any] = {
-            "doc_type": "law", "source_file": filename, "law_name": "", "effective_date": "",
+            "doc_type": "law",
+            "source_file": filename,
+            "law_name": "",
+            "effective_date": "",
         }
 
         name_pats = [
@@ -678,7 +685,9 @@ class KnowledgeBase:
 
     @staticmethod
     def _inject_contextual_header(
-        content: str, metadata: dict[str, Any], doc_meta: dict[str, Any],
+        content: str,
+        metadata: dict[str, Any],
+        doc_meta: dict[str, Any],
     ) -> str:
         """在 chunk 内容前插入结构化上下文标头，提升 Embedding 质量。
 
@@ -766,9 +775,7 @@ class KnowledgeBase:
             arts = _art_pat.findall(part)
             if arts:
                 meta["articles"] = (
-                    f"第{arts[0]}条"
-                    if len(arts) == 1
-                    else f"第{arts[0]}条—第{arts[-1]}条"
+                    f"第{arts[0]}条" if len(arts) == 1 else f"第{arts[0]}条—第{arts[-1]}条"
                 )
 
             chunks.append(

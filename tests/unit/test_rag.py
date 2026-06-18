@@ -372,8 +372,7 @@ class TestChunkMarkdown:
         chunks = KnowledgeBase._chunk_markdown(text, "doc1", 100, 10)
         assert chunks is not None
         assert any(
-            c.metadata.get("articles") and "第一条" in c.metadata["articles"]
-            for c in chunks
+            c.metadata.get("articles") and "第一条" in c.metadata["articles"] for c in chunks
         )
 
     def test_chinese_numbered_heading(self):
@@ -436,6 +435,7 @@ class TestChunkMarkdown:
         text = "# 第一章\n\n第一条 保密义务。\n\n# 第二章\n\n第二条 违约责任。"
         with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
             from harness.rag.vector_store import ChromaVectorStore
+
             store = ChromaVectorStore(tmpdir, collection_name="test_coll")
             emb = _MockEmbeddingProvider()
             kb = KnowledgeBase(store, emb)
