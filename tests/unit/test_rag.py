@@ -376,8 +376,8 @@ class TestChunkMarkdown:
         )
 
     def test_chinese_numbered_heading(self):
-        """中文数字编号（一、）应作为章节边界。"""
-        text = "一、总则\n\n第一条 内容。\n\n二、合同的订立\n\n第二条 内容。"
+        """# 下的中文数字编号（一、）应作为章节边界。"""
+        text = "# 一、总则\n\n第一条 内容。\n\n# 二、合同的订立\n\n第二条 内容。"
         chunks = KnowledgeBase._chunk_markdown(text, "doc1", 40, 10)
         assert chunks is not None
         assert len(chunks) >= 2
@@ -387,8 +387,8 @@ class TestChunkMarkdown:
         assert c2[0].metadata.get("chapter") == "二、合同的订立"
 
     def test_arabic_numbered_heading(self):
-        """阿拉伯数字编号（1. / 2.）应作为章节边界。"""
-        text = "1. General\n\nArt 1 Content.\n\n2. Contract\n\nArt 2 Content."
+        """# 下的阿拉伯数字编号（1. / 2.）应作为章节边界。"""
+        text = "# 1. General\n\nArt 1 Content.\n\n# 2. Contract\n\nArt 2 Content."
         chunks = KnowledgeBase._chunk_markdown(text, "doc1", 40, 10)
         assert chunks is not None
         assert len(chunks) >= 2
@@ -398,8 +398,8 @@ class TestChunkMarkdown:
         assert c2[0].metadata.get("chapter") == "2. Contract"
 
     def test_subsection_numbered_heading(self):
-        """子编号（1.1 / 2.1）应作为 section 边界。"""
-        text = "1. Chapter\n\n1.1 Section A\n\nContent A.\n\n1.2 Section B\n\nContent B."
+        """# 下的子编号（1.1 / 2.1）应作为 section 边界。"""
+        text = "# 1. Chapter\n\n## 1.1 Section A\n\nContent A.\n\n## 1.2 Section B\n\nContent B."
         chunks = KnowledgeBase._chunk_markdown(text, "doc1", 200, 10)
         assert chunks is not None
         assert len(chunks) >= 2
@@ -409,8 +409,8 @@ class TestChunkMarkdown:
         assert s2[0].metadata.get("section") == "1.2 Section B"
 
     def test_parenthesized_heading(self):
-        """括号编号（（一））应作为 section 边界。"""
-        text = "第一章 总则\n\n（一）保密义务\n\n保密内容。\n\n（二）违约责任\n\n违约后果。"
+        """# 下的括号编号（（一））应作为 section 边界。"""
+        text = "# 第一章 总则\n\n## （一）保密义务\n\n保密内容。\n\n## （二）违约责任\n\n违约后果。"
         chunks = KnowledgeBase._chunk_markdown(text, "doc1", 200, 10)
         assert chunks is not None
         assert len(chunks) >= 2
@@ -420,8 +420,12 @@ class TestChunkMarkdown:
         assert s2[0].metadata.get("section") == "（二）违约责任"
 
     def test_legal_plain_metadata_chapter(self):
-        """纯文本章节标题应设置 metadata.chapter（无 # 时）。"""
-        text = "第一章 总则\n\n第一条 为了保护合同当事人的合法权益，制定本法。\n\n第二章 合同的订立\n\n第二条 依法成立的合同，自成立时生效。\n\n第三章 违约责任\n\n第三条 违约方应当承担责任。"
+        """纯文本章节标题应设置 metadata.chapter。"""
+        text = (
+            "# 第一章 总则\n\n第一条 为了保护合同当事人的合法权益，制定本法。\n\n"
+            "# 第二章 合同的订立\n\n第二条 依法成立的合同，自成立时生效。\n\n"
+            "# 第三章 违约责任\n\n第三条 违约方应当承担责任。"
+        )
         chunks = KnowledgeBase._chunk_markdown(text, "doc1", 60, 10)
         assert chunks is not None
         assert len(chunks) >= 2

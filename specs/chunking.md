@@ -20,7 +20,7 @@ AI 分块 → Markdown/结构化分块 → 法律条文层级分块 → 通用�
 
 ### 2.2 Markdown/结构化分块 (`_chunk_markdown`)
 
-- **触发条件**: 文本包含 `#` Markdown 标题或中文法律章节标题（`第X章/节/编/条`、`一、`、`（一）`、`1.`、`1.1`）
+- **触发条件**: 文本包含 `#` Markdown 标题（`#` / `##` / `###`）
 - **输入**: 原始文本 + doc_id + chunk_size + overlap
 - **分割边界**: 正则 `heading_pat` 定义的标题行
 - **合并规则**: 相邻小段合并，总长不超过 chunk_size；chapter/section 变化触发强制刷新
@@ -86,7 +86,7 @@ metadata 为空 dict 时不产生额外字段。
 ```
 _chunk_with_ai → 失败?
   ↓
-_chunk_markdown → 返回 None?（无标题结构）
+_chunk_markdown → 返回 None?（无 # 标题）
   ↓
 _chunk_legal_text → 返回 None?（无「第X条」）
   ↓

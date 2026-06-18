@@ -95,3 +95,4 @@ harness serve                              # 启动 Web 界面
 - 2026-06-17: RAG 查询扩展 + 持久化记忆 + 继续对话。新增 `expansion_threshold` 参数、MemoryStore、`converse()` 方法；CLI/Web 全面打通；累计 94 个测试用例。
 - 2026-06-17: ReAct + Reflection 模式。`AgentMode` 枚举、`react_loop.py`、`reflection.py`；新增 13 个测试，累计 107 个。
 - 2026-06-17: Docling 文档解析器。`DoclingParser`（可选依赖），`HarnessConfig.use_docling`；新增 9 个测试，累计 116 个。
+- 2026-06-18: `_chunk_markdown` 仅响应 `#` 标题。`heading_pat` 缩减为仅 `#{1,6}`；无 `#` 的结构（`第一章`、`一、`、`1.` 等）回退到 `_chunk_legal_text` / `_chunk_text`；同步更新 specs/chunking.md 及 5 个测试用例。

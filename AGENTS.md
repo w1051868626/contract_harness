@@ -147,3 +147,4 @@ conda activate contract-harness
 - 2026-06-17: CLI `kb import-file`/`import-dir` 新增 `--docling` 标志，控制台即可启用 Docling 解析。
 - 2026-06-18: 法律文本切片重构——参考 legal_rag 实现"编→章→节→条→款→项"递归层级分割（RecursiveCharacterTextSplitter 风格），替代原有单层 split+merge 方案；新增 `_hierarchical_split`、`_split_keep_separator`、`_extract_law_metadata`、`_extract_case_metadata`、`_inject_contextual_header` 五个辅助方法；`_chunk_markdown` 新增 section 变化 flush、章节变化 flush 后 continue 修复（防止跨章节合并）；新增 4 个扩展标题模式测试用例；累计 129 个测试用例；同步更新 specs/chunking.md。
 - 2026-06-18: 对齐依赖清单——`pyproject.toml`、`environment.yml`、`requirements.txt` 三者一致；environment.yml 分组注释核心/开发/可选依赖；新增 requirements.txt；AGENTS.md 规则更新。
+- 2026-06-18: `_chunk_markdown` 的 `heading_pat` 缩减为仅 `#{1,6}`——只有包含 Markdown `#` 标题的文档才走 Markdown 分块，无 `#` 的 `第一章`、`一、`、`1.` 等结构回退到 `_chunk_legal_text` / `_chunk_text`；同步更新 specs/chunking.md 及 5 个测试用例。
