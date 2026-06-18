@@ -1,5 +1,4 @@
 """知识库模块，支持文档管理、智能分块与语义检索。"""
-
 from __future__ import annotations
 
 import json
@@ -17,33 +16,21 @@ from pypdf.errors import PdfReadError
 from harness.agent.llm import LLMClient, LLMResponse
 from harness.core.config import HarnessConfig, LLMConfig
 from harness.core.exceptions import ChunkingError
+from harness.rag.constants import (
+    _ART_PAT_RE,
+    _MD_HEADING_RE,
+    _MD_SPLIT_RE,
+    CHUNK_MAX_CHARS,
+    CHUNK_PROMPT,
+    QUERY_EXPANSION_PROMPT,
+    DocType,
+    MetaKey,
+)
 from harness.rag.docling_parser import DoclingParser
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.reranker import Reranker, create_reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore, create_vector_store
 from harness.utils.log import logger
-
-CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑结构拆分成有意义的片段。
-每个片段应该是一个完整的主题、章节或逻辑段落，不要切割句子。
-直接输出 JSON 数组，每个元素的格式为 {{"content": "..."}}。
-
-文档：
-{text}"""
-
-CHUNK_MAX_CHARS = 8000
-
-QUERY_EXPANSION_PROMPT = (
-    "你是一个法律合同检索专家。用户的原始查询可能措辞不准确，导致语义检索效果不佳。\n"
-    "请根据原始查询，生成 {num_variants} 个同义但措辞不同的搜索查询，"
-    "用于从法律知识库中检索相关条款。\n"
-    "要求：\n"
-    "- 保持法律含义不变\n"
-    "- 使用专业法律术语\n"
-    "- 每个查询独立成行，不要编号\n"
-    "- 直接输出查询文本，每行一个，不要额外解释\n"
-    "\n"
-    "原始查询：{query}"
-)
 
 
 class KnowledgeBase:
@@ -423,38 +410,51 @@ class KnowledgeBase:
         self._store.delete_document(document_id)
 
     @staticmethod
+    def _detect_md_heading_meta(first_line: str) -> dict[str, str]:
+        """从 Markdown 标题行提取章节元数据。"""
+        m: dict[str, str] = {}
+        raw = first_line.lstrip("#").strip()
+        if re.match(r"第[一二三四五六七八九十百千零\d]+[章编]", raw):
+            m[MetaKey.CHAPTER] = raw
+        elif re.match(r"[一二三四五六七八九十百千零\d]+[、．]", raw):
+            m[MetaKey.CHAPTER] = raw
+        elif re.match(r"\d+\.(?!\d)", raw):
+            m[MetaKey.CHAPTER] = raw
+        if re.match(r"第[一二三四五六七八九十百千零\d]+节", raw):
+            m[MetaKey.SECTION] = raw
+        elif re.match(r"（[一二三四五六七八九十百千零\d]+）", raw):
+            m[MetaKey.SECTION] = raw
+        elif re.match(r"\d+\.\d+", raw):
+            m[MetaKey.SECTION] = raw
+        return m
+
+    @staticmethod
     def _chunk_markdown(
         text: str,
         doc_id: str,
         chunk_size: int,
         overlap: int,
     ) -> list[Chunk] | None:
-        """结构化分块：以 Markdown 标题（#）为界保持章节完整。
-
-        只检测 Markdown 标题行（#/##/###），以此为分割边界；
-        同标题群合并到 chunk_size；单段超长回退到段落级分块。
-        无 # 标题结构则返回 None，由后续分块策略处理。
-        """
-        heading_pat = r"#{1,6}"  # # / ## / ###
-        if not re.search(rf"^(?:{heading_pat})(?:\s|$|(?=[^\s]))", text, re.MULTILINE):
+        """以 # 标题为界的结构化分块，无 # 则返回 None。"""
+        if not _MD_HEADING_RE.search(text):
             return None
 
-        sections = re.split(
-            rf"(?=^(?:{heading_pat})(?:\s|$|(?=[^\s])))", text.strip(), flags=re.MULTILINE
-        )
-        sections = [s.strip() for s in sections if s.strip()]
+        sections = [
+            s.strip()
+            for s in _MD_SPLIT_RE.split(text.strip())
+            if s.strip()
+        ]
 
         chunks: list[Chunk] = []
         idx = 0
         buffer: list[str] = []
         buf_meta: list[dict[str, str]] = []
         buf_len = 0
-        _art_pat = re.compile(r"第([一二三四五六七八九十百千零\d]+)条")
 
-        def _get_article_range(segments: list[str]) -> str:
+        def _article_str(segments: list[str]) -> str:
             arts = []
             for s in segments:
-                for m in _art_pat.finditer(s):
+                for m in _ART_PAT_RE.finditer(s):
                     arts.append(int(m.group(1)) if m.group(1).isdigit() else m.group(1))
             if not arts:
                 return ""
@@ -462,74 +462,41 @@ class KnowledgeBase:
 
         def _flush() -> None:
             nonlocal idx, buffer, buf_meta, buf_len
-            if buffer:
-                meta: dict[str, Any] = {}
-                for bm in buf_meta:
-                    if "chapter" not in meta and bm.get("chapter"):
-                        meta["chapter"] = bm["chapter"]
-                    if "section" not in meta and bm.get("section"):
-                        meta["section"] = bm["section"]
-                art_range = _get_article_range(buffer)
-                if art_range:
-                    meta["articles"] = art_range
-                chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx, metadata=meta))
-                idx += 1
-                carry = KnowledgeBase._carry_overlap(buffer, overlap)
-                buffer = carry
-                buf_meta = buf_meta[-len(carry) :] if carry else []
-                buf_len = sum(len(s) for s in carry)
-
-        def _detect_meta(first_line: str) -> dict[str, str]:
-            m: dict[str, str] = {}
-            raw = first_line.lstrip("#").strip()
-            if re.match(r"第[一二三四五六七八九十百千零\d]+[章编]", raw):
-                m["chapter"] = raw
-            elif re.match(r"[一二三四五六七八九十百千零\d]+[、．]", raw):
-                m["chapter"] = raw
-            elif re.match(r"\d+\.(?!\d)", raw):
-                m["chapter"] = raw
-            if re.match(r"第[一二三四五六七八九十百千零\d]+节", raw):
-                m["section"] = raw
-            elif re.match(r"（[一二三四五六七八九十百千零\d]+）", raw):
-                m["section"] = raw
-            elif re.match(r"\d+\.\d+", raw):
-                m["section"] = raw
-            return m
+            if not buffer:
+                return
+            meta: dict[str, Any] = {}
+            for bm in buf_meta:
+                meta.setdefault(MetaKey.CHAPTER, bm.get(MetaKey.CHAPTER))
+                meta.setdefault(MetaKey.SECTION, bm.get(MetaKey.SECTION))
+            art_range = _article_str(buffer)
+            if art_range:
+                meta[MetaKey.ARTICLES] = art_range
+            chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx, metadata=meta))
+            idx += 1
+            carry = KnowledgeBase._carry_overlap(buffer, overlap)
+            buffer = carry
+            buf_meta = buf_meta[-len(carry) :] if carry else []
+            buf_len = sum(len(s) for s in carry)
 
         for sec in sections:
             first_line = sec.split("\n")[0].strip()
-            this_meta: dict[str, str] = _detect_meta(first_line)
+            this_meta = KnowledgeBase._detect_md_heading_meta(first_line)
             if not this_meta and buf_meta:
                 this_meta = dict(buf_meta[-1])
-            elif buf_meta:
-                if "chapter" not in this_meta and "chapter" in buf_meta[-1]:
-                    this_meta["chapter"] = buf_meta[-1]["chapter"]
+            elif buf_meta and MetaKey.CHAPTER in buf_meta[-1]:
+                this_meta.setdefault(MetaKey.CHAPTER, buf_meta[-1][MetaKey.CHAPTER])
 
-            if (
-                buf_len > 0
-                and this_meta.get("chapter")
-                and (
-                    not buf_meta[0].get("chapter") or this_meta["chapter"] != buf_meta[0]["chapter"]
-                )
-            ):
+            ch = this_meta.get(MetaKey.CHAPTER)
+            if ch and buf_len > 0 and ch != buf_meta[0].get(MetaKey.CHAPTER):
                 _flush()
-                buffer = [sec]
-                buf_meta = [this_meta]
-                buf_len = len(sec)
+                buffer, buf_meta, buf_len = [sec], [this_meta], len(sec)
                 continue
-            if (
-                buf_len > 0
-                and this_meta.get("section")
-                and (
-                    buf_meta[-1].get("section") is None
-                    or this_meta["section"] != buf_meta[-1]["section"]
-                )
-            ):
+            sc = this_meta.get(MetaKey.SECTION)
+            if sc and buf_len > 0 and sc != buf_meta[-1].get(MetaKey.SECTION):
                 _flush()
-                buffer = [sec]
-                buf_meta = [this_meta]
-                buf_len = len(sec)
+                buffer, buf_meta, buf_len = [sec], [this_meta], len(sec)
                 continue
+
             sl = len(sec)
             if buf_len + sl <= chunk_size:
                 buffer.append(sec)
@@ -538,21 +505,16 @@ class KnowledgeBase:
             else:
                 _flush()
                 if sl <= chunk_size:
-                    buffer = [sec]
-                    buf_meta = [this_meta]
-                    buf_len = sl
+                    buffer, buf_meta, buf_len = [sec], [this_meta], sl
                 else:
-                    sub_segments = KnowledgeBase._split_segments(sec)
-                    for sub in sub_segments:
+                    for sub in KnowledgeBase._split_segments(sec):
                         if buf_len + len(sub) <= chunk_size:
                             buffer.append(sub)
                             buf_meta.append(this_meta)
                             buf_len += len(sub)
                         else:
                             _flush()
-                            buffer = [sub]
-                            buf_meta = [this_meta]
-                            buf_len = len(sub)
+                            buffer, buf_meta, buf_len = [sub], [this_meta], len(sub)
 
         _flush()
         logger.debug("Markdown 分块完成: chunks={}", len(chunks))
@@ -612,10 +574,10 @@ class KnowledgeBase:
     def _extract_law_metadata(text: str, filename: str = "") -> dict[str, Any]:
         """从法律文本中提取元数据（法律名称、生效日期等）。"""
         meta: dict[str, Any] = {
-            "doc_type": "law",
-            "source_file": filename,
-            "law_name": "",
-            "effective_date": "",
+            MetaKey.DOC_TYPE: DocType.LAW,
+            MetaKey.SOURCE_FILE: filename,
+            MetaKey.LAW_NAME: "",
+            MetaKey.EFFECTIVE_DATE: "",
         }
 
         name_pats = [
@@ -626,11 +588,11 @@ class KnowledgeBase:
         for pat in name_pats:
             m = re.search(pat, text[:500])
             if m:
-                meta["law_name"] = m.group(1).strip("《》")
+                meta[MetaKey.LAW_NAME] = m.group(1).strip("《》")
                 break
 
-        if not meta["law_name"] and filename:
-            meta["law_name"] = re.sub(r"\.\w+$", "", filename)
+        if not meta[MetaKey.LAW_NAME] and filename:
+            meta[MetaKey.LAW_NAME] = re.sub(r"\.\w+$", "", filename)
 
         date_pats = [
             r"(\d{4}年\d{1,2}月\d{1,2}日)(?:起)?施行",
@@ -640,7 +602,7 @@ class KnowledgeBase:
         for pat in date_pats:
             m = re.search(pat, text[:2000])
             if m:
-                meta["effective_date"] = m.group(1)
+                meta[MetaKey.EFFECTIVE_DATE] = m.group(1)
                 break
 
         return meta
@@ -649,30 +611,30 @@ class KnowledgeBase:
     def _extract_case_metadata(text: str, filename: str = "") -> dict[str, Any]:
         """从指导案例文本中提取元数据。"""
         meta: dict[str, Any] = {
-            "doc_type": "case",
-            "source_file": filename,
-            "case_number": "",
-            "case_title": "",
-            "guiding_number": "",
-            "keywords": "",
+            MetaKey.DOC_TYPE: DocType.CASE,
+            MetaKey.SOURCE_FILE: filename,
+            MetaKey.CASE_NUMBER: "",
+            MetaKey.CASE_TITLE: "",
+            MetaKey.GUIDING_NUMBER: "",
+            MetaKey.KEYWORDS: "",
         }
 
         g = re.search(r"指导案例(\d+)号", text[:500])
         if g:
-            meta["guiding_number"] = f"指导案例{g.group(1)}号"
+            meta[MetaKey.GUIDING_NUMBER] = f"指导案例{g.group(1)}号"
 
         c = re.search(r"[（(]\d{4}[）)][^\s]*\d+号", text[:1000])
         if c:
-            meta["case_number"] = c.group(0)
+            meta[MetaKey.CASE_NUMBER] = c.group(0)
 
         kw = re.search(r"关键词[：:]\s*(.+?)(?:\n|$)", text[:1000])
         if kw:
             keywords = re.split(r"[；;,，\s]+", kw.group(1).strip())
             kw_list = [k.strip() for k in keywords if k.strip()]
-            meta["keywords"] = "；".join(kw_list)
+            meta[MetaKey.KEYWORDS] = "；".join(kw_list)
 
-        if not meta["case_title"] and filename:
-            meta["case_title"] = re.sub(r"\.\w+$", "", filename)
+        if not meta[MetaKey.CASE_TITLE] and filename:
+            meta[MetaKey.CASE_TITLE] = re.sub(r"\.\w+$", "", filename)
 
         return meta
 
@@ -688,19 +650,19 @@ class KnowledgeBase:
         """
         parts: list[str] = []
 
-        law_name = doc_meta.get("law_name", "") or metadata.get("law_name", "")
+        law_name = doc_meta.get(MetaKey.LAW_NAME, "") or metadata.get(MetaKey.LAW_NAME, "")
         if law_name:
             parts.append(f"法律名称: {law_name}")
 
-        chapter = metadata.get("chapter", "")
+        chapter = metadata.get(MetaKey.CHAPTER, "")
         if chapter:
             parts.append(f"章节: {chapter}")
 
-        article = metadata.get("articles", "")
+        article = metadata.get(MetaKey.ARTICLES, "")
         if article:
             parts.append(f"条号: {article}")
 
-        guiding = doc_meta.get("guiding_number", "")
+        guiding = doc_meta.get(MetaKey.GUIDING_NUMBER, "")
         if guiding:
             parts.append(f"案例: {guiding}")
 
@@ -746,7 +708,6 @@ class KnowledgeBase:
         idx = 0
         cur_chapter = ""
         cur_section = ""
-        _art_pat = re.compile(r"第([一二三四五六七八九十百千零\d]+)条")
 
         for part in parts:
             meta: dict[str, Any] = {}
@@ -761,13 +722,13 @@ class KnowledgeBase:
                 cur_section = first_line
 
             if cur_chapter:
-                meta["chapter"] = cur_chapter
+                meta[MetaKey.CHAPTER] = cur_chapter
             if cur_section:
-                meta["section"] = cur_section
+                meta[MetaKey.SECTION] = cur_section
 
-            arts = _art_pat.findall(part)
+            arts = _ART_PAT_RE.findall(part)
             if arts:
-                meta["articles"] = (
+                meta[MetaKey.ARTICLES] = (
                     f"第{arts[0]}条" if len(arts) == 1 else f"第{arts[0]}条—第{arts[-1]}条"
                 )
 
