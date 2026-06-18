@@ -8,6 +8,7 @@ from enum import Enum
 # ===== 分块参数 =====
 
 CHUNK_MAX_CHARS = 8000
+EMBED_MAX_CHARS = 1024
 
 # ===== 提示词模板 =====
 

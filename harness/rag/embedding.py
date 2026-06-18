@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from harness.core.exceptions import EmbeddingError
+from harness.rag.constants import EMBED_MAX_CHARS
 from harness.utils.log import logger
 
 
@@ -53,14 +54,15 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         ]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """批量调用 OpenAI 嵌入 API。"""
+        """批量调用 OpenAI 嵌入 API，超长文本自动截断。"""
         logger.debug("Embedding batch of {} texts with model={}", len(texts), self.model)
         if not self.api_key:
             raise EmbeddingError("API 密钥未配置")
+        truncated = [t[:EMBED_MAX_CHARS] for t in texts]
         try:
             resp = self._http_client.post(
                 f"{self.api_base}/embeddings",
-                json={"model": self.model, "input": texts},
+                json={"model": self.model, "input": truncated},
                 headers={"Authorization": f"Bearer {self.api_key}"},
             )
             resp.raise_for_status()
@@ -104,12 +106,13 @@ class LocalEmbeddingProvider(EmbeddingProvider):
         return self.embed_batch([text])[0]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """批量使用本地模型编码文本。"""
+        """批量使用本地模型编码文本，超长文本自动截断。"""
         logger.debug("Local embedding batch of {} texts with model={}", len(texts), self.model_name)
         self._load()
         if self._model is None:
             raise RuntimeError("本地嵌入模型未加载")
-        return self._model.encode(texts).tolist()
+        truncated = [t[:EMBED_MAX_CHARS] for t in texts]
+        return self._model.encode(truncated).tolist()
 
 
 def create_embedding_provider(
