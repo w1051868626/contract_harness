@@ -42,6 +42,7 @@ _BOUNDARY_RE = re.compile(r"(?=\n第[一二三四五六七八九十百千零\d]+
 
 # ===== 元数据键名 =====
 
+
 class MetaKey(str, Enum):
     """Chunk metadata 键名常量。"""
 
@@ -59,6 +60,7 @@ class MetaKey(str, Enum):
 
 
 # ===== 文档类型 =====
+
 
 class DocType(str, Enum):
     """文档类型常量。"""

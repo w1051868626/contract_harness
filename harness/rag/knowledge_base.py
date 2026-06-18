@@ -1,4 +1,5 @@
 """知识库模块，支持文档管理、智能分块与语义检索。"""
+
 from __future__ import annotations
 
 import json
@@ -445,11 +446,7 @@ class KnowledgeBase:
         if not _MD_HEADING_RE.search(text):
             return None
 
-        sections = [
-            s.strip()
-            for s in _MD_SPLIT_RE.split(text.strip())
-            if s.strip()
-        ]
+        sections = [s.strip() for s in _MD_SPLIT_RE.split(text.strip()) if s.strip()]
 
         chunks: list[Chunk] = []
         idx = 0
