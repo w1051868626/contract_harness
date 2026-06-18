@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -12,6 +13,21 @@ import httpx
 from harness.core.exceptions import EmbeddingError
 from harness.rag.constants import EMBED_MAX_CHARS
 from harness.utils.log import logger
+
+_SENTENCE_SPLIT = re.compile(r"[。！？；.!?;\n]")
+
+def _truncate_at_boundary(text: str, max_chars: int) -> str:
+    """在句子边界截断文本，避免切断语义。"""
+    if len(text) <= max_chars:
+        return text
+    # 从 max_chars 向左找最近的句子结束符
+    m = _SENTENCE_SPLIT.search(text, max_chars - 1, max_chars)
+    if m:
+        return text[: m.start() + 1]
+    pos = max(text.rfind(c, 0, max_chars) for c in "。！？；.!?;\n")
+    if pos > max_chars // 2:
+        return text[: pos + 1]
+    return text[:max_chars]
 
 
 class EmbeddingProvider(ABC):
@@ -58,7 +74,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         logger.debug("Embedding batch of {} texts with model={}", len(texts), self.model)
         if not self.api_key:
             raise EmbeddingError("API 密钥未配置")
-        truncated = [t[:EMBED_MAX_CHARS] for t in texts]
+        truncated = [_truncate_at_boundary(t, EMBED_MAX_CHARS) for t in texts]
         try:
             resp = self._http_client.post(
                 f"{self.api_base}/embeddings",
@@ -111,7 +127,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
         self._load()
         if self._model is None:
             raise RuntimeError("本地嵌入模型未加载")
-        truncated = [t[:EMBED_MAX_CHARS] for t in texts]
+        truncated = [_truncate_at_boundary(t, EMBED_MAX_CHARS) for t in texts]
         return self._model.encode(truncated).tolist()
 
 
