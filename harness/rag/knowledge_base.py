@@ -435,7 +435,7 @@ class KnowledgeBase:
         （第X章/节/编/条），以此为分割边界；同标题群合并到
         chunk_size；单段超长回退到段落级分块。无标题结构则 None。
         """
-        heading_pat = r'(?:#|第[一二三四五六七八九十百千零\d]+[章节分编条])'
+        heading_pat = r'(?:#{1,6}|第[一二三四五六七八九十百千零\d]+[章节分编条])'
         if not re.search(rf'^{heading_pat}\s', text, re.MULTILINE):
             return None
 
@@ -445,36 +445,82 @@ class KnowledgeBase:
         chunks: list[Chunk] = []
         idx = 0
         buffer: list[str] = []
+        buf_meta: list[dict[str, str]] = []
         buf_len = 0
+        _art_pat = re.compile(r"第([一二三四五六七八九十百千零\d]+)条")
+
+        def _get_article_range(segments: list[str]) -> str:
+            arts = []
+            for s in segments:
+                for m in _art_pat.finditer(s):
+                    arts.append(int(m.group(1)) if m.group(1).isdigit() else m.group(1))
+            if not arts:
+                return ""
+            return f"第{arts[0]}条" if len(arts) == 1 else f"第{arts[0]}条—第{arts[-1]}条"
 
         def _flush() -> None:
-            nonlocal idx, buffer, buf_len
+            nonlocal idx, buffer, buf_meta, buf_len
             if buffer:
-                chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx))
+                meta: dict[str, Any] = {}
+                for bm in buf_meta:
+                    if "chapter" not in meta and bm.get("chapter"):
+                        meta["chapter"] = bm["chapter"]
+                    if "section" not in meta and bm.get("section"):
+                        meta["section"] = bm["section"]
+                art_range = _get_article_range(buffer)
+                if art_range:
+                    meta["articles"] = art_range
+                chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx, metadata=meta))
                 idx += 1
                 carry = KnowledgeBase._carry_overlap(buffer, overlap)
                 buffer = carry
+                buf_meta = buf_meta[-len(carry):] if carry else []
                 buf_len = sum(len(s) for s in carry)
 
+        _chap_re = re.compile(r"(#\s+)?(第[一二三四五六七八九十百千零\d]+[章编][^\n]*)")
+        _sect_re = re.compile(r"(#{2,}\s+)?(第[一二三四五六七八九十百千零\d]+节[^\n]*)")
+
         for sec in sections:
+            first_line = sec.split("\n")[0].strip()
+            this_meta: dict[str, str] = {}
+            cm = _chap_re.search(first_line)
+            if cm:
+                this_meta["chapter"] = cm.group(2).strip()
+            sm = _sect_re.search(first_line)
+            if sm:
+                this_meta["section"] = sm.group(2).strip()
+            if not this_meta and buf_meta:
+                this_meta = dict(buf_meta[-1])
+            elif buf_meta:
+                if "chapter" not in this_meta and "chapter" in buf_meta[-1]:
+                    this_meta["chapter"] = buf_meta[-1]["chapter"]
+
+            if buf_len > 0 and this_meta.get("chapter") and (
+                not buf_meta[0].get("chapter") or this_meta["chapter"] != buf_meta[0]["chapter"]
+            ):
+                _flush()
             sl = len(sec)
             if buf_len + sl <= chunk_size:
                 buffer.append(sec)
+                buf_meta.append(this_meta)
                 buf_len += sl
             else:
                 _flush()
                 if sl <= chunk_size:
                     buffer = [sec]
+                    buf_meta = [this_meta]
                     buf_len = sl
                 else:
                     sub_segments = KnowledgeBase._split_segments(sec)
                     for sub in sub_segments:
                         if buf_len + len(sub) <= chunk_size:
                             buffer.append(sub)
+                            buf_meta.append(this_meta)
                             buf_len += len(sub)
                         else:
                             _flush()
                             buffer = [sub]
+                            buf_meta = [this_meta]
                             buf_len = len(sub)
 
         _flush()

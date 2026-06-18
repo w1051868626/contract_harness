@@ -342,6 +342,51 @@ class TestChunkMarkdown:
         assert len(chunks) == 1
         assert chunks[0].content.startswith("# 保密条款")
 
+    def test_markdown_metadata_chapter(self):
+        """Markdown 标题应设置 chunk metadata.chapter。"""
+        text = "# 第一章 总则\n\n第一条 合同自成立时生效。\n\n" + "# 第二章 合同的订立\n\n" * 3
+        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 40, 10)
+        assert chunks is not None
+        assert len(chunks) >= 2
+        ch1 = [c for c in chunks if "第一章" in c.content]
+        ch2 = [c for c in chunks if "第二章" in c.content]
+        assert ch1[0].metadata.get("chapter") == "第一章 总则"
+        assert ch2[0].metadata.get("chapter") == "第二章 合同的订立"
+
+    def test_markdown_metadata_section(self):
+        """子标题应设置 chunk metadata.section，同时保留 chapter。"""
+        text = "# 第一章 总则\n\n## 第一节 一般规定\n\n第一条 内容。\n\n# 第二章 合同的订立\n\n## 第一节 订立方式\n\n第二条 内容。"
+        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 200, 10)
+        assert chunks is not None
+        assert len(chunks) >= 2
+        s1 = [c for c in chunks if "第一节 一般规定" in c.content]
+        s2 = [c for c in chunks if "第一节 订立方式" in c.content]
+        assert s1[0].metadata.get("chapter") == "第一章 总则"
+        assert s1[0].metadata.get("section") == "第一节 一般规定"
+        assert s2[0].metadata.get("chapter") == "第二章 合同的订立"
+        assert s2[0].metadata.get("section") == "第一节 订立方式"
+
+    def test_markdown_metadata_articles(self):
+        """条款范围应记入 metadata.articles。"""
+        text = "# 第一章\n\n第一条 内容一。\n\n第二条 内容二。\n\n第三条 内容三。"
+        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 100, 10)
+        assert chunks is not None
+        assert any(
+            c.metadata.get("articles") and "第一条" in c.metadata["articles"]
+            for c in chunks
+        )
+
+    def test_legal_plain_metadata_chapter(self):
+        """纯文本章节标题应设置 metadata.chapter（无 # 时）。"""
+        text = "第一章 总则\n\n第一条 为了保护合同当事人的合法权益，制定本法。\n\n第二章 合同的订立\n\n第二条 依法成立的合同，自成立时生效。\n\n第三章 违约责任\n\n第三条 违约方应当承担责任。"
+        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 60, 10)
+        assert chunks is not None
+        assert len(chunks) >= 2
+        ch1 = [c for c in chunks if "第一章" in c.content]
+        ch2 = [c for c in chunks if "第二章" in c.content]
+        assert ch1[0].metadata.get("chapter") == "第一章 总则"
+        assert ch2[0].metadata.get("chapter") == "第二章 合同的订立"
+
     def test_markdown_in_resolve_chains(self):
         """_resolve_chunks 应为 Markdown 文本选择结构化分块。"""
         text = "# 第一章\n\n第一条 保密义务。\n\n# 第二章\n\n第二条 违约责任。"
