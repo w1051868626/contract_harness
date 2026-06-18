@@ -20,7 +20,10 @@ class Reranker(ABC):
 
 
 class OpenAIReranker(Reranker):
-    """基于 OpenAI 兼容 API 的重排序实现（/rerank 端点）。"""
+    """基于 OpenAI 兼容 API 的重排序实现（/rerank 端点）。
+
+    /rerank 非标准 OpenAI 端点，使用 httpx 直接调用，通过 openai 库提供 proxy 支持。
+    """
 
     def __init__(
         self,

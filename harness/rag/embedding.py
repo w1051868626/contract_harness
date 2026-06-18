@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from abc import ABC, abstractmethod
 from typing import Any
 
 import httpx
+from openai import APIError, AuthenticationError, BadRequestError, InternalServerError, OpenAI
 
 from harness.core.exceptions import EmbeddingError
 from harness.rag.constants import EMBED_MAX_CHARS
@@ -20,7 +20,6 @@ def _truncate_at_boundary(text: str, max_chars: int) -> str:
     """在句子边界截断文本，避免切断语义。"""
     if len(text) <= max_chars:
         return text
-    # 从 max_chars 向左找最近的句子结束符
     m = _SENTENCE_SPLIT.search(text, max_chars - 1, max_chars)
     if m:
         return text[: m.start() + 1]
@@ -43,7 +42,7 @@ class EmbeddingProvider(ABC):
 
 
 class OpenAIEmbeddingProvider(EmbeddingProvider):
-    """基于 OpenAI API 的嵌入实现。"""
+    """基于 openai 库的嵌入实现。"""
 
     def __init__(
         self,
@@ -52,11 +51,13 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         model: str = "text-embedding-3-small",
         proxy: str | None = None,
     ):
-        """初始化 OpenAI 嵌入客户端。"""
-        self.api_key = api_key
-        self.api_base = api_base.rstrip("/")
         self.model = model
-        self._http_client = httpx.Client(proxy=proxy) if proxy else httpx.Client()
+        http_client = httpx.Client(proxy=proxy) if proxy else None
+        self._client = OpenAI(
+            api_key=api_key,
+            base_url=api_base.rstrip("/"),
+            http_client=http_client,
+        )
 
     def embed(self, text: str) -> list[float]:
         """将单段文本转为向量。"""
@@ -70,28 +71,22 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         ]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """批量调用 OpenAI 嵌入 API，超长文本自动截断。"""
+        """批量通过 openai 库调用嵌入 API，超长文本自动截断。"""
         logger.debug("Embedding batch of {} texts with model={}", len(texts), self.model)
-        if not self.api_key:
-            raise EmbeddingError("API 密钥未配置")
         truncated = [_truncate_at_boundary(t, EMBED_MAX_CHARS) for t in texts]
         try:
-            resp = self._http_client.post(
-                f"{self.api_base}/embeddings",
-                json={"model": self.model, "input": truncated},
-                headers={"Authorization": f"Bearer {self.api_key}"},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            items = sorted(data["data"], key=lambda x: x["index"])
+            resp = self._client.embeddings.create(model=self.model, input=truncated)
+            items = sorted(resp.data, key=lambda x: x.index)
             logger.debug("Successfully embedded {} texts", len(items))
-            return [item["embedding"] for item in items]
-        except httpx.HTTPStatusError as exc:
-            raise EmbeddingError(f"Embedding API HTTP 错误: {exc.response.status_code}") from exc
-        except httpx.RequestError as exc:
-            raise EmbeddingError(f"Embedding API 请求失败: {exc}") from exc
-        except (KeyError, ValueError, json.JSONDecodeError) as exc:
-            raise EmbeddingError(f"Embedding API 响应解析失败: {exc}") from exc
+            return [item.embedding for item in items]
+        except AuthenticationError as exc:
+            raise EmbeddingError(f"Embedding API 认证失败: {exc}") from exc
+        except BadRequestError as exc:
+            raise EmbeddingError(f"Embedding API 请求参数错误: {exc}") from exc
+        except (APIError, InternalServerError) as exc:
+            raise EmbeddingError(f"Embedding API 服务端错误: {exc}") from exc
+        except Exception as exc:
+            raise EmbeddingError(f"Embedding API 调用失败: {exc}") from exc
 
 
 class LocalEmbeddingProvider(EmbeddingProvider):
