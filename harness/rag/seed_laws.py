@@ -5,8 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-_ARTICLE_RE = re.compile(r"^(第[一二三四五六七八九十百千零\d]+条)\s*")
-_BOUNDARY_RE = re.compile(r"(?=\n第[一二三四五六七八九十百千零\d]+[条章节分编])")
+from harness.rag.constants import _ARTICLE_RE, _BOUNDARY_RE
 
 
 @dataclass
