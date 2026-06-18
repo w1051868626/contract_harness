@@ -120,3 +120,4 @@ conda activate contract-harness
 - 2026-06-17: ReAct + Reflection 模式——新增 `AgentMode` 枚举（pipeline/react/reflection）；`react_loop.py` 实现 LLM 自主决策工具调用的 ReAct 循环；`reflection.py` 实现管道审查后追加自审修正；`ContractAgent.review()` 按 mode 自动 dispatch；`HarnessConfig` 新增 `agent_mode` 配置字段；新增 13 个测试用例，累计 107 个。
 - 2026-06-17: Docling 文档解析器——新增 `DoclingParser` 封装（可选依赖），PDF/DOCX/PPTX/图片 → 结构化 Markdown；`HarnessConfig.use_docling` 配置字段；`KnowledgeBase._parse_file()` 支持 docling 优先解析，不替换原有 pypdf/python-docx 功能；新增 9 个测试用例，累计 116 个。
 - 2026-06-17: CLI `kb import-file`/`import-dir` 新增 `--docling` 标志，控制台即可启用 Docling 解析。
+- 2026-06-18: 法律文本切片重构——参考 legal_rag 实现"编→章→节→条→款→项"递归层级分割（RecursiveCharacterTextSplitter 风格），替代原有单层 split+merge 方案；新增 `_hierarchical_split`、`_split_keep_separator`、`_extract_law_metadata`、`_extract_case_metadata`、`_inject_contextual_header` 五个辅助方法；`_chunk_markdown` 新增 section 变化 flush、章节变化 flush 后 continue 修复（防止跨章节合并）；新增 4 个扩展标题模式测试用例；累计 129 个测试用例；同步更新 specs/chunking.md。

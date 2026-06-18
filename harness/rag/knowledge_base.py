@@ -431,15 +431,24 @@ class KnowledgeBase:
     ) -> list[Chunk] | None:
         """结构化分块：以标题为界保持章节完整。
 
-        检测 Markdown 标题行（#/##/###）或中文法律章节标题
-        （第X章/节/编/条），以此为分割边界；同标题群合并到
-        chunk_size；单段超长回退到段落级分块。无标题结构则 None。
+        检测 Markdown 标题行（#/##/###）、中文法律章节标题
+        （第X章/节/编/条）、中文数字编号（一、/（一））
+        或阿拉伯数字编号（1./1.1），以此为分割边界；同标题群
+        合并到 chunk_size；单段超长回退到段落级分块。无标题结构则 None。
         """
-        heading_pat = r'(?:#{1,6}|第[一二三四五六七八九十百千零\d]+[章节分编条])'
-        if not re.search(rf'^{heading_pat}\s', text, re.MULTILINE):
+        heading_pat = (
+            r'#{1,6}'                                                       # # / ## / ###
+            r'|第[一二三四五六七八九十百千零\d]+[章节分编条]'                # 第X章/节/编/条
+            r'|[一二三四五六七八九十百千零\d]+[、．.]'                       # 一、/ 1.
+            r'|\d+\.[\d]+'                                                   # 1.1 / 2.1
+            r'|[（(][一二三四五六七八九十百千零\d]+[）)]'                    # （一）/(1)
+        )
+        if not re.search(rf'^(?:{heading_pat})(?:\s|$|(?=[^\s]))', text, re.MULTILINE):
             return None
 
-        sections = re.split(rf'(?=^{heading_pat}\s)', text.strip(), flags=re.MULTILINE)
+        sections = re.split(
+            rf'(?=^(?:{heading_pat})(?:\s|$|(?=[^\s])))', text.strip(), flags=re.MULTILINE
+        )
         sections = [s.strip() for s in sections if s.strip()]
 
         chunks: list[Chunk] = []
@@ -477,18 +486,26 @@ class KnowledgeBase:
                 buf_meta = buf_meta[-len(carry):] if carry else []
                 buf_len = sum(len(s) for s in carry)
 
-        _chap_re = re.compile(r"(#\s+)?(第[一二三四五六七八九十百千零\d]+[章编][^\n]*)")
-        _sect_re = re.compile(r"(#{2,}\s+)?(第[一二三四五六七八九十百千零\d]+节[^\n]*)")
+        def _detect_meta(first_line: str) -> dict[str, str]:
+            m: dict[str, str] = {}
+            raw = first_line.lstrip("#").strip()
+            if re.match(r"第[一二三四五六七八九十百千零\d]+[章编]", raw):
+                m["chapter"] = raw
+            elif re.match(r"[一二三四五六七八九十百千零\d]+[、．]", raw):
+                m["chapter"] = raw
+            elif re.match(r"\d+\.(?!\d)", raw):
+                m["chapter"] = raw
+            if re.match(r"第[一二三四五六七八九十百千零\d]+节", raw):
+                m["section"] = raw
+            elif re.match(r"（[一二三四五六七八九十百千零\d]+）", raw):
+                m["section"] = raw
+            elif re.match(r"\d+\.\d+", raw):
+                m["section"] = raw
+            return m
 
         for sec in sections:
             first_line = sec.split("\n")[0].strip()
-            this_meta: dict[str, str] = {}
-            cm = _chap_re.search(first_line)
-            if cm:
-                this_meta["chapter"] = cm.group(2).strip()
-            sm = _sect_re.search(first_line)
-            if sm:
-                this_meta["section"] = sm.group(2).strip()
+            this_meta: dict[str, str] = _detect_meta(first_line)
             if not this_meta and buf_meta:
                 this_meta = dict(buf_meta[-1])
             elif buf_meta:
@@ -499,6 +516,23 @@ class KnowledgeBase:
                 not buf_meta[0].get("chapter") or this_meta["chapter"] != buf_meta[0]["chapter"]
             ):
                 _flush()
+                buffer = [sec]
+                buf_meta = [this_meta]
+                buf_len = len(sec)
+                continue
+            if (
+                buf_len > 0
+                and this_meta.get("section")
+                and (
+                    buf_meta[-1].get("section") is None
+                    or this_meta["section"] != buf_meta[-1]["section"]
+                )
+            ):
+                _flush()
+                buffer = [sec]
+                buf_meta = [this_meta]
+                buf_len = len(sec)
+                continue
             sl = len(sec)
             if buf_len + sl <= chunk_size:
                 buffer.append(sec)
@@ -528,112 +562,226 @@ class KnowledgeBase:
         return chunks
 
     @staticmethod
+    def _split_keep_separator(text: str, pattern: str) -> list[str]:
+        """按正则分割，分隔符保留在后续片段开头。"""
+        parts = re.split(f"({pattern})", text)
+        if len(parts) < 2:
+            return [text]
+        result: list[str] = []
+        buf = parts[0]
+        i = 1
+        while i < len(parts):
+            buf += parts[i]
+            if i + 1 < len(parts):
+                buf += parts[i + 1]
+            result.append(buf)
+            buf = ""
+            i += 2
+        if buf.strip():
+            result.append(buf)
+        return result
+
+    @staticmethod
+    def _hierarchical_split(text: str, separators: list[str], chunk_size: int) -> list[str]:
+        """递归层级文本分割器（模拟 RecursiveCharacterTextSplitter）。
+
+        从最高优先级分隔符开始尝试；若分割后片段仍超 chunk_size，
+        用下一级分隔符递归处理。片段不合并——每个片段即为一个 chunk。
+        """
+        if not text.strip():
+            return []
+        if len(text) <= chunk_size or not separators:
+            return [text]
+
+        sep = separators[0]
+        rest = separators[1:]
+
+        if sep == r"\n":
+            parts = [p for p in text.split("\n") if p.strip()]
+            if not parts:
+                return [text]
+        else:
+            parts = KnowledgeBase._split_keep_separator(text, sep)
+
+        result: list[str] = []
+        for part in parts:
+            if len(part) > chunk_size and rest:
+                result.extend(KnowledgeBase._hierarchical_split(part, rest, chunk_size))
+            else:
+                result.append(part)
+        return [p for p in result if p.strip()]
+
+    @staticmethod
+    def _extract_law_metadata(text: str, filename: str = "") -> dict[str, Any]:
+        """从法律文本中提取元数据（法律名称、生效日期等）。"""
+        meta: dict[str, Any] = {
+            "doc_type": "law", "source_file": filename, "law_name": "", "effective_date": "",
+        }
+
+        name_pats = [
+            r"(中华人民共和国\S+?(?:法典|法|条例|规定|办法|决定|解释))",
+            r"(《[^》]+》)",
+            r"^(.+(?:法典|法|条例|规定|办法|决定|解释))",
+        ]
+        for pat in name_pats:
+            m = re.search(pat, text[:500])
+            if m:
+                meta["law_name"] = m.group(1).strip("《》")
+                break
+
+        if not meta["law_name"] and filename:
+            meta["law_name"] = re.sub(r"\.\w+$", "", filename)
+
+        date_pats = [
+            r"(\d{4}年\d{1,2}月\d{1,2}日)(?:起)?施行",
+            r"自(\d{4}年\d{1,2}月\d{1,2}日)起施行",
+            r"(\d{4}-\d{2}-\d{2})",
+        ]
+        for pat in date_pats:
+            m = re.search(pat, text[:2000])
+            if m:
+                meta["effective_date"] = m.group(1)
+                break
+
+        return meta
+
+    @staticmethod
+    def _extract_case_metadata(text: str, filename: str = "") -> dict[str, Any]:
+        """从指导案例文本中提取元数据。"""
+        meta: dict[str, Any] = {
+            "doc_type": "case",
+            "source_file": filename,
+            "case_number": "",
+            "case_title": "",
+            "guiding_number": "",
+            "keywords": "",
+        }
+
+        g = re.search(r"指导案例(\d+)号", text[:500])
+        if g:
+            meta["guiding_number"] = f"指导案例{g.group(1)}号"
+
+        c = re.search(r"[（(]\d{4}[）)][^\s]*\d+号", text[:1000])
+        if c:
+            meta["case_number"] = c.group(0)
+
+        kw = re.search(r"关键词[：:]\s*(.+?)(?:\n|$)", text[:1000])
+        if kw:
+            keywords = re.split(r"[；;,，\s]+", kw.group(1).strip())
+            kw_list = [k.strip() for k in keywords if k.strip()]
+            meta["keywords"] = "；".join(kw_list)
+
+        if not meta["case_title"] and filename:
+            meta["case_title"] = re.sub(r"\.\w+$", "", filename)
+
+        return meta
+
+    @staticmethod
+    def _inject_contextual_header(
+        content: str, metadata: dict[str, Any], doc_meta: dict[str, Any],
+    ) -> str:
+        """在 chunk 内容前插入结构化上下文标头，提升 Embedding 质量。
+
+        标头格式: [法律名称: X | 章节: Y | 条号: 第Z条]
+        """
+        parts: list[str] = []
+
+        law_name = doc_meta.get("law_name", "") or metadata.get("law_name", "")
+        if law_name:
+            parts.append(f"法律名称: {law_name}")
+
+        chapter = metadata.get("chapter", "")
+        if chapter:
+            parts.append(f"章节: {chapter}")
+
+        article = metadata.get("articles", "")
+        if article:
+            parts.append(f"条号: {article}")
+
+        guiding = doc_meta.get("guiding_number", "")
+        if guiding:
+            parts.append(f"案例: {guiding}")
+
+        if parts:
+            header = "[" + " | ".join(parts) + "]\n"
+            return header + content
+
+        return content
+
+    @staticmethod
     def _chunk_legal_text(
         text: str,
         doc_id: str,
         chunk_size: int,
         overlap: int,
     ) -> list[Chunk] | None:
-        """法律条文专用分块：以「条」为原子单位，不切割条款。
+        """法律条文专用分块：层级优先级分割（编→章→节→条→款→项→换行）。
 
-        检测到「第X条」结构时按条分割，每条为完整语义单元；
-        多条合并到 chunk_size 内；单条超长时按「（X）」款/项切分。
+        参考 legal_rag 的 RecursiveCharacterTextSplitter 风格实现：
+        从最高优先级（编）依次尝试到最低（换行），超长片段递归下一级分割。
+        每个片段即为一个 Chunk，不合并，保留分隔符前缀。
+
         非法律文本返回 None，由上层回退到通用分块。
         """
         if not re.search(r"第[一二三四五六七八九十百千零\d]+条", text):
             return None
 
-        split_pat = re.compile(r"(?=\n第[一二三四五六七八九十百千零\d]+[条章节分编])")
-        raw_parts = split_pat.split(text.strip())
-        parts = [p.strip() for p in raw_parts if p.strip()]
+        separators = [
+            r"\n第[一二三四五六七八九十百千零\d]+编",
+            r"\n第[一二三四五六七八九十百千零\d]+章",
+            r"\n第[一二三四五六七八九十百千零\d]+节",
+            r"\n第[一二三四五六七八九十百千零\d]+条",
+            r"\n[一二三四五六七八九十百千零\d]+[、．]",
+            r"\n[（(][一二三四五六七八九十百千零\d]+[）)]",
+            r"\n",
+        ]
 
+        parts = KnowledgeBase._hierarchical_split(text.strip(), separators, chunk_size)
         if not parts:
             return None
 
         chunks: list[Chunk] = []
         idx = 0
-
         cur_chapter = ""
         cur_section = ""
-
-        def _get_article_range(buf: list[str]) -> str:
-            arts = [p for p in buf if re.match(r"第[一二三四五六七八九十百千零\d]+条", p.strip())]
-            if not arts:
-                return ""
-            first = re.match(r"第([一二三四五六七八九十百千零\d]+)条", arts[0].strip())
-            last = re.match(r"第([一二三四五六七八九十百千零\d]+)条", arts[-1].strip())
-            if not first or not last:
-                return ""
-            same = first.group(1) == last.group(1)
-            return f"{first.group(0)}—{last.group(0)}" if not same else first.group(0)
-
-        def _flush(buf: list[str]) -> None:
-            nonlocal idx
-            if buf:
-                meta: dict[str, Any] = {}
-                if cur_chapter:
-                    meta["chapter"] = cur_chapter
-                if cur_section:
-                    meta["section"] = cur_section
-                art_range = _get_article_range(buf)
-                if art_range:
-                    meta["articles"] = art_range
-                chunks.append(KnowledgeBase._make_chunk(buf, doc_id, idx, metadata=meta))
-                idx += 1
-
-        def _is_header(p: str) -> bool:
-            return bool(re.match(r"第[一二三四五六七八九十百千零\d]+[章节分编]", p.strip()))
-
-        def _split_long_article(article: str) -> list[str]:
-            items = re.split(r"(?=\n*（[一二三四五六七八九十百千零\d]+）)", article)
-            return [it.strip() for it in items if it.strip()]
-
-        buffer: list[str] = []
-        buf_len = 0
+        _art_pat = re.compile(r"第([一二三四五六七八九十百千零\d]+)条")
 
         for part in parts:
-            part_len = len(part)
-            is_hdr = _is_header(part)
+            meta: dict[str, Any] = {}
+            first_line = part.split("\n")[0].strip()
 
-            if is_hdr:
-                _flush(buffer)
-                hdr_match = re.match(
-                    r"(第[一二三四五六七八九十百千零\d]+)([章节分编])", part.strip()
+            ch_m = re.match(r"第[一二三四五六七八九十百千零\d]+[章编]", first_line)
+            if ch_m:
+                cur_chapter = first_line
+                cur_section = ""
+            sec_m = re.match(r"第[一二三四五六七八九十百千零\d]+节", first_line)
+            if sec_m:
+                cur_section = first_line
+
+            if cur_chapter:
+                meta["chapter"] = cur_chapter
+            if cur_section:
+                meta["section"] = cur_section
+
+            arts = _art_pat.findall(part)
+            if arts:
+                meta["articles"] = (
+                    f"第{arts[0]}条"
+                    if len(arts) == 1
+                    else f"第{arts[0]}条—第{arts[-1]}条"
                 )
-                if hdr_match:
-                    if hdr_match.group(2) in ("章", "编"):
-                        cur_chapter = part.strip()
-                        cur_section = ""
-                    elif hdr_match.group(2) in ("节", "分编"):
-                        cur_section = part.strip()
-                buffer = [part]
-                buf_len = part_len
-            elif buf_len + part_len <= chunk_size:
-                buffer.append(part)
-                buf_len += part_len
-            else:
-                _flush(buffer)
-                if part_len <= chunk_size:
-                    buffer = [part]
-                    buf_len = part_len
-                else:
-                    subs = _split_long_article(part)
-                    sub_buf: list[str] = []
-                    sub_len = 0
-                    for s in subs:
-                        sl = len(s)
-                        if sub_len + sl <= chunk_size:
-                            sub_buf.append(s)
-                            sub_len += sl
-                        else:
-                            _flush(sub_buf)
-                            sub_buf = [s]
-                            sub_len = sl
-                    _flush(sub_buf)
-                    buffer = []
-                    buf_len = 0
 
-        _flush(buffer)
+            chunks.append(
+                Chunk(
+                    id=uuid.uuid4().hex[:12],
+                    document_id=doc_id,
+                    content=part,
+                    chunk_index=idx,
+                    metadata=meta,
+                )
+            )
+            idx += 1
+
         logger.debug("法律条文分块完成: chunks={}", len(chunks))
         return chunks
 
