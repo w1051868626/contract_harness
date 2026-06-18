@@ -102,6 +102,11 @@ class KnowledgeBase:
             chunk_model=cfg.llm.chunk_model,
         )
 
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        """清洗文本中的非常规字符。"""
+        return text.replace("\u3000", " ")
+
     def add_text(
         self,
         title: str,
@@ -113,6 +118,7 @@ class KnowledgeBase:
         use_ai_chunking: bool = True,
     ) -> str:
         """将文本添加到知识库。"""
+        content = KnowledgeBase._normalize_text(content)
         doc_id = uuid.uuid4().hex[:12]
         doc = Document(
             id=doc_id,
