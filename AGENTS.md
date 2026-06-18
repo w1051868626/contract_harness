@@ -146,3 +146,4 @@ conda activate contract-harness
 - 2026-06-17: Docling 文档解析器——新增 `DoclingParser` 封装（可选依赖），PDF/DOCX/PPTX/图片 → 结构化 Markdown；`HarnessConfig.use_docling` 配置字段；`KnowledgeBase._parse_file()` 支持 docling 优先解析，不替换原有 pypdf/python-docx 功能；新增 9 个测试用例，累计 116 个。
 - 2026-06-17: CLI `kb import-file`/`import-dir` 新增 `--docling` 标志，控制台即可启用 Docling 解析。
 - 2026-06-18: 法律文本切片重构——参考 legal_rag 实现"编→章→节→条→款→项"递归层级分割（RecursiveCharacterTextSplitter 风格），替代原有单层 split+merge 方案；新增 `_hierarchical_split`、`_split_keep_separator`、`_extract_law_metadata`、`_extract_case_metadata`、`_inject_contextual_header` 五个辅助方法；`_chunk_markdown` 新增 section 变化 flush、章节变化 flush 后 continue 修复（防止跨章节合并）；新增 4 个扩展标题模式测试用例；累计 129 个测试用例；同步更新 specs/chunking.md。
+- 2026-06-18: 对齐依赖清单——`pyproject.toml`、`environment.yml`、`requirements.txt` 三者一致；environment.yml 分组注释核心/开发/可选依赖；新增 requirements.txt；AGENTS.md 规则更新。
