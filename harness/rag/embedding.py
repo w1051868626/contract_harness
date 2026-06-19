@@ -16,6 +16,7 @@ from harness.utils.log import logger
 
 _SENTENCE_SPLIT = re.compile(r"[。！？；.!?;\n]")
 
+
 def _truncate_at_boundary(text: str, max_chars: int) -> str:
     """在句子边界截断文本，避免切断语义。"""
     if len(text) <= max_chars:

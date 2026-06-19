@@ -497,9 +497,7 @@ class TestChunkLegalText:
         text = "第一条 内容一。\n第二条 内容二。\n第三条 内容三。\n第四条 内容四。"
         chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 20, 0)
         assert chunks is not None
-        assert any(
-            "articles" in c.metadata and "条" in c.metadata["articles"] for c in chunks
-        )
+        assert any("articles" in c.metadata and "条" in c.metadata["articles"] for c in chunks)
 
 
 class TestEmbeddingProvider:
