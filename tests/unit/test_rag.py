@@ -11,6 +11,7 @@ from harness.agent.llm import LLMResponse
 from harness.rag.embedding import (
     EmbeddingProvider,
     OpenAIEmbeddingProvider,
+    _truncate_at_boundary,
     create_embedding_provider,
 )
 from harness.rag.knowledge_base import KnowledgeBase
@@ -448,6 +449,59 @@ class TestChunkMarkdown:
             store.close()
 
 
+class TestChunkLegalText:
+    """法律条文结构化分块测试。"""
+
+    def test_non_legal_returns_none(self):
+        """不含第X条时返回 None。"""
+        text = "这是一段普通文本\n没有法律条文结构"
+        result = KnowledgeBase._chunk_legal_text(text, "doc1", 200, 30)
+        assert result is None
+
+    def test_basic_legal_chunking(self):
+        """法律条文应按条分割为多个 chunk（小 chunk_size 强制按条切）。"""
+        text = "第一条 保护合同当事人。\n第二条 依法成立合同。\n第三条 违约承担责任。"
+        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 30, 0)
+        assert chunks is not None
+        assert len(chunks) >= 2
+        assert all(c.chunk_index == i for i, c in enumerate(chunks))
+
+    def test_legal_chapter_metadata(self):
+        """章标题应设置 metadata.chapter。"""
+        text = "第一章 总则\n第一条 保护合同当事人。\n第二条 依法成立合同。\n第二章 订立\n第三条 违约承担责任。"
+        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 30, 0)
+        assert chunks is not None
+        ch1 = [c for c in chunks if "第一条" in c.content]
+        ch2 = [c for c in chunks if "第三条" in c.content]
+        assert ch1[0].metadata.get("chapter") == "第一章 总则"
+        assert ch2[0].metadata.get("chapter") == "第二章 订立"
+
+    def test_legal_overlap(self):
+        """chunk 间 overlap 应携带上一片尾部内容。"""
+        long_texts = "\n".join(f"第{i}条 " + "内容" * 10 + "。" for i in range(1, 21))
+        chunks = KnowledgeBase._chunk_legal_text(long_texts, "doc1", 80, 30)
+        assert chunks is not None
+        assert len(chunks) >= 2
+        tail = chunks[0].content[-30:]
+        assert any(tail in c.content for c in chunks[1:])
+
+    def test_legal_single_chunk(self):
+        """短法律文本应合并为单个 chunk。"""
+        text = "第一条 依法成立的合同，自成立时生效。"
+        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 500, 30)
+        assert chunks is not None
+        assert len(chunks) == 1
+
+    def test_legal_article_range_metadata(self):
+        """多条 chunk 应标注文章范围。"""
+        text = "第一条 内容一。\n第二条 内容二。\n第三条 内容三。\n第四条 内容四。"
+        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 20, 0)
+        assert chunks is not None
+        assert any(
+            "articles" in c.metadata and "条" in c.metadata["articles"] for c in chunks
+        )
+
+
 class TestEmbeddingProvider:
     """嵌入提供者工厂与 Mock 实现测试。"""
 
@@ -464,6 +518,28 @@ class TestEmbeddingProvider:
         assert len(result) > 0
         batch = emb.embed_batch(["a", "b"])
         assert len(batch) == 2
+
+    def test_truncate_short_text_unchanged(self):
+        """短文本不应截断。"""
+        assert _truncate_at_boundary("你好世界", 1024) == "你好世界"
+
+    def test_truncate_at_sentence_boundary(self):
+        """应在句子边界截断（边界在 max_chars 后半段内）。"""
+        long = "正常句子。" + "A" * 25 + "中间句。结束。" + "B" * 100
+        result = _truncate_at_boundary(long, 50)
+        assert result.endswith("。")
+
+    def test_truncate_fallback_hard_cut(self):
+        """无句子边界时回退到硬切。"""
+        long = "x" * 2000
+        result = _truncate_at_boundary(long, 100)
+        assert len(result) == 100
+
+    def test_truncate_newline_boundary(self):
+        """换行符作为截断边界。"""
+        long = "第一行\n" + "x" * 80 + "\n" + "y" * 200
+        result = _truncate_at_boundary(long, 100)
+        assert "\n" in result
 
 
 class TestAIChunking:

@@ -711,18 +711,30 @@ class KnowledgeBase:
         idx = 0
         cur_chapter = ""
         cur_section = ""
+        prev_tail = ""
 
         for part in parts:
+            content = prev_tail + part if prev_tail else part
             meta: dict[str, Any] = {}
-            first_line = part.split("\n")[0].strip()
 
-            ch_m = re.match(r"第[一二三四五六七八九十百千零\d]+[章编]", first_line)
-            if ch_m:
-                cur_chapter = first_line
+            first_ch = ""
+            first_sec = ""
+            for line in part.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                ch_m = re.match(r"第[一二三四五六七八九十百千零\d]+[章编]", line)
+                if ch_m and not first_ch:
+                    first_ch = line
+                sec_m = re.match(r"第[一二三四五六七八九十百千零\d]+节", line)
+                if sec_m and not first_sec:
+                    first_sec = line
+
+            if first_ch:
+                cur_chapter = first_ch
                 cur_section = ""
-            sec_m = re.match(r"第[一二三四五六七八九十百千零\d]+节", first_line)
-            if sec_m:
-                cur_section = first_line
+            if first_sec:
+                cur_section = first_sec
 
             if cur_chapter:
                 meta[MetaKey.CHAPTER] = cur_chapter
@@ -739,12 +751,13 @@ class KnowledgeBase:
                 Chunk(
                     id=uuid.uuid4().hex[:12],
                     document_id=doc_id,
-                    content=part,
+                    content=content,
                     chunk_index=idx,
                     metadata=meta,
                 )
             )
             idx += 1
+            prev_tail = part[-overlap:] if overlap > 0 else ""
 
         logger.debug("法律条文分块完成: chunks={}", len(chunks))
         return chunks
