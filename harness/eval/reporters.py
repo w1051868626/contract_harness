@@ -10,6 +10,13 @@ from jinja2 import Template
 from harness.core.config import HarnessConfig
 from harness.utils.io import write_json, write_text
 
+_MCN: dict[str, str] = {
+    "clause_coverage": "条款覆盖率",
+    "risk_accuracy": "风险识别准确率",
+    "compliance_accuracy": "合规检查准确率",
+    "risk_level_accuracy": "风险等级准确率",
+}
+
 
 class EvalReporter:
     """评测报告生成器，支持 JSON / Markdown / HTML 格式。"""
@@ -36,13 +43,15 @@ class EvalReporter:
             "",
         ]
         for metric, value in data.get("aggregated_metrics", {}).items():
-            lines.append(f"- **{metric}**: {value:.2%}")
+            cn = _MCN.get(metric, metric)
+            lines.append(f"- **{cn}**: {value:.2%}")
 
         lines.extend(["", "## 逐项结果", ""])
         for item in data.get("per_item_results", []):
             lines.append(f"### {item['document_id']}")
             for name, val in item.get("metrics", {}).items():
-                lines.append(f"- {name}: {val:.2%}")
+                cn = _MCN.get(name, name)
+                lines.append(f"- {cn}: {val:.2%}")
 
         content = "\n".join(lines)
         filepath = self._dir / f"{name}.md"
@@ -73,7 +82,7 @@ th { background: #f5f5f5; }
 <table>
 <tr><th>指标</th><th>值</th></tr>
 {% for name, value in data.aggregated_metrics.items() %}
-<tr><td>{{ name }}</td><td class="metric-value">{{ "%.2f%%" | format(value * 100) }}</td></tr>
+<tr><td>{{ _cn(name) }}</td><td class="metric-value">{{ "%.2f%%" | format(value * 100) }}</td></tr>
 {% endfor %}
 </table>
 
@@ -82,14 +91,17 @@ th { background: #f5f5f5; }
 <h3>{{ item.document_id }}</h3>
 <table>
 <tr><th>指标</th><th>值</th></tr>
-{% for name, value in item.metrics.items() %}
-<tr><td>{{ name }}</td><td>{{ "%.2f%%" | format(value * 100) }}</td></tr>
+{% for name, val in item.metrics.items() %}
+<tr><td>{{ _cn(name) }}</td><td>{{ "%.2f%%" | format(val * 100) }}</td></tr>
 {% endfor %}
 </table>
 {% endfor %}
 </body></html>""")
 
-        html = template.render(data=data)
+        def _cn(name: str) -> str:
+            return _MCN.get(name, name)
+
+        html = template.render(data=data, _cn=_cn)
         filepath = self._dir / f"{name}.html"
         write_text(filepath, html)
         return filepath

@@ -87,7 +87,7 @@ class TestEvalReporter:
         assert path.exists()
         content = path.read_text(encoding="utf-8")
         assert "评测报告" in content
-        assert "clause_coverage" in content
+        assert "条款覆盖率" in content
         assert "85.00" in content
         assert "doc1" in content
 
@@ -99,4 +99,4 @@ class TestEvalReporter:
         content = path.read_text(encoding="utf-8")
         assert "<html" in content
         assert "<table>" in content
-        assert "clause_coverage" in content
+        assert "条款覆盖率" in content
