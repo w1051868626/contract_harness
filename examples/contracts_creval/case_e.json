@@ -1,0 +1,26 @@
+{
+  "id": "creval_e",
+  "title": "免责事由的非法扩张与法定解除权之绝对排除",
+  "content": "因黑客攻击、基础运营商光缆断裂等非本方预见事由产生的服务暂停，乙方均予以免责。且在任何情况下，甲方非经乙方事先书面同意，不得单方面行使解除权。",
+  "expected_clauses": [
+    {
+      "type": "条款E",
+      "content": "因黑客攻击、基础运营商光缆断裂等非本方预见事由产生的服务暂停，乙方均予以免责。且在任何情况下，甲方非经乙方事先书面同意，不得单方面行使解除权。",
+      "risk": "critical"
+    }
+  ],
+  "expected_risks": [
+    {
+      "clause_index": 0,
+      "risk_level": "critical",
+      "reason": "识别免责事由被不当扩张至商业风险范畴，并恶意排除了守约方依据《民法典》第五百六十三条享有之法定解除权",
+      "suggestion": "法定解除权保留及免责事由限缩：常规黑客攻击不构成不可抗力免责事由；若因乙方原因导致服务连续中断超过特定期限，甲方具有单方解除合同之权利并可主张相应损失赔偿。"
+    }
+  ],
+  "expected_compliance": [],
+  "expected_risk_level": "critical",
+  "metadata": {
+    "source": "Contract-Reviewer-Agent-Eval",
+    "case_id": "E"
+  }
+}

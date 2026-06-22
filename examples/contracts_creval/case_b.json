@@ -1,0 +1,26 @@
+{
+  "id": "creval_b",
+  "title": "履约验收期限未定期限导致的付款条件成就障碍",
+  "content": "甲方确认软件最终验收合格后，5 个工作日内向乙方支付剩余的 50% 尾款。",
+  "expected_clauses": [
+    {
+      "type": "条款B",
+      "content": "甲方确认软件最终验收合格后，5 个工作日内向乙方支付剩余的 50% 尾款。",
+      "risk": "high"
+    }
+  ],
+  "expected_risks": [
+    {
+      "clause_index": 0,
+      "risk_level": "high",
+      "reason": "识别因验收标准主观化及验收确切期限缺失，导致付款条件存在迟延成就或不成就之风险",
+      "suggestion": "拟定单方默示验收期限规则：乙方提交交付物后十五个工作日内，甲方未提出明确书面异议的，视为验收合格，付款条件成就。"
+    }
+  ],
+  "expected_compliance": [],
+  "expected_risk_level": "high",
+  "metadata": {
+    "source": "Contract-Reviewer-Agent-Eval",
+    "case_id": "B"
+  }
+}

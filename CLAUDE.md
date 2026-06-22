@@ -98,3 +98,4 @@ harness serve                              # 启动 Web 界面
 - 2026-06-18: `_chunk_markdown` 仅响应 `#` 标题。`heading_pat` 缩减为仅 `#{1,6}`；无 `#` 的结构（`第一章`、`一、`、`1.` 等）回退到 `_chunk_legal_text` / `_chunk_text`；同步更新 specs/chunking.md 及 5 个测试用例。
 - 2026-06-18: 提取 `MetaKey`/`DocType` 枚举 + 新建 `harness/rag/constants.py`；`_detect_meta` 提升为 `_detect_md_heading_meta` 静态方法。
 - 2026-06-19: Embedding 截断（`EMBED_MAX_CHARS=1024` 句子边界）+ openai 库替换 httpx；`_chunk_legal_text` 补 overlap + 元数据全行扫描；新增 10 个测试用例，累计 139 个。
+- 2026-06-22: 新增 `examples/contracts_creval/` 评测数据集（25 个中文民法典高风条款测试用例，来自 Contract-Reviewer-Agent-Eval）。

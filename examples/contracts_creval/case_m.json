@@ -1,0 +1,26 @@
+{
+  "id": "creval_m",
+  "title": "显失公平的单方最终解释权（格式条款之效力）",
+  "content": "对于本服务的所有条款及因执行本服务协议引发的任何歧义，甲方作为平台方享有唯一且终局的最终解释权，乙方同意绝对服从。",
+  "expected_clauses": [
+    {
+      "type": "条款M",
+      "content": "对于本服务的所有条款及因执行本服务协议引发的任何歧义，甲方作为平台方享有唯一且终局的最终解释权，乙方同意绝对服从。",
+      "risk": "high"
+    }
+  ],
+  "expected_risks": [
+    {
+      "clause_index": 0,
+      "risk_level": "high",
+      "reason": "识别典型的排斥对方合法解释权与申诉权的格式条款。根据民法典规定，绝对排除对方权利、提供方保有最终解释权的格式条款可能被判定无效。",
+      "suggestion": "格式条款合规解释：本合同所有条款的修改及解释均应遵循公平公正、诚实信用的原则。对于合同条款的理解存在争议的，应按照法定的文义解释和通常适用商业惯例进行解释，不得由任何一方主张单方终局裁量权。"
+    }
+  ],
+  "expected_compliance": [],
+  "expected_risk_level": "high",
+  "metadata": {
+    "source": "Contract-Reviewer-Agent-Eval",
+    "case_id": "M"
+  }
+}

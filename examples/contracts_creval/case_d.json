@@ -1,0 +1,26 @@
+{
+  "id": "creval_d",
+  "title": "法定代表人越权担保行为的效力瑕疵认定",
+  "content": "本分期协议由丙方作为见证及连带责任担保方。丙方承诺对甲方的债务承担连带清偿责任。落款处：丙方法定代表人张三签字（未盖公司公章）。",
+  "expected_clauses": [
+    {
+      "type": "条款D",
+      "content": "本分期协议由丙方作为见证及连带责任担保方。丙方承诺对甲方的债务承担连带清偿责任。落款处：丙方法定代表人张三签字（未盖公司公章）。",
+      "risk": "critical"
+    }
+  ],
+  "expected_risks": [
+    {
+      "clause_index": 0,
+      "risk_level": "critical",
+      "reason": "识别法定代表人越权代表订立担保合同之风险，违反《公司法》关于对外担保须经公司决议程序之强制性规定，导致担保条款对公司不发生效力",
+      "suggestion": "效力补正机制：要求丙方作为担保方，必须向债权方提交符合《公司章程》规定的股东会或董事会同意担保之有效决议原件，作为本担保条款生效之先决条件。"
+    }
+  ],
+  "expected_compliance": [],
+  "expected_risk_level": "critical",
+  "metadata": {
+    "source": "Contract-Reviewer-Agent-Eval",
+    "case_id": "D"
+  }
+}

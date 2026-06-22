@@ -1,0 +1,26 @@
+{
+  "id": "creval_i",
+  "title": "法定单方抵销权的强制排斥（现金流不对等强加限制）",
+  "content": "无论乙方对甲方是否享有任何到期债权或预付款余额，乙方均不得主张将应付账款与其直接进行抵销。乙方必须首先全额向甲方支付当期款项。",
+  "expected_clauses": [
+    {
+      "type": "条款I",
+      "content": "无论乙方对甲方是否享有任何到期债权或预付款余额，乙方均不得主张将应付账款与其直接进行抵销。乙方必须首先全额向甲方支付当期款项。",
+      "risk": "high"
+    }
+  ],
+  "expected_risks": [
+    {
+      "clause_index": 0,
+      "risk_level": "high",
+      "reason": "识别对方剥夺了《民法典》赋予债务人的法定单方抵销权，可能导致在对方资金链断裂或濒临破产时，己方应付账款被硬性抽离而债权无法实现。",
+      "suggestion": "单方抵销权保留：若当期乙方对甲方享有互负到期且标的物种类、品质相同的债务与债权，乙方有权在通知甲方后，直接以其享有的债权金额抵销相应的应付账款，余额多退少补。"
+    }
+  ],
+  "expected_compliance": [],
+  "expected_risk_level": "high",
+  "metadata": {
+    "source": "Contract-Reviewer-Agent-Eval",
+    "case_id": "I"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "creval_c",
+  "title": "知识产权共有状态下的商业化独占处分权限制",
+  "content": "本次基于甲方业务场景合作研发产生的所有知识产权及衍生代码，在交付后由甲乙双方共同所有。",
+  "expected_clauses": [
+    {
+      "type": "条款C",
+      "content": "本次基于甲方业务场景合作研发产生的所有知识产权及衍生代码，在交付后由甲乙双方共同所有。",
+      "risk": "high"
+    }
+  ],
+  "expected_risks": [
+    {
+      "clause_index": 0,
+      "risk_level": "high",
+      "reason": "依据《著作权法》相关规定，共有知识产权在对外独占许可或转让时须经共有人一致同意，导致出资方对核心商业资产的独占处分权受限",
+      "suggestion": "权属排他性约定：本项目产生之知识产权等无形资产均单独归属于甲方所有。乙方仅享有非排他性的内测及维保使用权，不得用于任何商业用途。"
+    }
+  ],
+  "expected_compliance": [],
+  "expected_risk_level": "high",
+  "metadata": {
+    "source": "Contract-Reviewer-Agent-Eval",
+    "case_id": "C"
+  }
+}

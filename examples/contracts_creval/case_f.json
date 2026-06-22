@@ -1,0 +1,26 @@
+{
+  "id": "creval_f",
+  "title": "个人信息处理授权的主体适格性缺陷及行政合规风险",
+  "content": "为了优化产品体验，甲方在此授权乙方：可无可撤销地收集、处理并在云端分析甲方员工的绩效与行为数据，并用于乙方后台 AI 模型的升级训练。",
+  "expected_clauses": [
+    {
+      "type": "条款F",
+      "content": "为了优化产品体验，甲方在此授权乙方：可无可撤销地收集、处理并在云端分析甲方员工的绩效与行为数据，并用于乙方后台 AI 模型的升级训练。",
+      "risk": "high"
+    }
+  ],
+  "expected_risks": [
+    {
+      "clause_index": 0,
+      "risk_level": "high",
+      "reason": "识别未经个人信息主体（自然人）单独同意，企业法人无权通过格式条款代为处分员工个人信息的合规障碍，触发《个人信息保护法》及《数据安全法》下高额行政处罚风险",
+      "suggestion": "授权主体隔离及风险转移：乙方须通过其产品交互界面，合法、合规地直接向终端用户获取单独授权同意（Separate Consent）。因乙方未依法获取单独授权所致之任何处罚或纠纷，由乙方承担全部赔偿及责任兜底。"
+    }
+  ],
+  "expected_compliance": [],
+  "expected_risk_level": "high",
+  "metadata": {
+    "source": "Contract-Reviewer-Agent-Eval",
+    "case_id": "F"
+  }
+}

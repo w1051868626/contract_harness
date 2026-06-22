@@ -150,3 +150,4 @@ conda activate contract-harness
 - 2026-06-18: `_chunk_markdown` 的 `heading_pat` 缩减为仅 `#{1,6}`——只有包含 Markdown `#` 标题的文档才走 Markdown 分块，无 `#` 的 `第一章`、`一、`、`1.` 等结构回退到 `_chunk_legal_text` / `_chunk_text`；同步更新 specs/chunking.md 及 5 个测试用例。
 - 2026-06-18: 提取 `MetaKey`/`DocType` 枚举 + 新建 `harness/rag/constants.py`——所有全局常量和枚举集中管理；`_chunk_markdown` 内部函数 `_detect_meta` 提升为类级静态方法 `_detect_md_heading_meta`；缩减代码约 40 行。
 - 2026-06-19: Embedding 截断 + openai 库替换——`add_text` 入口清洗全角空格 `\u3000`；`EMBED_MAX_CHARS=1024` 句子边界截断；`OpenAIEmbeddingProvider` 改用 `openai` 库替代裸 httpx；`_chunk_legal_text` 补上 `overlap` 支持；章/节元数据提取从首行改为扫描 part 全部行，修复跨章节合并时的元数据丢失；累计 139 个测试用例。
+- 2026-06-22: 新增评测数据集 `examples/contracts_creval/`——基于开源 [Contract-Reviewer-Agent-Eval](https://github.com/evan66547/Contract-Reviewer-Agent-Eval) 的 25 个中文民法典测试用例（MIT），覆盖违约责任、越权担保、数据合规、竞业限制等高风险条款场景；`harness eval run examples/contracts_creval/` 即可使用。
