@@ -8,7 +8,7 @@ from enum import Enum
 # ===== 分块参数 =====
 
 CHUNK_MAX_CHARS = 8000
-EMBED_MAX_CHARS = 1024
+EMBED_MAX_CHARS = 1024 * 8
 
 # ===== 提示词模板 =====
 
@@ -40,6 +40,7 @@ _MD_SPLIT_RE = re.compile(r"(?=^(?:#{1,6})(?:\s|$|(?=[^\s])))", re.MULTILINE)
 _ART_PAT_RE = re.compile(r"第([一二三四五六七八九十百千零\d]+)条")
 _ARTICLE_RE = re.compile(r"^(第[一二三四五六七八九十百千零\d]+条)\s*")
 _BOUNDARY_RE = re.compile(r"(?=\n第[一二三四五六七八九十百千零\d]+[条章节分编])")
+
 
 # ===== 元数据键名 =====
 
