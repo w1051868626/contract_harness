@@ -45,6 +45,7 @@ class KnowledgeBase:
         reranker: Reranker | None = None,
         chunk_model: str = "gpt-4o-mini",
         chunk_llm: LLMClient | None = None,
+        expansion_llm: LLMClient | None = None,
     ):
         """初始化知识库。"""
         self._store = store
@@ -53,6 +54,7 @@ class KnowledgeBase:
         self._reranker = reranker
         self._chunk_model = chunk_model
         self._chunk_llm = chunk_llm
+        self._expansion_llm = expansion_llm or llm
 
     @property
     def store(self) -> VectorStore:
@@ -87,12 +89,23 @@ class KnowledgeBase:
             proxy=cfg.llm.proxy,
         )
         chunk_llm = LLMClient(chunk_cfg) if chunk_cfg.api_key and chunk_cfg.model else None
+        expansion_cfg = LLMConfig(
+            api_key=cfg.llm.expansion_api_key,
+            api_base=cfg.llm.expansion_api_base,
+            model=cfg.llm.expansion_model,
+            proxy=cfg.llm.proxy,
+        )
+        expansion_llm = (
+            LLMClient(expansion_cfg) if expansion_cfg.api_key and expansion_cfg.model else None
+        )
         logger.debug(
-            "KnowledgeBase.from_config: kb_dir=%s, embedding=%s, reranker=%s, chunk_llm=%s",
+            "KnowledgeBase.from_config: kb_dir=%s, embedding=%s, reranker=%s,"
+            " chunk_llm=%s, expansion_llm=%s",
             cfg.kb_dir,
             cfg.embedding.provider,
             cfg.embedding.rerank_provider or "none",
             chunk_cfg.model if chunk_llm else "none",
+            expansion_cfg.model if expansion_llm else "none",
         )
         return cls(
             store=store,
@@ -101,6 +114,7 @@ class KnowledgeBase:
             llm=llm,
             chunk_llm=chunk_llm,
             chunk_model=cfg.llm.chunk_model,
+            expansion_llm=expansion_llm,
         )
 
     @staticmethod
@@ -340,7 +354,11 @@ class KnowledgeBase:
             return []
 
         max_score = candidates[0].score
-        if expansion_threshold > 0 and max_score < expansion_threshold and self._llm is not None:
+        if (
+            expansion_threshold > 0
+            and max_score < expansion_threshold
+            and self._expansion_llm is not None
+        ):
             logger.info(
                 "检索结果分数偏低 (max=%.3f < %.2f)，使用 AI 扩展检索词",
                 max_score,
@@ -364,10 +382,12 @@ class KnowledgeBase:
 
     def _expand_query(self, query: str, num_variants: int = 2) -> list[str]:
         """使用 LLM 生成同义检索词变体，返回包含原始查询的列表。"""
-        assert self._llm is not None
+        if self._expansion_llm is None:
+            msg = "_expand_query 需要 LLMClient，但未配置"
+            raise RuntimeError(msg)
         prompt = QUERY_EXPANSION_PROMPT.format(query=query, num_variants=num_variants)
         try:
-            resp: LLMResponse = self._llm.chat(
+            resp: LLMResponse = self._expansion_llm.chat(
                 [
                     {
                         "role": "system",

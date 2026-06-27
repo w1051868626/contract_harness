@@ -30,6 +30,9 @@ class LLMConfig:
     chunk_model: str = ""
     chunk_api_key: str = ""
     chunk_api_base: str = ""
+    expansion_model: str = ""
+    expansion_api_key: str = ""
+    expansion_api_base: str = ""
 
     def __post_init__(self):
         """从环境变量自动补充缺失的 API 密钥与地址，并校验参数范围。"""
@@ -47,6 +50,11 @@ class LLMConfig:
             self.chunk_api_key = os.getenv("CHUNK_API_KEY", self.api_key)
         if not self.chunk_api_base:
             self.chunk_api_base = os.getenv("CHUNK_API_BASE", self.api_base)
+        self.expansion_model = os.getenv("EXPANSION_MODEL", self.expansion_model)
+        if not self.expansion_api_key:
+            self.expansion_api_key = os.getenv("EXPANSION_API_KEY", self.api_key)
+        if not self.expansion_api_base:
+            self.expansion_api_base = os.getenv("EXPANSION_API_BASE", self.api_base)
         self._validate()
 
     def _validate(self) -> None:

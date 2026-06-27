@@ -233,7 +233,7 @@ class TestKnowledgeBase:
                     ),
                 ]
             )
-            kb = KnowledgeBase(store, emb, llm=mock_llm)
+            kb = KnowledgeBase(store, emb, expansion_llm=mock_llm)
             chunks = kb.query("保密义务", top_k=3, expansion_threshold=0.5)
             assert len(chunks) >= 1
             assert mock_llm.call_count > 0
@@ -248,7 +248,7 @@ class TestKnowledgeBase:
                     LLMResponse(content="保密条款\n保密义务\n信息披露", model="mock"),
                 ]
             )
-            kb = KnowledgeBase(store, emb, llm=mock_llm)
+            kb = KnowledgeBase(store, emb, expansion_llm=mock_llm)
             kb.add_text("测试", "双方应对合同内容严格保密")
             chunks = kb.query("双方应对合同内容严格保密", top_k=3, expansion_threshold=0.6)
             assert len(chunks) >= 1
@@ -264,7 +264,7 @@ class TestKnowledgeBase:
                     LLMResponse(content="保密条款\n保密义务\n信息披露", model="mock"),
                 ]
             )
-            kb = KnowledgeBase(store, emb, llm=mock_llm)
+            kb = KnowledgeBase(store, emb, expansion_llm=mock_llm)
             kb.add_text("保密法规", "双方应对合同内容严格保密")
             chunks = kb.query("保密义务", top_k=3, expansion_threshold=0.0)
             assert len(chunks) >= 1
