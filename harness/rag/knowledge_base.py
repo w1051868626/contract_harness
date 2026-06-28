@@ -116,6 +116,60 @@ class _LawContext:
             self.chunks = []
 
 
+@dataclass
+class _MdAccumulator:
+    """Markdown 分块累加器，封装 buffer/buf_meta/buf_len/idx。"""
+
+    buffer: list[str]
+    buf_meta: list[dict[MetaKey, str]]
+    buf_len: int
+    idx: int
+    chunk_size: int
+    overlap: int
+    doc_id: str
+    chunks: list[Chunk]
+
+    def add(self, sec: str, this_meta: dict[MetaKey, str]) -> None:
+        sl = len(sec)
+        if self.buf_len + sl <= self.chunk_size:
+            self.buffer.append(sec)
+            self.buf_meta.append(this_meta)
+            self.buf_len += sl
+        else:
+            self.flush()
+            if sl <= self.chunk_size:
+                self.buffer, self.buf_meta, self.buf_len = [sec], [this_meta], sl
+            else:
+                for sub in KnowledgeBase._split_segments(sec):
+                    if self.buf_len + len(sub) <= self.chunk_size:
+                        self.buffer.append(sub)
+                        self.buf_meta.append(this_meta)
+                        self.buf_len += len(sub)
+                    else:
+                        self.flush()
+                        self.buffer, self.buf_meta, self.buf_len = [sub], [this_meta], len(sub)
+
+    def flush(self) -> None:
+        if not self.buffer:
+            return
+        meta: dict[str, Any] = {}
+        for bm in self.buf_meta:
+            for key in (MetaKey.CHAPTER, MetaKey.SECTION):
+                if bm.get(key):
+                    meta.setdefault(key, bm[key])
+        arts = KnowledgeBase._md_article_range(self.buffer)
+        if arts:
+            meta[MetaKey.ARTICLES] = arts
+        self.chunks.append(
+            KnowledgeBase._make_chunk(self.buffer, self.doc_id, self.idx, metadata=meta)
+        )
+        self.idx += 1
+        carry = KnowledgeBase._carry_overlap(self.buffer, self.overlap)
+        self.buffer = carry
+        self.buf_meta = self.buf_meta[-len(carry) :] if carry else []
+        self.buf_len = sum(len(s) for s in carry)
+
+
 class KnowledgeBase:
     """知识库，管理文档的添加、分块、嵌入与检索。"""
 
@@ -568,56 +622,41 @@ class KnowledgeBase:
             return None
 
         sections = [s.strip() for s in _MD_SPLIT_RE.split(text.strip()) if s.strip()]
-
-        chunks: list[Chunk] = []
-        idx = 0
-        buffer: list[str] = []
-        buf_meta: list[dict[MetaKey, str]] = []
-        buf_len = 0
+        acc = _MdAccumulator(
+            buffer=[],
+            buf_meta=[],
+            buf_len=0,
+            idx=0,
+            chunk_size=chunk_size,
+            overlap=overlap,
+            doc_id=doc_id,
+            chunks=[],
+        )
 
         for sec in sections:
             first_line = sec.split("\n")[0].strip()
             this_meta = KnowledgeBase._detect_md_heading_meta(first_line)
-            if not this_meta and buf_meta:
-                this_meta = dict(buf_meta[-1])
-            elif buf_meta and MetaKey.CHAPTER in buf_meta[-1]:
-                this_meta.setdefault(MetaKey.CHAPTER, buf_meta[-1][MetaKey.CHAPTER])
+            if not this_meta and acc.buf_meta:
+                this_meta = dict(acc.buf_meta[-1])
+            elif acc.buf_meta and MetaKey.CHAPTER in acc.buf_meta[-1]:
+                this_meta.setdefault(MetaKey.CHAPTER, acc.buf_meta[-1][MetaKey.CHAPTER])
 
             ch = this_meta.get(MetaKey.CHAPTER)
-            if ch and buf_len > 0 and ch != buf_meta[0].get(MetaKey.CHAPTER):
-                idx = KnowledgeBase._flush_md_chunk(buffer, buf_meta, doc_id, idx, chunks)
-                buffer, buf_meta, buf_len = [sec], [this_meta], len(sec)
+            if ch and acc.buf_len > 0 and ch != acc.buf_meta[0].get(MetaKey.CHAPTER):
+                acc.flush()
+                acc.buffer, acc.buf_meta, acc.buf_len = [sec], [this_meta], len(sec)
                 continue
             sc = this_meta.get(MetaKey.SECTION)
-            if sc and buf_len > 0 and sc != buf_meta[-1].get(MetaKey.SECTION):
-                idx = KnowledgeBase._flush_md_chunk(buffer, buf_meta, doc_id, idx, chunks)
-                buffer, buf_meta, buf_len = [sec], [this_meta], len(sec)
+            if sc and acc.buf_len > 0 and sc != acc.buf_meta[-1].get(MetaKey.SECTION):
+                acc.flush()
+                acc.buffer, acc.buf_meta, acc.buf_len = [sec], [this_meta], len(sec)
                 continue
 
-            sl = len(sec)
-            if buf_len + sl <= chunk_size:
-                buffer.append(sec)
-                buf_meta.append(this_meta)
-                buf_len += sl
-            else:
-                idx = KnowledgeBase._flush_md_chunk(buffer, buf_meta, doc_id, idx, chunks)
-                if sl <= chunk_size:
-                    buffer, buf_meta, buf_len = [sec], [this_meta], sl
-                else:
-                    for sub in KnowledgeBase._split_segments(sec):
-                        if buf_len + len(sub) <= chunk_size:
-                            buffer.append(sub)
-                            buf_meta.append(this_meta)
-                            buf_len += len(sub)
-                        else:
-                            idx = KnowledgeBase._flush_md_chunk(
-                                buffer, buf_meta, doc_id, idx, chunks
-                            )
-                            buffer, buf_meta, buf_len = [sub], [this_meta], len(sub)
+            acc.add(sec, this_meta)
 
-        idx = KnowledgeBase._flush_md_chunk(buffer, buf_meta, doc_id, idx, chunks)
-        logger.debug("Markdown 分块完成: chunks={}", len(chunks))
-        return chunks
+        acc.flush()
+        logger.debug("Markdown 分块完成: chunks={}", len(acc.chunks))
+        return acc.chunks
 
     @staticmethod
     def _split_keep_separator(text: str, pattern: str) -> list[str]:
@@ -884,28 +923,6 @@ class KnowledgeBase:
                     result.append(buf)
                 return result if result else [text]
         return [text]
-
-    @staticmethod
-    def _flush_md_chunk(
-        buffer: list[str],
-        buf_meta: list[dict[MetaKey, str]],
-        doc_id: str,
-        idx: int,
-        chunks: list[Chunk],
-    ) -> int:
-        """将 Markdown 缓冲区的累积段 flush 为一个 Chunk（不管理 carry 状态）。"""
-        if not buffer:
-            return idx
-        meta: dict[str, Any] = {}
-        for bm in buf_meta:
-            for key in (MetaKey.CHAPTER, MetaKey.SECTION):
-                if bm.get(key):
-                    meta.setdefault(key, bm[key])
-        arts = KnowledgeBase._md_article_range(buffer)
-        if arts:
-            meta[MetaKey.ARTICLES] = arts
-        chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx, metadata=meta))
-        return idx + 1
 
     @staticmethod
     def _md_article_range(segments: list[str]) -> str:
