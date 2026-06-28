@@ -22,7 +22,9 @@ from harness.core.exceptions import ChunkingError
 from harness.rag.constants import (
     _ART_PAT_RE,
     _ART_SEARCH_RE,
+    _ARTICLE_LAW_RE,
     _CHAPTER_DIVISION_RE,
+    _CHAPTER_LAW_RE,
     _CN_DIGIT,
     _DECIMAL_RANGE_RE,
     _DECIMAL_RE,
@@ -31,8 +33,11 @@ from harness.rag.constants import (
     _NUM_LIST_RE,
     _PAREN_NUM_RE,
     _SECTION_HEAD_RE,
+    _SECTION_LAW_RE,
     CHUNK_MAX_CHARS,
     CHUNK_PROMPT,
+    CHUNK_SYSTEM_PROMPT,
+    EXPANSION_SYSTEM_PROMPT,
     QUERY_EXPANSION_PROMPT,
     DocType,
     MetaKey,
@@ -94,9 +99,6 @@ def _chinese_to_int(text: str) -> int:
 
 _TITLE_RE = re.compile(r"^中华人民共和国.*")
 _DATE_RE = re.compile(r"（(\d{4})年(\d+)月(\d+)日.*?通过")
-_CHAPTER_RE = re.compile(r"^(第[一二三四五六七八九十百千]+章.*)")
-_SECTION_RE = re.compile(r"^(第[一二三四五六七八九十百千]+节.*)")
-_ARTICLE_RE_LINE = re.compile(r"^(第([一二三四五六七八九十百千零〇\d]+)条)")
 
 
 @dataclass
@@ -250,6 +252,11 @@ class KnowledgeBase:
         )
 
     @staticmethod
+    def _new_id() -> str:
+        """生成短 ID。"""
+        return uuid.uuid4().hex[:12]
+
+    @staticmethod
     def _normalize_text(text: str) -> str:
         """清洗文本中的非常规字符。"""
         return _util_normalize(text)
@@ -266,7 +273,7 @@ class KnowledgeBase:
     ) -> str:
         """将文本添加到知识库。"""
         content = KnowledgeBase._normalize_text(content)
-        doc_id = uuid.uuid4().hex[:12]
+        doc_id = KnowledgeBase._new_id()
         doc = Document(
             id=doc_id,
             title=title,
@@ -330,10 +337,7 @@ class KnowledgeBase:
             prompt = CHUNK_PROMPT.format(text=segment)
             resp: LLMResponse = self._chunk_llm.chat(
                 [
-                    {
-                        "role": "system",
-                        "content": "你是文档分块专家，严格按 JSON 格式输出。",
-                    },
+                    {"role": "system", "content": CHUNK_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
                 model=self._chunk_model,
@@ -350,7 +354,7 @@ class KnowledgeBase:
                 if content:
                     all_chunks.append(
                         Chunk(
-                            id=uuid.uuid4().hex[:12],
+                            id=KnowledgeBase._new_id(),
                             document_id=doc_id,
                             content=content,
                             chunk_index=len(all_chunks),
@@ -436,12 +440,46 @@ class KnowledgeBase:
         return doc_ids
 
     @staticmethod
+    def _parse_txt(path: Path) -> str:
+        return path.read_text(encoding="utf-8")
+
+    @staticmethod
+    def _parse_json(path: Path) -> str:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return "\n".join(json.dumps(item, ensure_ascii=False) for item in data)
+        if isinstance(data, dict):
+            return json.dumps(data, ensure_ascii=False, indent=2)
+        return str(data)
+
+    @staticmethod
+    def _parse_pdf(path: Path) -> str:
+        try:
+            reader = PdfReader(str(path))
+            return "\n".join(page.extract_text() or "" for page in reader.pages)
+        except (PdfReadError, KeyError, IndexError):
+            logger.warning("PDF 解析失败，按文本读取: {}", path)
+            return path.read_text(encoding="utf-8", errors="replace")
+
+    @staticmethod
+    def _parse_docx(path: Path) -> str:
+        doc = DocxDocument(str(path))
+        return "\n".join(p.text for p in doc.paragraphs)
+
+    _PARSERS: dict[str, staticmethod] = {
+        ".txt": _parse_txt,
+        ".md": _parse_txt,
+        ".json": _parse_json,
+        ".pdf": _parse_pdf,
+        ".docx": _parse_docx,
+    }
+
+    @staticmethod
     def _parse_file(path: Path) -> str:
         """解析文件内容（支持 txt/md/json/pdf/docx，可选 Docling）。"""
         suffix = path.suffix.lower()
         logger.debug("解析文件: path={}, suffix={}", path.name, suffix)
 
-        # 可选：Docling 结构化解析（支持 PDF/DOCX/PPTX/图片等）
         docling_parser = getattr(KnowledgeBase, "_docling_parser", None)
         if docling_parser and docling_parser.available and docling_parser.supports(path):
             logger.info("Docling 解析: path={}, suffix={}", path.name, suffix)
@@ -454,25 +492,9 @@ class KnowledgeBase:
             except RuntimeError as e:
                 logger.warning("Docling 解析失败，回退 path={}: {}", path.name, e)
 
-        if suffix in (".txt", ".md"):
-            return path.read_text(encoding="utf-8")
-        if suffix == ".json":
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(data, list):
-                return "\n".join(json.dumps(item, ensure_ascii=False) for item in data)
-            if isinstance(data, dict):
-                return json.dumps(data, ensure_ascii=False, indent=2)
-            return str(data)
-        if suffix == ".pdf":
-            try:
-                reader = PdfReader(str(path))
-                return "\n".join(page.extract_text() or "" for page in reader.pages)
-            except (PdfReadError, KeyError, IndexError):
-                logger.warning("PDF 解析失败，按文本读取: {}", path)
-                return path.read_text(encoding="utf-8", errors="replace")
-        if suffix == ".docx":
-            doc = DocxDocument(str(path))
-            return "\n".join(p.text for p in doc.paragraphs)
+        handler = KnowledgeBase._PARSERS.get(suffix)
+        if handler is not None:
+            return handler(path)
         return path.read_text(encoding="utf-8")
 
     @classmethod
@@ -537,10 +559,7 @@ class KnowledgeBase:
         try:
             resp: LLMResponse = self._expansion_llm.chat(
                 [
-                    {
-                        "role": "system",
-                        "content": "你是法律合同检索专家，输出每行一个搜索查询。",
-                    },
+                    {"role": "system", "content": EXPANSION_SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,
@@ -845,19 +864,19 @@ class KnowledgeBase:
                     ctx.pub_date = f"{y}-{mo:02d}-{d:02d}"
 
             # 章
-            m = _CHAPTER_RE.match(line)
+            m = _CHAPTER_LAW_RE.match(line)
             if m:
                 ctx.chapter = m.group(1)
                 continue
 
             # 节
-            m = _SECTION_RE.match(line)
+            m = _SECTION_LAW_RE.match(line)
             if m:
                 ctx.section = m.group(1)
                 continue
 
             # 条
-            m = _ARTICLE_RE_LINE.match(line)
+            m = _ARTICLE_LAW_RE.match(line)
             if m:
                 idx = KnowledgeBase._flush_law_article(
                     buffer,
@@ -956,7 +975,7 @@ class KnowledgeBase:
         for piece in pieces:
             ctx.chunks.append(
                 Chunk(
-                    id=uuid.uuid4().hex[:12],
+                    id=KnowledgeBase._new_id(),
                     document_id=ctx.doc_id,
                     content=KnowledgeBase._align_chunk_end(piece),
                     chunk_index=idx,
@@ -1034,7 +1053,7 @@ class KnowledgeBase:
 
             chunks.append(
                 Chunk(
-                    id=uuid.uuid4().hex[:12],
+                    id=KnowledgeBase._new_id(),
                     document_id=doc_id,
                     content=KnowledgeBase._align_chunk_end(content),
                     chunk_index=idx,
@@ -1062,7 +1081,7 @@ class KnowledgeBase:
         if len(segments) == 1 and len(text) <= chunk_size:
             return [
                 Chunk(
-                    id=uuid.uuid4().hex[:12],
+                    id=KnowledgeBase._new_id(),
                     document_id=doc_id,
                     content=KnowledgeBase._align_chunk_end(text),
                     chunk_index=0,
@@ -1088,19 +1107,16 @@ class KnowledgeBase:
                     buffer_len = sum(len(s) for s in carry)
 
                 if seg_len > chunk_size:
-                    sub_segments = KnowledgeBase._split_long(seg, chunk_size)
-                    for i, sub in enumerate(sub_segments):
+                    for sub in KnowledgeBase._split_long(seg, chunk_size):
                         chunks.append(
                             Chunk(
-                                id=uuid.uuid4().hex[:12],
+                                id=KnowledgeBase._new_id(),
                                 document_id=doc_id,
                                 content=KnowledgeBase._align_chunk_end(sub),
                                 chunk_index=idx,
                             )
                         )
                         idx += 1
-                        if i < len(sub_segments) - 1 and sub_segments[i + 1] == "":
-                            break
                     buffer = []
                     buffer_len = 0
                 else:
@@ -1180,7 +1196,7 @@ class KnowledgeBase:
         """创建 Chunk 对象，自动对齐句子边界。"""
         content = KnowledgeBase._align_chunk_end("\n\n".join(segments))
         return Chunk(
-            id=uuid.uuid4().hex[:12],
+            id=KnowledgeBase._new_id(),
             document_id=doc_id,
             content=content,
             chunk_index=idx,

@@ -12,6 +12,9 @@ EMBED_MAX_CHARS = 1024 * 8
 
 # ===== 提示词模板 =====
 
+CHUNK_SYSTEM_PROMPT = "你是文档分块专家，严格按 JSON 格式输出。"
+EXPANSION_SYSTEM_PROMPT = "你是法律合同检索专家，输出每行一个搜索查询。"
+
 CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑结构拆分成有意义的片段。
 每个片段应该是一个完整的主题、章节或逻辑段落，不要切割句子。
 直接输出 JSON 数组，每个元素的格式为 {{"content": "..."}}。
@@ -44,6 +47,12 @@ _BOUNDARY_RE = re.compile(r"(?=\n第[一二三四五六七八九十百千零\d]+
 # ===== 法律编号字符类（减少 knowlege_base.py 中重复） =====
 
 _CN_DIGIT = r"[一二三四五六七八九十百千零\d]"
+_CN_CHAPTER = r"[一二三四五六七八九十百千]"  # 纯中文数字（章节专用，不含零/阿拉伯数字）
+_CN_ARTICLE = r"[一二三四五六七八九十百千零〇\d]"  # 条号专用（含零和阿拉伯数字）
+
+_CHAPTER_LAW_RE = re.compile(r"^(第" + _CN_CHAPTER + r"+章.*)")
+_SECTION_LAW_RE = re.compile(r"^(第" + _CN_CHAPTER + r"+节.*)")
+_ARTICLE_LAW_RE = re.compile(r"^(第(" + _CN_ARTICLE + r"+)条)")
 
 _CHAPTER_DIVISION_RE = re.compile(r"第" + _CN_DIGIT + r"+[章编]")
 _SECTION_HEAD_RE = re.compile(r"第" + _CN_DIGIT + r"+节")
