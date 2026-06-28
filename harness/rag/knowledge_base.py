@@ -562,8 +562,10 @@ class KnowledgeBase:
                 return
             meta: dict[str, Any] = {}
             for bm in buf_meta:
-                meta.setdefault(MetaKey.CHAPTER, bm.get(MetaKey.CHAPTER))
-                meta.setdefault(MetaKey.SECTION, bm.get(MetaKey.SECTION))
+                for key in (MetaKey.CHAPTER, MetaKey.SECTION):
+                    val = bm.get(key)
+                    if val:
+                        meta.setdefault(key, val)
             art_range = _article_str(buffer)
             if art_range:
                 meta[MetaKey.ARTICLES] = art_range
@@ -802,28 +804,27 @@ class KnowledgeBase:
                 return
             content = "\n".join(buffer)
             pieces = KnowledgeBase._split_recursive(content, chunk_size)
-            for pi, piece in enumerate(pieces):
-                meta: dict[str, Any] = {}
-                if law_name:
-                    meta[MetaKey.LAW_NAME] = law_name
-                if chapter:
-                    meta[MetaKey.CHAPTER] = chapter
-                if section:
-                    meta[MetaKey.SECTION] = section
-                if cur_article:
-                    meta[MetaKey.ARTICLES] = cur_article
-                if cur_article_no is not None:
-                    meta[MetaKey.ARTICLE_NO] = cur_article_no
-                if pub_date:
-                    meta[MetaKey.EFFECTIVE_DATE] = pub_date
-                meta[MetaKey.CHUNK_TOTAL] = len(pieces)
+            meta_base: dict[str, Any] = {}
+            if law_name:
+                meta_base[MetaKey.LAW_NAME] = law_name
+            if chapter:
+                meta_base[MetaKey.CHAPTER] = chapter
+            if section:
+                meta_base[MetaKey.SECTION] = section
+            meta_base[MetaKey.ARTICLES] = cur_article
+            if cur_article_no is not None:
+                meta_base[MetaKey.ARTICLE_NO] = cur_article_no
+            if pub_date:
+                meta_base[MetaKey.EFFECTIVE_DATE] = pub_date
+            meta_base[MetaKey.CHUNK_TOTAL] = len(pieces)
+            for piece in pieces:
                 chunks.append(
                     Chunk(
                         id=uuid.uuid4().hex[:12],
                         document_id=doc_id,
                         content=KnowledgeBase._align_chunk_end(piece),
                         chunk_index=idx,
-                        metadata=meta,
+                        metadata=dict(meta_base),
                     )
                 )
                 idx += 1
