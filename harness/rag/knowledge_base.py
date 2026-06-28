@@ -7,6 +7,7 @@ import re
 import tempfile
 import uuid
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -96,6 +97,23 @@ _DATE_RE = re.compile(r"（(\d{4})年(\d+)月(\d+)日.*?通过")
 _CHAPTER_RE = re.compile(r"^(第[一二三四五六七八九十百千]+章.*)")
 _SECTION_RE = re.compile(r"^(第[一二三四五六七八九十百千]+节.*)")
 _ARTICLE_RE_LINE = re.compile(r"^(第([一二三四五六七八九十百千零〇\d]+)条)")
+
+
+@dataclass
+class _LawContext:
+    """法律文本逐行解析的上下文（不变字段），供 _flush_law_article 使用。"""
+
+    doc_id: str
+    chunk_size: int
+    law_name: str | None = None
+    pub_date: str | None = None
+    chapter: str | None = None
+    section: str | None = None
+    chunks: list[Chunk] | None = None
+
+    def __post_init__(self) -> None:
+        if self.chunks is None:
+            self.chunks = []
 
 
 class KnowledgeBase:
@@ -771,14 +789,10 @@ class KnowledgeBase:
             return None
 
         lines = text.splitlines()
-        law_name: str | None = None
-        pub_date: str | None = None
-        chapter: str | None = None
-        section: str | None = None
+        ctx = _LawContext(doc_id=doc_id, chunk_size=chunk_size)
         cur_article: str | None = None
         cur_article_no: int | None = None
         buffer: list[str] = []
-        chunks: list[Chunk] = []
         idx = 0
 
         for line in lines:
@@ -787,27 +801,27 @@ class KnowledgeBase:
                 continue
 
             # 法律名称
-            if law_name is None and _TITLE_RE.match(line):
-                law_name = line
+            if ctx.law_name is None and _TITLE_RE.match(line):
+                ctx.law_name = line
                 continue
 
             # 发布日期
-            if pub_date is None:
+            if ctx.pub_date is None:
                 m = _DATE_RE.search(line)
                 if m:
                     y, mo, d = m.group(1), int(m.group(2)), int(m.group(3))
-                    pub_date = f"{y}-{mo:02d}-{d:02d}"
+                    ctx.pub_date = f"{y}-{mo:02d}-{d:02d}"
 
             # 章
             m = _CHAPTER_RE.match(line)
             if m:
-                chapter = m.group(1)
+                ctx.chapter = m.group(1)
                 continue
 
             # 节
             m = _SECTION_RE.match(line)
             if m:
-                section = m.group(1)
+                ctx.section = m.group(1)
                 continue
 
             # 条
@@ -815,16 +829,10 @@ class KnowledgeBase:
             if m:
                 idx = KnowledgeBase._flush_law_article(
                     buffer,
-                    cur_article=cur_article,
-                    cur_article_no=cur_article_no,
-                    law_name=law_name,
-                    chapter=chapter,
-                    section=section,
-                    pub_date=pub_date,
-                    doc_id=doc_id,
-                    idx=idx,
-                    chunk_size=chunk_size,
-                    chunks=chunks,
+                    cur_article,
+                    cur_article_no,
+                    ctx,
+                    idx,
                 )
                 cur_article = m.group(1)
                 cur_article_no = _chinese_to_int(m.group(2))
@@ -834,20 +842,14 @@ class KnowledgeBase:
 
         idx = KnowledgeBase._flush_law_article(
             buffer,
-            cur_article=cur_article,
-            cur_article_no=cur_article_no,
-            law_name=law_name,
-            chapter=chapter,
-            section=section,
-            pub_date=pub_date,
-            doc_id=doc_id,
-            idx=idx,
-            chunk_size=chunk_size,
-            chunks=chunks,
+            cur_article,
+            cur_article_no,
+            ctx,
+            idx,
         )
 
-        logger.debug("逐条法律分块完成: chunks={}", len(chunks))
-        return chunks
+        logger.debug("逐条法律分块完成: chunks={}", len(ctx.chunks))
+        return ctx.chunks
 
     @staticmethod
     def _split_recursive(text: str, chunk_size: int) -> list[str]:
@@ -921,38 +923,32 @@ class KnowledgeBase:
         buffer: list[str],
         cur_article: str | None,
         cur_article_no: int | None,
-        law_name: str | None,
-        chapter: str | None,
-        section: str | None,
-        pub_date: str | None,
-        doc_id: str,
+        ctx: _LawContext,
         idx: int,
-        chunk_size: int,
-        chunks: list[Chunk],
     ) -> int:
         """将法律文本当前条 flush 为一个或多个 Chunk。"""
         if not cur_article:
             return idx
         content = "\n".join(buffer)
-        pieces = KnowledgeBase._split_recursive(content, chunk_size)
+        pieces = KnowledgeBase._split_recursive(content, ctx.chunk_size)
         meta_base: dict[str, Any] = {}
-        if law_name:
-            meta_base[MetaKey.LAW_NAME] = law_name
-        if chapter:
-            meta_base[MetaKey.CHAPTER] = chapter
-        if section:
-            meta_base[MetaKey.SECTION] = section
+        if ctx.law_name:
+            meta_base[MetaKey.LAW_NAME] = ctx.law_name
+        if ctx.chapter:
+            meta_base[MetaKey.CHAPTER] = ctx.chapter
+        if ctx.section:
+            meta_base[MetaKey.SECTION] = ctx.section
         meta_base[MetaKey.ARTICLES] = cur_article
         if cur_article_no is not None:
             meta_base[MetaKey.ARTICLE_NO] = cur_article_no
-        if pub_date:
-            meta_base[MetaKey.EFFECTIVE_DATE] = pub_date
+        if ctx.pub_date:
+            meta_base[MetaKey.EFFECTIVE_DATE] = ctx.pub_date
         meta_base[MetaKey.CHUNK_TOTAL] = len(pieces)
         for piece in pieces:
-            chunks.append(
+            ctx.chunks.append(
                 Chunk(
                     id=uuid.uuid4().hex[:12],
-                    document_id=doc_id,
+                    document_id=ctx.doc_id,
                     content=KnowledgeBase._align_chunk_end(piece),
                     chunk_index=idx,
                     metadata=dict(meta_base),
