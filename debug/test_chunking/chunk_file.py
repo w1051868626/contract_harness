@@ -6,9 +6,6 @@
     python -m debug.test_chunking.chunk_file contract.docx --chunk-size 256
 """
 import argparse
-import json
-import tempfile
-import zipfile
 from pathlib import Path
 
 from harness.rag.knowledge_base import KnowledgeBase
@@ -65,37 +62,13 @@ def process_file(file_path: Path, chunk_size: int, overlap: int):
         print(f"\n{'#'*60}")
         print(f"  ZIP 文件: {file_path}")
         print(f"{'#'*60}")
-        with zipfile.ZipFile(file_path, "r") as zf:
-            supported = {".txt", ".md", ".json", ".pdf", ".docx"}
-            entries = [
-                info
-                for info in zf.infolist()
-                if not info.is_dir()
-                and Path(info.filename).suffix.lower() in supported
-            ]
-            print(f"  支持的文件数: {len(entries)}/{len(zf.infolist())}")
-            for info in entries:
-                inner_name = info.filename
-                inner_ext = Path(inner_name).suffix.lower()
-                raw = zf.read(info.filename)
-                with tempfile.NamedTemporaryFile(
-                    suffix=inner_ext, delete=False
-                ) as tmp:
-                    tmp.write(raw)
-                    tmp_path = Path(tmp.name)
-                try:
-                    text = KnowledgeBase._parse_file(tmp_path)
-                    if not text.strip():
-                        print(f"\n  --- {inner_name}: (空) ---")
-                        continue
-                    results = chunk_text(text, inner_name, chunk_size, overlap)
-                    for tag, chunks in results:
-                        shorten = inner_name[:80]
-                        display_chunks(tag, chunks, f"{shorten} ({len(text):,} chars)")
-                except Exception as e:
-                    print(f"\n  --- {inner_name}: 解析失败 — {e} ---")
-                finally:
-                    tmp_path.unlink()
+        entries = KnowledgeBase._extract_zip_texts(file_path)
+        print(f"  成功解析: {len(entries)} 个文件")
+        for inner_name, text in entries:
+            results = chunk_text(text, inner_name, chunk_size, overlap)
+            for tag, chunks in results:
+                shorten = inner_name[:80]
+                display_chunks(tag, chunks, f"{shorten} ({len(text):,} chars)")
 
     elif ext == ".docx":
         text = KnowledgeBase._parse_file(file_path)

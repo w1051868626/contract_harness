@@ -306,17 +306,11 @@ class KnowledgeBase:
             use_ai_chunking=use_ai_chunking,
         )
 
-    def add_zip(
-        self,
-        path: Path,
-        chunk_size: int = 512,
-        chunk_overlap: int = 64,
-        use_ai_chunking: bool = True,
-    ) -> list[str]:
-        """解压 zip 并以内部文件名为标题分别导入。"""
+    @staticmethod
+    def _extract_zip_texts(path: Path) -> list[tuple[str, str]]:
+        """解压 zip，返回 (内部文件名, 解析文本) 列表。"""
         supported = {".txt", ".md", ".json", ".pdf", ".docx"}
-        doc_ids: list[str] = []
-        logger.debug("解压 zip 导入: path={}", path)
+        results: list[tuple[str, str]] = []
         with zipfile.ZipFile(path) as zf:
             for info in zf.infolist():
                 if info.is_dir():
@@ -331,19 +325,38 @@ class KnowledgeBase:
                         tmp_path = Path(tmp.name)
                     content = KnowledgeBase._parse_file(tmp_path)
                     tmp_path.unlink(missing_ok=True)
-                    title = Path(info.filename).stem
-                    doc_id = self.add_text(
-                        title=title,
-                        content=content,
-                        source=str(path),
-                        chunk_size=chunk_size,
-                        chunk_overlap=chunk_overlap,
-                        use_ai_chunking=use_ai_chunking,
-                    )
-                    doc_ids.append(doc_id)
+                    if content.strip():
+                        results.append((info.filename, content))
                 except (json.JSONDecodeError, KeyError, OSError, zipfile.BadZipFile):
-                    logger.warning("ZIP 中文件处理失败: filename={}", info.filename, exc_info=True)
+                    logger.warning("ZIP 中文件解析失败: {}", info.filename, exc_info=True)
                     continue
+        return results
+
+    def add_zip(
+        self,
+        path: Path,
+        chunk_size: int = 512,
+        chunk_overlap: int = 64,
+        use_ai_chunking: bool = True,
+    ) -> list[str]:
+        """解压 zip 并以内部文件名为标题分别导入。"""
+        doc_ids: list[str] = []
+        logger.debug("解压 zip 导入: path={}", path)
+        for filename, content in KnowledgeBase._extract_zip_texts(path):
+            try:
+                title = Path(filename).stem
+                doc_id = self.add_text(
+                    title=title,
+                    content=content,
+                    source=str(path),
+                    chunk_size=chunk_size,
+                    chunk_overlap=chunk_overlap,
+                    use_ai_chunking=use_ai_chunking,
+                )
+                doc_ids.append(doc_id)
+            except (json.JSONDecodeError, KeyError, OSError, zipfile.BadZipFile):
+                logger.warning("ZIP 中文件处理失败: filename={}", filename, exc_info=True)
+                continue
         return doc_ids
 
     @staticmethod
