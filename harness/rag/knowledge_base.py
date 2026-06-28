@@ -231,7 +231,7 @@ class KnowledgeBase:
             logger.debug("使用 AI 分块")
             try:
                 return self._chunk_with_ai(content, doc_id)
-            except Exception:
+            except (ValueError, json.JSONDecodeError, RuntimeError):
                 logger.warning("AI 分块失败，回退到传统分块", exc_info=True)
         try:
             md = self._chunk_markdown(content, doc_id, chunk_size, chunk_overlap)
@@ -249,6 +249,7 @@ class KnowledgeBase:
             logger.debug("使用通用文本分块")
             return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
         except Exception as exc:
+            # 将各分块策略的异常统一为 ChunkingError
             raise ChunkingError(f"所有分块策略均失败: {exc}") from exc
 
     def _chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
@@ -483,6 +484,7 @@ class KnowledgeBase:
             logger.debug("扩展检索词: {}", result)
             return result
         except Exception:
+            # LLM 调用可能抛多种 openai 异常，全部降级为原始查询
             logger.warning("AI 扩展检索词失败，使用原始查询", exc_info=True)
             return [query]
 
