@@ -360,7 +360,7 @@ class KnowledgeBase:
             and self._expansion_llm is not None
         ):
             logger.info(
-                "检索结果分数偏低 (max=%.3f < %.2f)，使用 AI 扩展检索词",
+                "检索结果分数偏低 (max={:.3f} < {:.2f})，使用 AI 扩展检索词",
                 max_score,
                 expansion_threshold,
             )
