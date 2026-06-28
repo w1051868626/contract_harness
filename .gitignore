@@ -29,4 +29,4 @@ Thumbs.db
 coverage.xml
 
 *.env
-!example.env
+!example.envdebug/test_chunking/chinese-laws/
