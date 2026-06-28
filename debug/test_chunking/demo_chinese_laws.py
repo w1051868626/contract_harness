@@ -39,16 +39,16 @@ def download_dataset():
     if not zip_path.exists():
         raise FileNotFoundError(f"下载失败：{zip_path} 不存在")
 
-    # Git LFS：检查是否为指针文件
-    content = zip_path.read_text(encoding="utf-8")
-    if content.startswith("version https://git-lfs"):
+    # Git LFS：检查是否为指针文件（读前 200 字节，UTF-8 解码即可）
+    header = zip_path.read_bytes()[:200]
+    if header.startswith(b"version https://git-lfs"):
         subprocess.run(
             ["git", "lfs", "pull"],
             cwd=str(DATASET_DIR),
             check=True, capture_output=True,
         )
 
-    # 解压
+    # 解压（重读，LFS pull 后文件已被替换为真实 zip）
     out_path = DATASET_DIR / "chinese_laws.txt"
     with zipfile.ZipFile(zip_path) as z:
         names = z.namelist()
