@@ -518,9 +518,9 @@ class KnowledgeBase:
         self._store.delete_document(document_id)
 
     @staticmethod
-    def _detect_md_heading_meta(first_line: str) -> dict[str, str]:
+    def _detect_md_heading_meta(first_line: str) -> dict[MetaKey, str]:
         """从 Markdown 标题行提取章节元数据。"""
-        m: dict[str, str] = {}
+        m: dict[MetaKey, str] = {}
         raw = first_line.lstrip("#").strip()
         if _CHAPTER_DIVISION_RE.match(raw):
             m[MetaKey.CHAPTER] = raw
@@ -552,7 +552,7 @@ class KnowledgeBase:
         chunks: list[Chunk] = []
         idx = 0
         buffer: list[str] = []
-        buf_meta: list[dict[str, str]] = []
+        buf_meta: list[dict[MetaKey, str]] = []
         buf_len = 0
 
         for sec in sections:
@@ -884,7 +884,7 @@ class KnowledgeBase:
     @staticmethod
     def _flush_md_chunk(
         buffer: list[str],
-        buf_meta: list[dict[str, str]],
+        buf_meta: list[dict[MetaKey, str]],
         doc_id: str,
         idx: int,
         chunks: list[Chunk],
