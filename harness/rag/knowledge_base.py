@@ -547,35 +547,6 @@ class KnowledgeBase:
         buf_meta: list[dict[str, str]] = []
         buf_len = 0
 
-        def _article_str(segments: list[str]) -> str:
-            arts = []
-            for s in segments:
-                for m in _ART_PAT_RE.finditer(s):
-                    arts.append(int(m.group(1)) if m.group(1).isdigit() else m.group(1))
-            if not arts:
-                return ""
-            return f"第{arts[0]}条" if len(arts) == 1 else f"第{arts[0]}条—第{arts[-1]}条"
-
-        def _flush() -> None:
-            nonlocal idx, buffer, buf_meta, buf_len
-            if not buffer:
-                return
-            meta: dict[str, Any] = {}
-            for bm in buf_meta:
-                for key in (MetaKey.CHAPTER, MetaKey.SECTION):
-                    val = bm.get(key)
-                    if val:
-                        meta.setdefault(key, val)
-            art_range = _article_str(buffer)
-            if art_range:
-                meta[MetaKey.ARTICLES] = art_range
-            chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx, metadata=meta))
-            idx += 1
-            carry = KnowledgeBase._carry_overlap(buffer, overlap)
-            buffer = carry
-            buf_meta = buf_meta[-len(carry) :] if carry else []
-            buf_len = sum(len(s) for s in carry)
-
         for sec in sections:
             first_line = sec.split("\n")[0].strip()
             this_meta = KnowledgeBase._detect_md_heading_meta(first_line)
@@ -586,12 +557,12 @@ class KnowledgeBase:
 
             ch = this_meta.get(MetaKey.CHAPTER)
             if ch and buf_len > 0 and ch != buf_meta[0].get(MetaKey.CHAPTER):
-                _flush()
+                idx = KnowledgeBase._flush_md_chunk(buffer, buf_meta, doc_id, idx, chunks)
                 buffer, buf_meta, buf_len = [sec], [this_meta], len(sec)
                 continue
             sc = this_meta.get(MetaKey.SECTION)
             if sc and buf_len > 0 and sc != buf_meta[-1].get(MetaKey.SECTION):
-                _flush()
+                idx = KnowledgeBase._flush_md_chunk(buffer, buf_meta, doc_id, idx, chunks)
                 buffer, buf_meta, buf_len = [sec], [this_meta], len(sec)
                 continue
 
@@ -601,7 +572,7 @@ class KnowledgeBase:
                 buf_meta.append(this_meta)
                 buf_len += sl
             else:
-                _flush()
+                idx = KnowledgeBase._flush_md_chunk(buffer, buf_meta, doc_id, idx, chunks)
                 if sl <= chunk_size:
                     buffer, buf_meta, buf_len = [sec], [this_meta], sl
                 else:
@@ -611,10 +582,12 @@ class KnowledgeBase:
                             buf_meta.append(this_meta)
                             buf_len += len(sub)
                         else:
-                            _flush()
+                            idx = KnowledgeBase._flush_md_chunk(
+                                buffer, buf_meta, doc_id, idx, chunks
+                            )
                             buffer, buf_meta, buf_len = [sub], [this_meta], len(sub)
 
-        _flush()
+        idx = KnowledgeBase._flush_md_chunk(buffer, buf_meta, doc_id, idx, chunks)
         logger.debug("Markdown 分块完成: chunks={}", len(chunks))
         return chunks
 
@@ -798,37 +771,6 @@ class KnowledgeBase:
         chunks: list[Chunk] = []
         idx = 0
 
-        def _flush():
-            nonlocal idx
-            if not cur_article:
-                return
-            content = "\n".join(buffer)
-            pieces = KnowledgeBase._split_recursive(content, chunk_size)
-            meta_base: dict[str, Any] = {}
-            if law_name:
-                meta_base[MetaKey.LAW_NAME] = law_name
-            if chapter:
-                meta_base[MetaKey.CHAPTER] = chapter
-            if section:
-                meta_base[MetaKey.SECTION] = section
-            meta_base[MetaKey.ARTICLES] = cur_article
-            if cur_article_no is not None:
-                meta_base[MetaKey.ARTICLE_NO] = cur_article_no
-            if pub_date:
-                meta_base[MetaKey.EFFECTIVE_DATE] = pub_date
-            meta_base[MetaKey.CHUNK_TOTAL] = len(pieces)
-            for piece in pieces:
-                chunks.append(
-                    Chunk(
-                        id=uuid.uuid4().hex[:12],
-                        document_id=doc_id,
-                        content=KnowledgeBase._align_chunk_end(piece),
-                        chunk_index=idx,
-                        metadata=dict(meta_base),
-                    )
-                )
-                idx += 1
-
         for line in lines:
             line = line.strip()
             if not line:
@@ -861,14 +803,38 @@ class KnowledgeBase:
             # 条
             m = _ARTICLE_RE_LINE.match(line)
             if m:
-                _flush()
+                idx = KnowledgeBase._flush_law_article(
+                    buffer,
+                    cur_article=cur_article,
+                    cur_article_no=cur_article_no,
+                    law_name=law_name,
+                    chapter=chapter,
+                    section=section,
+                    pub_date=pub_date,
+                    doc_id=doc_id,
+                    idx=idx,
+                    chunk_size=chunk_size,
+                    chunks=chunks,
+                )
                 cur_article = m.group(1)
                 cur_article_no = _chinese_to_int(m.group(2))
                 buffer = [line]
             else:
                 buffer.append(line)
 
-        _flush()
+        idx = KnowledgeBase._flush_law_article(
+            buffer,
+            cur_article=cur_article,
+            cur_article_no=cur_article_no,
+            law_name=law_name,
+            chapter=chapter,
+            section=section,
+            pub_date=pub_date,
+            doc_id=doc_id,
+            idx=idx,
+            chunk_size=chunk_size,
+            chunks=chunks,
+        )
 
         logger.debug("逐条法律分块完成: chunks={}", len(chunks))
         return chunks
@@ -906,6 +872,84 @@ class KnowledgeBase:
                     result.append(buf)
                 return result if result else [text]
         return [text]
+
+    @staticmethod
+    def _flush_md_chunk(
+        buffer: list[str],
+        buf_meta: list[dict[str, str]],
+        doc_id: str,
+        idx: int,
+        chunks: list[Chunk],
+    ) -> int:
+        """将 Markdown 缓冲区的累积段 flush 为一个 Chunk（不管理 carry 状态）。"""
+        if not buffer:
+            return idx
+        meta: dict[str, Any] = {}
+        for bm in buf_meta:
+            for key in (MetaKey.CHAPTER, MetaKey.SECTION):
+                if bm.get(key):
+                    meta.setdefault(key, bm[key])
+        arts = KnowledgeBase._md_article_range(buffer)
+        if arts:
+            meta[MetaKey.ARTICLES] = arts
+        chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx, metadata=meta))
+        return idx + 1
+
+    @staticmethod
+    def _md_article_range(segments: list[str]) -> str:
+        """从 Markdown 段列表中提取条文范围。"""
+        arts = []
+        for s in segments:
+            for m in _ART_PAT_RE.finditer(s):
+                arts.append(int(m.group(1)) if m.group(1).isdigit() else m.group(1))
+        if not arts:
+            return ""
+        return f"第{arts[0]}条" if len(arts) == 1 else f"第{arts[0]}条—第{arts[-1]}条"
+
+    @staticmethod
+    def _flush_law_article(
+        buffer: list[str],
+        cur_article: str | None,
+        cur_article_no: int | None,
+        law_name: str | None,
+        chapter: str | None,
+        section: str | None,
+        pub_date: str | None,
+        doc_id: str,
+        idx: int,
+        chunk_size: int,
+        chunks: list[Chunk],
+    ) -> int:
+        """将法律文本当前条 flush 为一个或多个 Chunk。"""
+        if not cur_article:
+            return idx
+        content = "\n".join(buffer)
+        pieces = KnowledgeBase._split_recursive(content, chunk_size)
+        meta_base: dict[str, Any] = {}
+        if law_name:
+            meta_base[MetaKey.LAW_NAME] = law_name
+        if chapter:
+            meta_base[MetaKey.CHAPTER] = chapter
+        if section:
+            meta_base[MetaKey.SECTION] = section
+        meta_base[MetaKey.ARTICLES] = cur_article
+        if cur_article_no is not None:
+            meta_base[MetaKey.ARTICLE_NO] = cur_article_no
+        if pub_date:
+            meta_base[MetaKey.EFFECTIVE_DATE] = pub_date
+        meta_base[MetaKey.CHUNK_TOTAL] = len(pieces)
+        for piece in pieces:
+            chunks.append(
+                Chunk(
+                    id=uuid.uuid4().hex[:12],
+                    document_id=doc_id,
+                    content=KnowledgeBase._align_chunk_end(piece),
+                    chunk_index=idx,
+                    metadata=dict(meta_base),
+                )
+            )
+            idx += 1
+        return idx
 
     @staticmethod
     def _chunk_legal_text(
