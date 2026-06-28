@@ -7,7 +7,7 @@ import re
 import tempfile
 import uuid
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -109,11 +109,7 @@ class _LawContext:
     pub_date: str | None = None
     chapter: str | None = None
     section: str | None = None
-    chunks: list[Chunk] | None = None
-
-    def __post_init__(self) -> None:
-        if self.chunks is None:
-            self.chunks = []
+    chunks: list[Chunk] = field(default_factory=list)
 
 
 @dataclass
