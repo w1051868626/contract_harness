@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from harness.agent.llm import LLMClient
 from harness.agent.memory import MemoryStore
@@ -26,9 +27,11 @@ from harness.core.types import (
     RiskLevel,
     ToolCall,
 )
-from harness.rag.knowledge_base import KnowledgeBase
 from harness.replay.storage import ReplayStorage
 from harness.utils.log import logger
+
+if TYPE_CHECKING:
+    from harness.rag.knowledge_base import KnowledgeBase
 
 CONVERSE_PROMPT = """你是一位资深法律合同审查专家。以下是之前对一份合同的审查报告：
 

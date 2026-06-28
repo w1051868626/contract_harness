@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from harness.rag.knowledge_base import KnowledgeBase
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from harness.rag.knowledge_base import KnowledgeBase
 
 
 class KnowledgeRetriever:

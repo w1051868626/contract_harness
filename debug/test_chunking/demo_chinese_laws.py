@@ -2,24 +2,21 @@
 
 用法:
     conda activate contract-harness
-    python debug/test_chunking/chinese_laws_test.py
+    # 从项目根目录运行：
+    python -m debug.test_chunking.demo_chinese_laws
 
 首次运行会自动从 ModelScope 下载数据集（约 1.5MB）。
 """
 import sys
 import zipfile
-import tempfile
+import subprocess
 from pathlib import Path
 
-# 将项目根目录加入 sys.path
-_project_root = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(_project_root))
-
 from harness.rag.knowledge_base import KnowledgeBase
-from harness.utils.io import read_text
 
 # ---- 配置 ----
-DATASET_DIR = _project_root / "debug" / "test_chunking" / "chinese-laws"
+_SCRIPT_DIR = Path(__file__).resolve().parent
+DATASET_DIR = _SCRIPT_DIR / "chinese-laws"
 CHUNK_SIZE = 200
 OVERLAP = 30
 
