@@ -51,6 +51,8 @@ class MetaKey(str, Enum):
     CHAPTER = "chapter"
     SECTION = "section"
     ARTICLES = "articles"
+    ARTICLE_NO = "article_no"
+    CHUNK_TOTAL = "chunk_total"
     DOC_TYPE = "doc_type"
     SOURCE_FILE = "source_file"
     LAW_NAME = "law_name"

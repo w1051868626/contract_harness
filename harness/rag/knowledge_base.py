@@ -10,6 +10,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+# ---- 法律文本逐行解析：中文数字 & 正则（模块级，供 _chunk_law_text 使用） ----
 from docx import Document as DocxDocument
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
@@ -32,6 +33,53 @@ from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.reranker import Reranker, create_reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore, create_vector_store
 from harness.utils.log import logger
+
+# ---- 法律文本逐行解析辅助（模块级，供 _chunk_law_text 使用） ----
+
+_CN_NUM: dict[str, int] = {
+    "零": 0, "〇": 0,
+    "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+    "六": 6, "七": 7, "八": 8, "九": 9,
+    "十": 10,
+    "百": 100,
+    "千": 1000,
+}
+
+
+def _chinese_to_int(text: str) -> int:
+    """中文数字转整数。"""
+    if text.isdigit():
+        return int(text)
+    total = 0
+    num = 0
+    for c in reversed(text):
+        if c == "十":
+            if num == 0:
+                num = 1
+            total += num * 10
+            num = 0
+        elif c == "百":
+            if num == 0:
+                num = 1
+            total += num * 100
+            num = 0
+        elif c == "千":
+            if num == 0:
+                num = 1
+            total += num * 1000
+            num = 0
+        else:
+            num = _CN_NUM[c]
+    total += num
+    return total
+
+
+_TITLE_RE = re.compile(r"^中华人民共和国.*")
+_DATE_RE = re.compile(r"（(\d{4})年(\d+)月(\d+)日.*?通过")
+_CHAPTER_RE = re.compile(r"^(第[一二三四五六七八九十百千]+章.*)")
+_SECTION_RE = re.compile(r"^(第[一二三四五六七八九十百千]+节.*)")
+_ARTICLE_RE_LINE = re.compile(r"^(第([一二三四五六七八九十百千零〇\d]+)条)")
+
 
 
 class KnowledgeBase:
@@ -174,6 +222,10 @@ class KnowledgeBase:
             if md is not None:
                 logger.debug("使用 Markdown 结构化分块: chunks={}", len(md))
                 return md
+            law = self._chunk_law_text(content, doc_id, chunk_size, chunk_overlap)
+            if law is not None:
+                logger.debug("使用逐条法律分块: chunks={}", len(law))
+                return law
             legal = self._chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
             if legal is not None:
                 logger.debug("使用法律条文分块: chunks={}", len(legal))
@@ -696,19 +748,153 @@ class KnowledgeBase:
         return content
 
     @staticmethod
+    def _chunk_law_text(
+        text: str,
+        doc_id: str,
+        chunk_size: int,
+        overlap: int,
+    ) -> list[Chunk] | None:
+        """法律文本逐行解析分块：按条聚合，超长条递归切分。
+
+        逐行扫描，识别法律名称、发布日期、章、节、条号；
+        每条内容聚合成一个 buffer，超 chunk_size 时按分隔符
+        （空行→换行→句号→分号→逗号）递归切分。
+        非法律文本返回 None。
+        """
+        if not re.search(r"第[一二三四五六七八九十百千零\d]+条", text):
+            return None
+
+        lines = text.splitlines()
+        law_name: str | None = None
+        pub_date: str | None = None
+        chapter: str | None = None
+        section: str | None = None
+        cur_article: str | None = None
+        cur_article_no: int | None = None
+        buffer: list[str] = []
+        chunks: list[Chunk] = []
+        idx = 0
+
+        def _flush():
+            nonlocal idx
+            if not cur_article:
+                return
+            content = "\n".join(buffer)
+            pieces = KnowledgeBase._split_recursive(content, chunk_size)
+            for pi, piece in enumerate(pieces):
+                meta: dict[str, Any] = {}
+                if law_name:
+                    meta[MetaKey.LAW_NAME] = law_name
+                if chapter:
+                    meta[MetaKey.CHAPTER] = chapter
+                if section:
+                    meta[MetaKey.SECTION] = section
+                if cur_article:
+                    meta[MetaKey.ARTICLES] = cur_article
+                if cur_article_no is not None:
+                    meta[MetaKey.ARTICLE_NO] = cur_article_no
+                if pub_date:
+                    meta[MetaKey.EFFECTIVE_DATE] = pub_date
+                meta[MetaKey.CHUNK_TOTAL] = len(pieces)
+                chunks.append(
+                    Chunk(
+                        id=uuid.uuid4().hex[:12],
+                        document_id=doc_id,
+                        content=KnowledgeBase._align_chunk_end(piece),
+                        chunk_index=idx,
+                        metadata=meta,
+                    )
+                )
+                idx += 1
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # 法律名称
+            if law_name is None and _TITLE_RE.match(line):
+                law_name = line
+                continue
+
+            # 发布日期
+            if pub_date is None:
+                m = _DATE_RE.search(line)
+                if m:
+                    y, mo, d = m.group(1), int(m.group(2)), int(m.group(3))
+                    pub_date = f"{y}-{mo:02d}-{d:02d}"
+
+            # 章
+            m = _CHAPTER_RE.match(line)
+            if m:
+                chapter = m.group(1)
+                continue
+
+            # 节
+            m = _SECTION_RE.match(line)
+            if m:
+                section = m.group(1)
+                continue
+
+            # 条
+            m = _ARTICLE_RE_LINE.match(line)
+            if m:
+                _flush()
+                cur_article = m.group(1)
+                cur_article_no = _chinese_to_int(m.group(2))
+                buffer = [line]
+            else:
+                buffer.append(line)
+
+        _flush()
+
+        logger.debug("逐条法律分块完成: chunks={}", len(chunks))
+        return chunks
+
+    @staticmethod
+    def _split_recursive(text: str, chunk_size: int) -> list[str]:
+        """递归分割长文本，按空行→换行→句号→分号→逗号 优先级切分。"""
+        if len(text) <= chunk_size:
+            return [text]
+        separators = ["\n\n", "\n", "。", "；", "，"]
+        for sep in separators:
+            parts = text.split(sep)
+            if len(parts) > 1:
+                result: list[str] = []
+                buf = ""
+                for p in parts:
+                    if not p.strip():
+                        if buf:
+                            result.append(buf)
+                            buf = ""
+                        continue
+                    candidate = (buf + sep + p) if buf else p
+                    if len(candidate) <= chunk_size:
+                        buf = candidate
+                    else:
+                        if buf:
+                            result.append(buf)
+                        if len(p) <= chunk_size:
+                            buf = p
+                        else:
+                            sub = KnowledgeBase._split_recursive(p, chunk_size)
+                            result.extend(sub)
+                            buf = ""
+                if buf:
+                    result.append(buf)
+                return result if result else [text]
+        return [text]
+
+    @staticmethod
     def _chunk_legal_text(
         text: str,
         doc_id: str,
         chunk_size: int,
         overlap: int,
     ) -> list[Chunk] | None:
-        """法律条文专用分块：层级优先级分割（编→章→节→条→款→项→换行）。
+        """法律条文层级回退分块（编→章→节→条→款→项→换行）。
 
-        参考 legal_rag 的 RecursiveCharacterTextSplitter 风格实现：
-        从最高优先级（编）依次尝试到最低（换行），超长片段递归下一级分割。
-        每个片段即为一个 Chunk，不合并，保留分隔符前缀。
-
-        非法律文本返回 None，由上层回退到通用分块。
+        作为 _chunk_law_text 的 fallback，处理非规范格式的法律文本。
         """
         if not re.search(r"第[一二三四五六七八九十百千零\d]+条", text):
             return None
@@ -779,7 +965,7 @@ class KnowledgeBase:
             idx += 1
             prev_tail = part[-overlap:] if overlap > 0 else ""
 
-        logger.debug("法律条文分块完成: chunks={}", len(chunks))
+        logger.debug("法律条文层级分块完成: chunks={}", len(chunks))
         return chunks
 
     @staticmethod
