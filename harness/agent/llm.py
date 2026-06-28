@@ -130,7 +130,7 @@ class LLMClient:
             resp = self.client.chat.completions.create(**params)
             choice = resp.choices[0]
             logger.debug(
-                "LLM 调用成功: model=%s, input_tokens=%s",
+                "LLM 调用成功: model={}, input_tokens={}",
                 resp.model,
                 resp.usage.total_tokens if resp.usage else "N/A",
             )

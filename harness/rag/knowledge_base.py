@@ -99,8 +99,8 @@ class KnowledgeBase:
             LLMClient(expansion_cfg) if expansion_cfg.api_key and expansion_cfg.model else None
         )
         logger.debug(
-            "KnowledgeBase.from_config: kb_dir=%s, embedding=%s, reranker=%s,"
-            " chunk_llm=%s, expansion_llm=%s",
+            "KnowledgeBase.from_config: kb_dir={}, embedding={}, reranker={},"
+            " chunk_llm={}, expansion_llm={}",
             cfg.kb_dir,
             cfg.embedding.provider,
             cfg.embedding.rerank_provider or "none",

@@ -83,7 +83,7 @@ class ChromaVectorStore(VectorStore):
             metadata={"hnsw:space": "cosine"},
         )
         logger.debug(
-            "ChromaVectorStore 初始化: persist_dir=%s, collection=%s", persist_path, collection_name
+            "ChromaVectorStore 初始化: persist_dir={}, collection={}", persist_path, collection_name
         )
 
     def add_document(self, document: Document) -> str:
