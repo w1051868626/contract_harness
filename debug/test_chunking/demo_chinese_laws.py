@@ -40,7 +40,7 @@ def download_dataset():
         raise FileNotFoundError(f"下载失败：{zip_path} 不存在")
 
     # Git LFS：检查是否为指针文件
-    content = zip_path.read_text()
+    content = zip_path.read_text(encoding="utf-8")
     if content.startswith("version https://git-lfs"):
         subprocess.run(
             ["git", "lfs", "pull"],
