@@ -328,8 +328,6 @@ class KnowledgeBase:
         """使用 LLM 对文本进行智能分块，超长文本自动分段后合并。"""
         if self._chunk_llm is None:
             raise RuntimeError("chunk_llm 未初始化")
-        logger.debug("AI 分块开始: text_len={}, model={}", len(text), self._chunk_model)
-
         all_chunks: list[Chunk] = []
         for i in range(0, len(text), CHUNK_MAX_CHARS):
             segment = text[i : i + CHUNK_MAX_CHARS]
@@ -655,7 +653,6 @@ class KnowledgeBase:
             acc.add(sec, this_meta)
 
         acc.flush()
-        logger.debug("Markdown 分块完成: chunks={}", len(acc.chunks))
         return acc.chunks
 
     @staticmethod
@@ -887,7 +884,6 @@ class KnowledgeBase:
             idx,
         )
 
-        logger.debug("逐条法律分块完成: chunks={}", len(ctx.chunks))
         return ctx.chunks
 
     @staticmethod
@@ -1052,7 +1048,6 @@ class KnowledgeBase:
             idx += 1
             prev_tail = part[-overlap:] if overlap > 0 else ""
 
-        logger.debug("法律条文层级分块完成: chunks={}", len(chunks))
         return chunks
 
     @staticmethod
@@ -1069,7 +1064,6 @@ class KnowledgeBase:
         segments = KnowledgeBase._split_segments(text)
 
         if len(segments) == 1 and len(text) <= chunk_size:
-            logger.debug("通用分块: text_len={}, single_chunk", len(text))
             return [
                 Chunk(
                     id=uuid.uuid4().hex[:12],
@@ -1120,7 +1114,6 @@ class KnowledgeBase:
         if buffer:
             chunks.append(KnowledgeBase._make_chunk(buffer, doc_id, idx))
 
-        logger.debug("通用分块完成: text_len={}, chunks={}", len(text), len(chunks))
         return chunks
 
     @staticmethod
