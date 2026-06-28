@@ -19,7 +19,7 @@ from harness.core.types import ContractDocument, ReviewResult
 from harness.replay.player import SessionPlayer
 from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
-from harness.utils.io import load_dotenv
+from harness.utils.io import load_dotenv, normalize_text
 from harness.utils.log import logger, setup_logging
 
 load_dotenv()
@@ -123,7 +123,7 @@ async def review_submit(
         raw = content
         title = "paste.txt"
 
-    raw = raw.replace("\u3000", " ")
+    raw = normalize_text(raw)
 
     if not raw.strip():
         return _render("review.html", request, error="请输入合同内容或上传文件")

@@ -32,6 +32,7 @@ from harness.rag.docling_parser import DoclingParser
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.reranker import Reranker, create_reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore, create_vector_store
+from harness.utils.io import normalize_text as _util_normalize
 from harness.utils.log import logger
 
 # ---- 法律文本逐行解析辅助（模块级，供 _chunk_law_text 使用） ----
@@ -175,7 +176,7 @@ class KnowledgeBase:
     @staticmethod
     def _normalize_text(text: str) -> str:
         """清洗文本中的非常规字符。"""
-        return text.replace("\u3000", " ")
+        return _util_normalize(text)
 
     def add_text(
         self,

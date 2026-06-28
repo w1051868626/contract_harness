@@ -10,6 +10,11 @@ from dotenv import load_dotenv as _load_dotenv
 from pydantic import BaseModel
 
 
+def normalize_text(text: str) -> str:
+    """清理全角空格等非标准空白字符。"""
+    return text.replace("\u3000", " ")
+
+
 def load_dotenv(dotenv_path: str | Path | None = None) -> bool:
     """从 .env 文件加载环境变量。
 
@@ -23,9 +28,7 @@ def load_dotenv(dotenv_path: str | Path | None = None) -> bool:
 
 def read_text(path: str | Path) -> str:
     """读取文本文件（UTF-8），同时清理全角空格等非标准空白字符。"""
-    text = Path(path).read_text(encoding="utf-8")
-    text = text.replace("\u3000", " ")
-    return text
+    return normalize_text(Path(path).read_text(encoding="utf-8"))
 
 
 def write_text(path: str | Path, content: str) -> None:
