@@ -771,7 +771,7 @@ class KnowledgeBase:
                 Chunk(
                     id=uuid.uuid4().hex[:12],
                     document_id=doc_id,
-                    content=content,
+                    content=KnowledgeBase._align_chunk_end(content),
                     chunk_index=idx,
                     metadata=meta,
                 )
@@ -801,7 +801,7 @@ class KnowledgeBase:
                 Chunk(
                     id=uuid.uuid4().hex[:12],
                     document_id=doc_id,
-                    content=text,
+                    content=KnowledgeBase._align_chunk_end(text),
                     chunk_index=0,
                 )
             ]
@@ -831,7 +831,7 @@ class KnowledgeBase:
                             Chunk(
                                 id=uuid.uuid4().hex[:12],
                                 document_id=doc_id,
-                                content=sub,
+                                content=KnowledgeBase._align_chunk_end(sub),
                                 chunk_index=idx,
                             )
                         )
@@ -855,6 +855,23 @@ class KnowledgeBase:
         """按空行将文本分割为段落。"""
         raw = re.split(r"\n\s*\n", text.strip())
         return [s.strip() for s in raw if s.strip()]
+
+    @staticmethod
+    @staticmethod
+    def _align_chunk_end(content: str) -> str:
+        """将内容结尾对齐到句末标点。"""
+        matches = list(re.finditer(r"[。！？；.!?;]", content))
+        if matches:
+            return content[: matches[-1].end()].rstrip()
+        return content
+
+    @staticmethod
+    def _align_overlap_start(tail: str) -> str:
+        """将 overlap 尾部对齐到句子开头。"""
+        m = re.search(r"[。！？；.!?;]\s*", tail)
+        if m:
+            return tail[m.end() :]
+        return tail
 
     @staticmethod
     def _split_long(text: str, chunk_size: int) -> list[str]:
@@ -898,11 +915,12 @@ class KnowledgeBase:
         idx: int,
         metadata: dict[str, Any] | None = None,
     ) -> Chunk:
-        """创建 Chunk 对象。"""
+        """创建 Chunk 对象，自动对齐句子边界。"""
+        content = KnowledgeBase._align_chunk_end("\n\n".join(segments))
         return Chunk(
             id=uuid.uuid4().hex[:12],
             document_id=doc_id,
-            content="\n\n".join(segments),
+            content=content,
             chunk_index=idx,
             metadata=metadata or {},
         )
