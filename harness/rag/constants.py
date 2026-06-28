@@ -41,6 +41,19 @@ _ART_PAT_RE = re.compile(r"第([一二三四五六七八九十百千零\d]+)条"
 _ARTICLE_RE = re.compile(r"^(第[一二三四五六七八九十百千零\d]+条)\s*")
 _BOUNDARY_RE = re.compile(r"(?=\n第[一二三四五六七八九十百千零\d]+[条章节分编])")
 
+# ===== 法律编号字符类（减少 knowlege_base.py 中重复） =====
+
+_CN_DIGIT = r"[一二三四五六七八九十百千零\d]"
+
+_CHAPTER_DIVISION_RE = re.compile(r"第" + _CN_DIGIT + r"+[章编]")
+_SECTION_HEAD_RE = re.compile(r"第" + _CN_DIGIT + r"+节")
+_NUM_LIST_RE = re.compile(_CN_DIGIT + r"+[、．]")
+_PAREN_NUM_RE = re.compile(r"[（(]" + _CN_DIGIT + r"+[）)]")
+_ART_SEARCH_RE = re.compile(r"第" + _CN_DIGIT + r"+条")
+
+_DECIMAL_RE = re.compile(r"\d+\.(?!\d)")
+_DECIMAL_RANGE_RE = re.compile(r"\d+\.\d+")
+
 
 # ===== 元数据键名 =====
 

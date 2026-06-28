@@ -20,8 +20,16 @@ from harness.core.config import HarnessConfig, LLMConfig
 from harness.core.exceptions import ChunkingError
 from harness.rag.constants import (
     _ART_PAT_RE,
+    _ART_SEARCH_RE,
+    _CHAPTER_DIVISION_RE,
+    _CN_DIGIT,
+    _DECIMAL_RANGE_RE,
+    _DECIMAL_RE,
     _MD_HEADING_RE,
     _MD_SPLIT_RE,
+    _NUM_LIST_RE,
+    _PAREN_NUM_RE,
+    _SECTION_HEAD_RE,
     CHUNK_MAX_CHARS,
     CHUNK_PROMPT,
     QUERY_EXPANSION_PROMPT,
@@ -514,17 +522,17 @@ class KnowledgeBase:
         """从 Markdown 标题行提取章节元数据。"""
         m: dict[str, str] = {}
         raw = first_line.lstrip("#").strip()
-        if re.match(r"第[一二三四五六七八九十百千零\d]+[章编]", raw):
+        if _CHAPTER_DIVISION_RE.match(raw):
             m[MetaKey.CHAPTER] = raw
-        elif re.match(r"[一二三四五六七八九十百千零\d]+[、．]", raw):
+        elif _NUM_LIST_RE.match(raw):
             m[MetaKey.CHAPTER] = raw
-        elif re.match(r"\d+\.(?!\d)", raw):
+        elif _DECIMAL_RE.match(raw):
             m[MetaKey.CHAPTER] = raw
-        if re.match(r"第[一二三四五六七八九十百千零\d]+节", raw):
+        if _SECTION_HEAD_RE.match(raw):
             m[MetaKey.SECTION] = raw
-        elif re.match(r"（[一二三四五六七八九十百千零\d]+）", raw):
+        elif _PAREN_NUM_RE.match(raw):
             m[MetaKey.SECTION] = raw
-        elif re.match(r"\d+\.\d+", raw):
+        elif _DECIMAL_RANGE_RE.match(raw):
             m[MetaKey.SECTION] = raw
         return m
 
@@ -757,7 +765,7 @@ class KnowledgeBase:
         （空行→换行→句号→分号→逗号）递归切分。
         非法律文本返回 None。
         """
-        if not re.search(r"第[一二三四五六七八九十百千零\d]+条", text):
+        if not _ART_SEARCH_RE.search(text):
             return None
 
         lines = text.splitlines()
@@ -962,16 +970,16 @@ class KnowledgeBase:
 
         作为 _chunk_law_text 的 fallback，处理非规范格式的法律文本。
         """
-        if not re.search(r"第[一二三四五六七八九十百千零\d]+条", text):
+        if not _ART_SEARCH_RE.search(text):
             return None
 
         separators = [
-            r"\n第[一二三四五六七八九十百千零\d]+编",
-            r"\n第[一二三四五六七八九十百千零\d]+章",
-            r"\n第[一二三四五六七八九十百千零\d]+节",
-            r"\n第[一二三四五六七八九十百千零\d]+条",
-            r"\n[一二三四五六七八九十百千零\d]+[、．]",
-            r"\n[（(][一二三四五六七八九十百千零\d]+[）)]",
+            rf"\n第{_CN_DIGIT}+编",
+            rf"\n第{_CN_DIGIT}+章",
+            rf"\n第{_CN_DIGIT}+节",
+            rf"\n第{_CN_DIGIT}+条",
+            rf"\n{_CN_DIGIT}+[、．]",
+            rf"\n[（(]{_CN_DIGIT}+[）)]",
             r"\n",
         ]
 
@@ -995,11 +1003,9 @@ class KnowledgeBase:
                 line = line.strip()
                 if not line:
                     continue
-                ch_m = re.match(r"第[一二三四五六七八九十百千零\d]+[章编]", line)
-                if ch_m and not first_ch:
+                if _CHAPTER_DIVISION_RE.match(line) and not first_ch:
                     first_ch = line
-                sec_m = re.match(r"第[一二三四五六七八九十百千零\d]+节", line)
-                if sec_m and not first_sec:
+                if _SECTION_HEAD_RE.match(line) and not first_sec:
                     first_sec = line
 
             if first_ch:
