@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,6 +10,7 @@ from harness.agent.llm import LLMClient
 from harness.core.types import Clause, ComplianceCheck, RiskAssessment
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.vector_store import ChromaVectorStore, Chunk
+from harness.utils.io import make_id
 from harness.utils.log import logger
 
 _MEMORY_COLLECTION = "agent_memory"
@@ -60,7 +60,7 @@ class MemoryEntry:
             "timestamp": self.timestamp,
         }
         return Chunk(
-            id=uuid.uuid4().hex[:12],
+            id=make_id(),
             document_id="memory",
             content=self.clause_content,
             chunk_index=0,

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -28,6 +27,7 @@ from harness.core.types import (
     ToolCall,
 )
 from harness.replay.storage import ReplayStorage
+from harness.utils.io import make_id
 from harness.utils.log import logger
 
 if TYPE_CHECKING:
@@ -105,7 +105,7 @@ class ContractAgent:
     def _review_pipeline(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
         """管道模式：固定步骤串联执行（默认行为）。"""
         session = AgentSession(
-            session_id=uuid.uuid4().hex[:12],
+            session_id=make_id(),
             document=document,
             started_at=datetime.now(timezone.utc).isoformat(),
         )

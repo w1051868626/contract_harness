@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv as _load_dotenv
 from pydantic import BaseModel
+
+
+def make_id() -> str:
+    """生成 12 字符短 ID。"""
+    return uuid.uuid4().hex[:12]
 
 
 def normalize_text(text: str) -> str:

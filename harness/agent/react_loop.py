@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -25,6 +24,7 @@ from harness.core.types import (
     RiskLevel,
     ToolCall,
 )
+from harness.utils.io import make_id
 from harness.utils.log import logger
 
 REACT_SYSTEM_PROMPT = """你是一位资深法律合同审查专家。你有以下工具可用：
@@ -64,7 +64,7 @@ class ReActLoop:
     def run(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
         """执行 ReAct 循环审查，返回报告和会话。"""
         session = AgentSession(
-            session_id=uuid.uuid4().hex[:12],
+            session_id=make_id(),
             document=document,
             started_at=datetime.now(timezone.utc).isoformat(),
         )

@@ -9,7 +9,7 @@ import uuid
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 # ---- 法律文本逐行解析：中文数字 & 正则（模块级，供 _chunk_law_text 使用） ----
 from docx import Document as DocxDocument
@@ -466,7 +466,7 @@ class KnowledgeBase:
         doc = DocxDocument(str(path))
         return "\n".join(p.text for p in doc.paragraphs)
 
-    _PARSERS: dict[str, staticmethod] = {
+    _PARSERS: dict[str, Callable[[Path], str]] = {
         ".txt": _parse_txt,
         ".md": _parse_txt,
         ".json": _parse_json,
@@ -591,7 +591,6 @@ class KnowledgeBase:
 
     def clear_cache(self) -> None:
         """清除知识库内部缓存（当前无缓存，预留接口）。"""
-        pass
 
     def list_documents(self) -> list[Document]:
         """列出所有文档。"""
@@ -827,7 +826,7 @@ class KnowledgeBase:
         text: str,
         doc_id: str,
         chunk_size: int,
-        overlap: int,
+        _overlap: int = 0,
     ) -> list[Chunk] | None:
         """法律文本逐行解析分块：按条聚合，超长条递归切分。
 
@@ -1134,7 +1133,6 @@ class KnowledgeBase:
         raw = re.split(r"\n\s*\n", text.strip())
         return [s.strip() for s in raw if s.strip()]
 
-    @staticmethod
     @staticmethod
     def _align_chunk_end(content: str) -> str:
         """将内容结尾对齐到句末标点。"""

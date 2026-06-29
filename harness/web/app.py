@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +18,7 @@ from harness.core.types import ContractDocument, ReviewResult
 from harness.replay.player import SessionPlayer
 from harness.replay.recorder import SessionRecorder
 from harness.replay.storage import ReplayStorage
-from harness.utils.io import load_dotenv, normalize_text
+from harness.utils.io import load_dotenv, make_id, normalize_text
 from harness.utils.log import logger, setup_logging
 
 load_dotenv()
@@ -42,7 +41,7 @@ templates = Jinja2Templates(directory=str(HERE / "templates"))
 def _run_review(content: str, title: str) -> ReviewResult:
     """执行合同审查并记录会话，返回结构化结果。"""
     doc = ContractDocument(
-        id=uuid.uuid4().hex[:12],
+        id=make_id(),
         title=title,
         content=content,
     )
