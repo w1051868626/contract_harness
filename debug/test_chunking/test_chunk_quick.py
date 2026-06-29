@@ -55,7 +55,7 @@ def _try_chunk(text, label):
     if ck is not None:
         tag = "_chunk_markdown"
     else:
-        ck = KnowledgeBase._chunk_law_text(text, "test", CHUNK_SIZE, OVERLAP)
+        ck = KnowledgeBase._chunk_law_text(text, "test", CHUNK_SIZE)
         if ck is not None:
             tag = "_chunk_law_text"
         else:
