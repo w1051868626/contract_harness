@@ -50,6 +50,16 @@ _CN_DIGIT = r"[一二三四五六七八九十百千零\d]"
 _CN_CHAPTER = r"[一二三四五六七八九十百千]"  # 纯中文数字（章节专用，不含零/阿拉伯数字）
 _CN_ARTICLE = r"[一二三四五六七八九十百千零〇\d]"  # 条号专用（含零和阿拉伯数字）
 
+# ===== 中文数字映射 & 法律元数据正则 =====
+
+_CN_NUM: dict[str, int] = {
+    "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+    "六": 6, "七": 7, "八": 8, "九": 9, "十": 10,
+}
+
+_TITLE_RE = re.compile(r"^中华人民共和国.*")
+_DATE_RE = re.compile(r"（(\d{4})年(\d+)月(\d+)日.*?通过")
+
 _CHAPTER_LAW_RE = re.compile(r"^(第" + _CN_CHAPTER + r"+章.*)")
 _SECTION_LAW_RE = re.compile(r"^(第" + _CN_CHAPTER + r"+节.*)")
 _ARTICLE_LAW_RE = re.compile(r"^(第(" + _CN_ARTICLE + r"+)条)")

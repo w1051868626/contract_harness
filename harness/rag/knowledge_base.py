@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-# ---- 法律文本逐行解析：中文数字 & 正则（模块级，供 _chunk_law_text 使用） ----
 from docx import Document as DocxDocument
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
@@ -26,6 +25,8 @@ from harness.rag.constants import (
     _CHAPTER_DIVISION_RE,
     _CHAPTER_LAW_RE,
     _CN_DIGIT,
+    _CN_NUM,
+    _DATE_RE,
     _DECIMAL_RANGE_RE,
     _DECIMAL_RE,
     _MD_HEADING_RE,
@@ -34,6 +35,7 @@ from harness.rag.constants import (
     _PAREN_NUM_RE,
     _SECTION_HEAD_RE,
     _SECTION_LAW_RE,
+    _TITLE_RE,
     CHUNK_MAX_CHARS,
     CHUNK_PROMPT,
     CHUNK_SYSTEM_PROMPT,
@@ -48,25 +50,6 @@ from harness.rag.reranker import Reranker, create_reranker
 from harness.rag.vector_store import Chunk, Document, VectorStore, create_vector_store
 from harness.utils.io import normalize_text as _util_normalize
 from harness.utils.log import logger
-
-# ---- 法律文本逐行解析辅助（模块级，供 _chunk_law_text 使用） ----
-
-_CN_NUM: dict[str, int] = {
-    "零": 0,
-    "〇": 0,
-    "一": 1,
-    "二": 2,
-    "三": 3,
-    "四": 4,
-    "五": 5,
-    "六": 6,
-    "七": 7,
-    "八": 8,
-    "九": 9,
-    "十": 10,
-    "百": 100,
-    "千": 1000,
-}
 
 
 def _chinese_to_int(text: str) -> int:
@@ -95,10 +78,6 @@ def _chinese_to_int(text: str) -> int:
             num = _CN_NUM[c]
     total += num
     return total
-
-
-_TITLE_RE = re.compile(r"^中华人民共和国.*")
-_DATE_RE = re.compile(r"（(\d{4})年(\d+)月(\d+)日.*?通过")
 
 
 @dataclass
