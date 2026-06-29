@@ -94,7 +94,7 @@ harness/
 ├── replay/       回放系统（录制 + 回放 + 存储管理）
 ├── eval/         评测系统（数据集 + 指标 + 评分流水线）
 ├── regression/   回归系统（测试套件 + 对比器）
-├── rag/          知识库（Embedding + 向量存储 + 检索 + Reranker）
+├── rag/          知识库（Embedding + 向量存储 + 检索 + 稀疏检索 + Reranker）
 ├── web/          FastAPI Web 界面（审查 + 会话 + 追问）
 ├── cli/          命令行入口（click + rich）
 ├── core/         核心类型（pydantic）、配置、异常
@@ -164,7 +164,8 @@ agent = ContractAgent(llm, knowledge_base=kb)
 - **Embedding**：支持 OpenAI API（默认）和本地 sentence-transformers 模型
 - **向量存储**：Chroma 持久化，HNSW ANN 近似搜索
 - **文档解析**：支持 TXT / JSON / PDF / DOCX / ZIP（自动解压提取）格式；可选 Docling 引擎（PDF/DOCX/PPTX/图片 → 结构化 Markdown）
-- **分块策略**：AI 智能分块（可选 LLM 驱动）→ 段落级 → 句子级 → 字符回退
+- **分块策略**：AI 智能分块（可选 LLM 驱动）→ 逐条法律分块 → 段落级 → 句子级 → 字符回退
+- **检索策略**：默认稠密向量 ANN 检索；可启用**混合检索**（稠密 + BM25 稀疏 + RRF 融合），提升法律术语精确匹配
 - **重排序**：支持 Reranker 精排，在向量检索后对候选结果重新打分排序（OpenAI API / local cross-encoder）
 - **种子数据**：内置 7 部常用法律条文（民法典合同编、劳动合同法、数据安全法、个人信息保护法、反垄断法、公司法、商标法），`harness kb seed` 一键导入
 
@@ -265,6 +266,7 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `RERANK_API_KEY` | Reranker API 密钥 | 同 `OPENAI_API_KEY` |
 | `RERANK_API_BASE` | Reranker API 地址 | 同 `OPENAI_API_BASE` |
 | `RERANK_MODEL` | Reranker 模型 | `rerank-v1` |
+| `ENABLE_HYBRID_SEARCH` | 启用混合检索（稠密+BM25+RRF） | `false` |
 | `VECTOR_STORE_BACKEND` | 向量存储后端（已废弃，仅支持 chroma） | `chroma` |
 | `HTTP_PROXY` | 通用代理（回退） | - |
 | `HARNESS_DATA_DIR` | 数据根目录（知识库、回放、记忆等） | 项目下 `.harness/` |
@@ -344,7 +346,7 @@ def search(ctx: click.Context, query: str, top_k: int) -> None:
 ```bash
 conda activate contract-harness
 pip install -e ".[dev]"
-pytest tests/ -v             # 运行 94 个单元测试
+pytest tests/ -v             # 运行 146 个单元测试
 ruff check harness/ tests/   # 代码检查
 ruff format --check harness/ tests/  # 格式检查
 pyright harness/             # 类型检查

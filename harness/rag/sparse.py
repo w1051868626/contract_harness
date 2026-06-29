@@ -101,6 +101,7 @@ class SparseRetriever:
     def _tokenize(text: str) -> list[str]:
         """BM25 分词：中文单字 + 英文单词。"""
         import re
+
         tokens: list[str] = []
         for match in re.finditer(r"[a-zA-Z0-9]+|[\u4e00-\u9fff]", text):
             tokens.append(match.group(0).lower())

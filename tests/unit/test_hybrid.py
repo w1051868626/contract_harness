@@ -48,7 +48,12 @@ class TestSparseRetriever:
     def test_build_and_search(self):
         chunks = [
             Chunk(id="1", document_id="d", content="违约责任包括继续履行和赔偿损失", chunk_index=0),
-            Chunk(id="2", document_id="d", content="当事人一方不履行合同义务应当承担违约责任", chunk_index=1),
+            Chunk(
+                id="2",
+                document_id="d",
+                content="当事人一方不履行合同义务应当承担违约责任",
+                chunk_index=1,
+            ),
             Chunk(id="3", document_id="d", content="知识产权归属及保密条款", chunk_index=2),
         ]
         retriever = SparseRetriever()
