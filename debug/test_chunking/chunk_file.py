@@ -30,8 +30,7 @@ def chunk_text(text: str, source: str, chunk_size: int, overlap: int):
         (KnowledgeBase._chunk_law_text, "_chunk_law_text"),
         (KnowledgeBase._chunk_legal_text, "_chunk_legal_text"),
     ]:
-        args = (text, src.name, chunk_size) if tag == "_chunk_law_text" else (text, src.name, chunk_size, overlap)
-        ck = chunker(*args)
+        ck = chunker(text, src.name, chunk_size, overlap)
         if ck:
             results.append((tag, ck))
             return results

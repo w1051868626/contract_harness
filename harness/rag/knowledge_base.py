@@ -826,8 +826,9 @@ class KnowledgeBase:
         text: str,
         doc_id: str,
         chunk_size: int,
+        overlap: int = 0,
     ) -> list[Chunk] | None:
-        """法律文本逐行解析分块：按条聚合，超长条递归切分。
+        """法律文本逐行解析分块：按条聚合，超长条递归切分（overlap 参数预留，当前未使用）。
 
         逐行扫描，识别法律名称、发布日期、章、节、条号；
         每条内容聚合成一个 buffer，超 chunk_size 时按分隔符
