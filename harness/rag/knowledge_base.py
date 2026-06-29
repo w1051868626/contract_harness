@@ -296,29 +296,29 @@ class KnowledgeBase:
         if use_ai and self._chunk_llm is not None:
             logger.debug("使用 AI 分块")
             try:
-                return self._chunk_with_ai(content, doc_id)
+                return self.chunk_with_ai(content, doc_id)
             except (ValueError, json.JSONDecodeError, RuntimeError):
                 logger.warning("AI 分块失败，回退到传统分块", exc_info=True)
         try:
-            md = self._chunk_markdown(content, doc_id, chunk_size, chunk_overlap)
+            md = self.chunk_markdown(content, doc_id, chunk_size, chunk_overlap)
             if md is not None:
                 logger.debug("使用 Markdown 结构化分块: chunks={}", len(md))
                 return md
-            law = self._chunk_law_text(content, doc_id, chunk_size)
+            law = self.chunk_law_text(content, doc_id, chunk_size)
             if law is not None:
                 logger.debug("使用逐条法律分块: chunks={}", len(law))
                 return law
-            legal = self._chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
+            legal = self.chunk_legal_text(content, doc_id, chunk_size, chunk_overlap)
             if legal is not None:
                 logger.debug("使用法律条文分块: chunks={}", len(legal))
                 return legal
             logger.debug("使用通用文本分块")
-            return self._chunk_text(content, doc_id, chunk_size, chunk_overlap)
+            return self.chunk_text(content, doc_id, chunk_size, chunk_overlap)
         except Exception as exc:
             # 将各分块策略的异常统一为 ChunkingError
             raise ChunkingError(f"所有分块策略均失败: {exc}") from exc
 
-    def _chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
+    def chunk_with_ai(self, text: str, doc_id: str) -> list[Chunk]:
         """使用 LLM 对文本进行智能分块，超长文本自动分段后合并。"""
         if self._chunk_llm is None:
             raise RuntimeError("chunk_llm 未初始化")
@@ -623,7 +623,7 @@ class KnowledgeBase:
         return m
 
     @staticmethod
-    def _chunk_markdown(
+    def chunk_markdown(
         text: str,
         doc_id: str,
         chunk_size: int,
@@ -822,7 +822,7 @@ class KnowledgeBase:
         return content
 
     @staticmethod
-    def _chunk_law_text(
+    def chunk_law_text(
         text: str,
         doc_id: str,
         chunk_size: int,
@@ -985,7 +985,7 @@ class KnowledgeBase:
         return idx
 
     @staticmethod
-    def _chunk_legal_text(
+    def chunk_legal_text(
         text: str,
         doc_id: str,
         chunk_size: int,
@@ -993,7 +993,7 @@ class KnowledgeBase:
     ) -> list[Chunk] | None:
         """法律条文层级回退分块（编→章→节→条→款→项→换行）。
 
-        作为 _chunk_law_text 的 fallback，处理非规范格式的法律文本。
+        作为 chunk_law_text 的 fallback，处理非规范格式的法律文本。
         """
         if not _ART_SEARCH_RE.search(text):
             return None
@@ -1065,7 +1065,7 @@ class KnowledgeBase:
         return chunks
 
     @staticmethod
-    def _chunk_text(
+    def chunk_text(
         text: str,
         doc_id: str,
         chunk_size: int,

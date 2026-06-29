@@ -51,15 +51,15 @@ def _try_chunk(text, label):
     print(f"  {label}")
     print(f"{'='*60}")
     # 按 _resolve_chunks 优先级尝试
-    ck = KnowledgeBase._chunk_markdown(text, "test", CHUNK_SIZE, OVERLAP)
+    ck = KnowledgeBase.chunk_markdown(text, "test", CHUNK_SIZE, OVERLAP)
     if ck is not None:
         tag = "_chunk_markdown"
     else:
-        ck = KnowledgeBase._chunk_law_text(text, "test", CHUNK_SIZE, OVERLAP)
+        ck = KnowledgeBase.chunk_law_text(text, "test", CHUNK_SIZE, OVERLAP)
         if ck is not None:
             tag = "_chunk_law_text"
         else:
-            ck = KnowledgeBase._chunk_text(text, "test", CHUNK_SIZE, OVERLAP)
+            ck = KnowledgeBase.chunk_text(text, "test", CHUNK_SIZE, OVERLAP)
             tag = "_chunk_text"
     print(f"  分块器: {tag}")
     print(f"  切片数: {len(ck)}")

@@ -26,17 +26,17 @@ def chunk_text(text: str, source: str, chunk_size: int, overlap: int):
     src = Path(source)
 
     for chunker, tag in [
-        (KnowledgeBase._chunk_markdown, "_chunk_markdown"),
-        (KnowledgeBase._chunk_law_text, "_chunk_law_text"),
-        (KnowledgeBase._chunk_legal_text, "_chunk_legal_text"),
+        (KnowledgeBase.chunk_markdown, "chunk_markdown"),
+        (KnowledgeBase.chunk_law_text, "chunk_law_text"),
+        (KnowledgeBase.chunk_legal_text, "chunk_legal_text"),
     ]:
         ck = chunker(text, src.name, chunk_size, overlap)
         if ck:
             results.append((tag, ck))
             return results
 
-    ck = KnowledgeBase._chunk_text(text, src.name, chunk_size, overlap)
-    results.append(("_chunk_text", ck))
+    ck = KnowledgeBase.chunk_text(text, src.name, chunk_size, overlap)
+    results.append(("chunk_text", ck))
     return results
 
 

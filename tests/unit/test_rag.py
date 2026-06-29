@@ -128,18 +128,18 @@ class TestKnowledgeBase:
     def test_chunk_text(self):
         """长文本应按 chunk_size 正确分块。"""
         text = "A" * 1000
-        chunks = KnowledgeBase._chunk_text(text, "doc1", chunk_size=300, overlap=30)
+        chunks = KnowledgeBase.chunk_text(text, "doc1", chunk_size=300, overlap=30)
         assert len(chunks) >= 3
         assert chunks[0].document_id == "doc1"
 
     def test_chunk_text_small(self):
         """短文本应只返回一个 Chunk。"""
-        chunks = KnowledgeBase._chunk_text("small text", "doc1", chunk_size=300, overlap=30)
+        chunks = KnowledgeBase.chunk_text("small text", "doc1", chunk_size=300, overlap=30)
         assert len(chunks) == 1
 
     def test_chunk_legal_non_legal(self):
         """非法律文本应返回 None。"""
-        result = KnowledgeBase._chunk_legal_text("hello world", "doc1", 200, 30)
+        result = KnowledgeBase.chunk_legal_text("hello world", "doc1", 200, 30)
         assert result is None
 
     def test_chunk_legal_preserves_article_boundary(self):
@@ -155,7 +155,7 @@ class TestKnowledgeBase:
 除相对人知道或者应当知道其超越权限外，该代表行为有效。
 
 第五百零五条 当事人超越经营范围订立的合同的效力，应当依照本法有关规定确定。"""
-        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 200, 30)
+        chunks = KnowledgeBase.chunk_legal_text(text, "doc1", 200, 30)
         assert chunks is not None
         for c in chunks:
             assert re.match(
@@ -173,7 +173,7 @@ class TestKnowledgeBase:
 （五）为公共利益实施新闻报道、舆论监督等行为，在合理的范围内处理个人信息；
 （六）依照本法规定在合理的范围内处理个人自行公开或者其他已经合法公开的个人信息；
 （七）法律、行政法规规定的其他情形。"""
-        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 150, 30)
+        chunks = KnowledgeBase.chunk_legal_text(text, "doc1", 150, 30)
         assert chunks is not None
         assert len(chunks) > 1, "Long article should be split into multiple chunks"
 
@@ -186,7 +186,7 @@ class TestKnowledgeBase:
 第二章 合同的订立
 
 第二条 本法所称合同是平等主体的自然人、法人、其他组织之间设立、变更、终止民事权利义务关系的协议。"""
-        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 200, 30)
+        chunks = KnowledgeBase.chunk_legal_text(text, "doc1", 200, 30)
         assert chunks is not None
         assert any("第一章" in c.content for c in chunks)
         assert any("第二章" in c.content for c in chunks)
@@ -204,7 +204,7 @@ class TestKnowledgeBase:
 第二条 合同是平等主体之间设立、变更、终止民事权利义务关系的协议。
 
 第三条 当事人订立合同，应当具有相应的民事权利能力和民事行为能力。"""
-        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 300, 30)
+        chunks = KnowledgeBase.chunk_legal_text(text, "doc1", 300, 30)
         assert chunks is not None
         assert chunks[0].metadata.get("chapter") == "第一章 总则"
         has_articles = any("articles" in c.metadata for c in chunks)
@@ -310,13 +310,13 @@ class TestChunkMarkdown:
     def test_non_markdown_returns_none(self):
         """不含 Markdown 标题时返回 None。"""
         text = "这是一段纯文本\n没有标题\n只有段落"
-        result = KnowledgeBase._chunk_markdown(text, "doc1", 200, 30)
+        result = KnowledgeBase.chunk_markdown(text, "doc1", 200, 30)
         assert result is None
 
     def test_markdown_single_chunk(self):
         """短 Markdown 文本应合并为单个 Chunk。"""
         text = "# 第一章\n\n第一条 依法成立的合同，自成立时生效。"
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 500, 30)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 500, 30)
         assert chunks is not None
         assert len(chunks) == 1
         assert "第一章" in chunks[0].content
@@ -329,7 +329,7 @@ class TestChunkMarkdown:
             "# 第二章 合同的订立\n\n"
             "第二条 本法所称合同是平等主体的自然人之间设立民事权利义务关系的协议。"
         )
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 40, 10)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 40, 10)
         assert chunks is not None
         assert len(chunks) >= 2
         assert any("第一章" in c.content for c in chunks)
@@ -338,7 +338,7 @@ class TestChunkMarkdown:
     def test_markdown_heading_stays_with_content(self):
         """标题应与其后内容在同个 Chunk 中。"""
         text = "# 保密条款\n\n双方应对合同内容严格保密。"
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 500, 30)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 500, 30)
         assert chunks is not None
         assert len(chunks) == 1
         assert chunks[0].content.startswith("# 保密条款")
@@ -346,7 +346,7 @@ class TestChunkMarkdown:
     def test_markdown_metadata_chapter(self):
         """Markdown 标题应设置 chunk metadata.chapter。"""
         text = "# 第一章 总则\n\n第一条 合同自成立时生效。\n\n" + "# 第二章 合同的订立\n\n" * 3
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 40, 10)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 40, 10)
         assert chunks is not None
         assert len(chunks) >= 2
         ch1 = [c for c in chunks if "第一章" in c.content]
@@ -357,7 +357,7 @@ class TestChunkMarkdown:
     def test_markdown_metadata_section(self):
         """子标题应设置 chunk metadata.section，同时保留 chapter。"""
         text = "# 第一章 总则\n\n## 第一节 一般规定\n\n第一条 内容。\n\n# 第二章 合同的订立\n\n## 第一节 订立方式\n\n第二条 内容。"
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 200, 10)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 200, 10)
         assert chunks is not None
         assert len(chunks) >= 2
         s1 = [c for c in chunks if "第一节 一般规定" in c.content]
@@ -370,7 +370,7 @@ class TestChunkMarkdown:
     def test_markdown_metadata_articles(self):
         """条款范围应记入 metadata.articles。"""
         text = "# 第一章\n\n第一条 内容一。\n\n第二条 内容二。\n\n第三条 内容三。"
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 100, 10)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 100, 10)
         assert chunks is not None
         assert any(
             c.metadata.get("articles") and "第一条" in c.metadata["articles"] for c in chunks
@@ -379,7 +379,7 @@ class TestChunkMarkdown:
     def test_chinese_numbered_heading(self):
         """# 下的中文数字编号（一、）应作为章节边界。"""
         text = "# 一、总则\n\n第一条 内容。\n\n# 二、合同的订立\n\n第二条 内容。"
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 40, 10)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 40, 10)
         assert chunks is not None
         assert len(chunks) >= 2
         c1 = [c for c in chunks if "总则" in c.content]
@@ -390,7 +390,7 @@ class TestChunkMarkdown:
     def test_arabic_numbered_heading(self):
         """# 下的阿拉伯数字编号（1. / 2.）应作为章节边界。"""
         text = "# 1. General\n\nArt 1 Content.\n\n# 2. Contract\n\nArt 2 Content."
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 40, 10)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 40, 10)
         assert chunks is not None
         assert len(chunks) >= 2
         c1 = [c for c in chunks if "General" in c.content]
@@ -401,7 +401,7 @@ class TestChunkMarkdown:
     def test_subsection_numbered_heading(self):
         """# 下的子编号（1.1 / 2.1）应作为 section 边界。"""
         text = "# 1. Chapter\n\n## 1.1 Section A\n\nContent A.\n\n## 1.2 Section B\n\nContent B."
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 200, 10)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 200, 10)
         assert chunks is not None
         assert len(chunks) >= 2
         s1 = [c for c in chunks if "Section A" in c.content]
@@ -412,7 +412,7 @@ class TestChunkMarkdown:
     def test_parenthesized_heading(self):
         """# 下的括号编号（（一））应作为 section 边界。"""
         text = "# 第一章 总则\n\n## （一）保密义务\n\n保密内容。\n\n## （二）违约责任\n\n违约后果。"
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 200, 10)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 200, 10)
         assert chunks is not None
         assert len(chunks) >= 2
         s1 = [c for c in chunks if "保密义务" in c.content]
@@ -427,7 +427,7 @@ class TestChunkMarkdown:
             "# 第二章 合同的订立\n\n第二条 依法成立的合同，自成立时生效。\n\n"
             "# 第三章 违约责任\n\n第三条 违约方应当承担责任。"
         )
-        chunks = KnowledgeBase._chunk_markdown(text, "doc1", 60, 10)
+        chunks = KnowledgeBase.chunk_markdown(text, "doc1", 60, 10)
         assert chunks is not None
         assert len(chunks) >= 2
         ch1 = [c for c in chunks if "第一章" in c.content]
@@ -455,13 +455,13 @@ class TestChunkLegalText:
     def test_non_legal_returns_none(self):
         """不含第X条时返回 None。"""
         text = "这是一段普通文本\n没有法律条文结构"
-        result = KnowledgeBase._chunk_legal_text(text, "doc1", 200, 30)
+        result = KnowledgeBase.chunk_legal_text(text, "doc1", 200, 30)
         assert result is None
 
     def test_basic_legal_chunking(self):
         """法律条文应按条分割为多个 chunk（小 chunk_size 强制按条切）。"""
         text = "第一条 保护合同当事人。\n第二条 依法成立合同。\n第三条 违约承担责任。"
-        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 30, 0)
+        chunks = KnowledgeBase.chunk_legal_text(text, "doc1", 30, 0)
         assert chunks is not None
         assert len(chunks) >= 2
         assert all(c.chunk_index == i for i, c in enumerate(chunks))
@@ -469,7 +469,7 @@ class TestChunkLegalText:
     def test_legal_chapter_metadata(self):
         """章标题应设置 metadata.chapter。"""
         text = "第一章 总则\n第一条 保护合同当事人。\n第二条 依法成立合同。\n第二章 订立\n第三条 违约承担责任。"
-        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 30, 0)
+        chunks = KnowledgeBase.chunk_legal_text(text, "doc1", 30, 0)
         assert chunks is not None
         ch1 = [c for c in chunks if "第一条" in c.content]
         ch2 = [c for c in chunks if "第三条" in c.content]
@@ -479,7 +479,7 @@ class TestChunkLegalText:
     def test_legal_overlap(self):
         """chunk 间 overlap 应携带上一片尾部内容。"""
         long_texts = "\n".join(f"第{i}条 " + "内容" * 10 + "。" for i in range(1, 21))
-        chunks = KnowledgeBase._chunk_legal_text(long_texts, "doc1", 80, 30)
+        chunks = KnowledgeBase.chunk_legal_text(long_texts, "doc1", 80, 30)
         assert chunks is not None
         assert len(chunks) >= 2
         tail = chunks[0].content[-30:]
@@ -488,14 +488,14 @@ class TestChunkLegalText:
     def test_legal_single_chunk(self):
         """短法律文本应合并为单个 chunk。"""
         text = "第一条 依法成立的合同，自成立时生效。"
-        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 500, 30)
+        chunks = KnowledgeBase.chunk_legal_text(text, "doc1", 500, 30)
         assert chunks is not None
         assert len(chunks) == 1
 
     def test_legal_article_range_metadata(self):
         """多条 chunk 应标注文章范围。"""
         text = "第一条 内容一。\n第二条 内容二。\n第三条 内容三。\n第四条 内容四。"
-        chunks = KnowledgeBase._chunk_legal_text(text, "doc1", 20, 0)
+        chunks = KnowledgeBase.chunk_legal_text(text, "doc1", 20, 0)
         assert chunks is not None
         assert any("articles" in c.metadata and "条" in c.metadata["articles"] for c in chunks)
 

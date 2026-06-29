@@ -75,12 +75,12 @@ def run_chunking_demo(file_path: Path):
     print(f"\n{'='*60}")
     print("  方式一：全文一次性切片 (_chunk_legal_text)")
     print(f"{'='*60}")
-    legal = KnowledgeBase._chunk_legal_text(text, doc_id, CHUNK_SIZE, OVERLAP)
+    legal = KnowledgeBase.chunk_legal_text(text, doc_id, CHUNK_SIZE, OVERLAP)
     if legal:
         _report_chunks(legal, "legal_text")
     else:
         print("  → _chunk_legal_text 未命中（无语条模式），降级 _chunk_text：")
-        txt = KnowledgeBase._chunk_text(text, doc_id, CHUNK_SIZE, OVERLAP)
+        txt = KnowledgeBase.chunk_text(text, doc_id, CHUNK_SIZE, OVERLAP)
         _report_chunks(txt, "text")
 
     # 按行切片（每条法律独立 entry，模拟 kb.add_text）
@@ -92,9 +92,9 @@ def run_chunking_demo(file_path: Path):
         line = line.strip()
         if not line:
             continue
-        chunks = KnowledgeBase._chunk_legal_text(line, doc_id, CHUNK_SIZE, OVERLAP)
+        chunks = KnowledgeBase.chunk_legal_text(line, doc_id, CHUNK_SIZE, OVERLAP)
         if chunks is None:
-            chunks = KnowledgeBase._chunk_text(line, doc_id, CHUNK_SIZE, OVERLAP)
+            chunks = KnowledgeBase.chunk_text(line, doc_id, CHUNK_SIZE, OVERLAP)
         all_chunks.extend(chunks)
     _report_chunks(all_chunks, "per-line")
 
