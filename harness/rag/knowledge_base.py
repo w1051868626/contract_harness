@@ -313,7 +313,7 @@ class KnowledgeBase:
             if md is not None:
                 logger.debug("使用 Markdown 结构化分块: chunks={}", len(md))
                 return md
-            law = self._chunk_law_text(content, doc_id, chunk_size, chunk_overlap)
+            law = self._chunk_law_text(content, doc_id, chunk_size)
             if law is not None:
                 logger.debug("使用逐条法律分块: chunks={}", len(law))
                 return law
@@ -826,7 +826,6 @@ class KnowledgeBase:
         text: str,
         doc_id: str,
         chunk_size: int,
-        _overlap: int = 0,
     ) -> list[Chunk] | None:
         """法律文本逐行解析分块：按条聚合，超长条递归切分。
 
