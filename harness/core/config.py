@@ -82,6 +82,9 @@ class EmbeddingConfig:
     rerank_api_key: str = ""
     rerank_api_base: str = ""
 
+    enable_hybrid_search: bool = False
+    rrf_k: int = 60
+
     def __post_init__(self):
         """从环境变量自动补充嵌入 API 密钥与地址。"""
         self.provider = os.getenv("EMBEDDING_PROVIDER", self.provider)

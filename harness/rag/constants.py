@@ -10,6 +10,10 @@ from enum import Enum
 CHUNK_MAX_CHARS = 8000
 EMBED_MAX_CHARS = 1024 * 8
 
+# ===== 混合检索参数 =====
+
+RRF_K = 60
+
 # ===== 提示词模板 =====
 
 CHUNK_SYSTEM_PROMPT = "你是文档分块专家，严格按 JSON 格式输出。"

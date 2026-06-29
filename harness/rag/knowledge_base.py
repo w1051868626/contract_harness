@@ -41,12 +41,14 @@ from harness.rag.constants import (
     CHUNK_SYSTEM_PROMPT,
     EXPANSION_SYSTEM_PROMPT,
     QUERY_EXPANSION_PROMPT,
+    RRF_K,
     DocType,
     MetaKey,
 )
 from harness.rag.docling_parser import DoclingParser
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.reranker import Reranker, create_reranker
+from harness.rag.sparse import SparseRetriever, rrf_fuse
 from harness.rag.vector_store import Chunk, Document, VectorStore, create_vector_store
 from harness.utils.io import normalize_text as _util_normalize
 from harness.utils.log import logger
@@ -159,6 +161,8 @@ class KnowledgeBase:
         chunk_model: str = "gpt-4o-mini",
         chunk_llm: LLMClient | None = None,
         expansion_llm: LLMClient | None = None,
+        sparse_retriever: SparseRetriever | None = None,
+        rrf_k: int = RRF_K,
     ):
         """初始化知识库。"""
         self._store = store
@@ -168,6 +172,8 @@ class KnowledgeBase:
         self._chunk_model = chunk_model
         self._chunk_llm = chunk_llm
         self._expansion_llm = expansion_llm or llm
+        self._sparse_retriever = sparse_retriever
+        self._rrf_k = rrf_k
 
     @property
     def store(self) -> VectorStore:
@@ -211,14 +217,16 @@ class KnowledgeBase:
         expansion_llm = (
             LLMClient(expansion_cfg) if expansion_cfg.api_key and expansion_cfg.model else None
         )
+        sparse = SparseRetriever() if cfg.embedding.enable_hybrid_search else None
         logger.debug(
             "KnowledgeBase.from_config: kb_dir={}, embedding={}, reranker={},"
-            " chunk_llm={}, expansion_llm={}",
+            " chunk_llm={}, expansion_llm={}, hybrid={}",
             cfg.kb_dir,
             cfg.embedding.provider,
             cfg.embedding.rerank_provider or "none",
             chunk_cfg.model if chunk_llm else "none",
             expansion_cfg.model if expansion_llm else "none",
+            "on" if sparse else "off",
         )
         return cls(
             store=store,
@@ -228,6 +236,8 @@ class KnowledgeBase:
             chunk_llm=chunk_llm,
             chunk_model=cfg.llm.chunk_model,
             expansion_llm=expansion_llm,
+            sparse_retriever=sparse,
+            rrf_k=cfg.embedding.rrf_k,
         )
 
     @staticmethod
@@ -267,6 +277,8 @@ class KnowledgeBase:
             for chunk, emb in zip(chunks, embeddings):
                 chunk.embedding = emb
             self._store.add_chunks(chunks)
+            if self._sparse_retriever is not None:
+                self._sparse_retriever.add_chunks(chunks)
             logger.debug("添加文本: title={}, doc_id={}, chunks={}", title, doc_id, len(chunks))
         else:
             logger.warning("添加文本无分块: title={}, doc_id={}", title, doc_id)
@@ -522,9 +534,18 @@ class KnowledgeBase:
         return candidates[:top_k]
 
     def _search_single(self, text: str, top_k: int) -> list[Chunk]:
-        """单次语义检索（含可选的 rerank）。"""
+        """单次检索（稠密 + 可选 BM25 稀疏 + RRF 融合，含可选 rerank）。"""
         query_emb = self._embedding.embed(text)
-        candidates = self._store.search(query_emb, top_k=top_k * 2 if self._reranker else top_k)
+        dense_candidates = self._store.search(
+            query_emb, top_k=top_k * 2 if (self._reranker or self._sparse_retriever) else top_k
+        )
+
+        if self._sparse_retriever is not None:
+            sparse_candidates = self._sparse_retriever.search(text, top_k=top_k * 2)
+            candidates = rrf_fuse(dense_candidates, sparse_candidates, top_k, k=self._rrf_k)
+        else:
+            candidates = dense_candidates[:top_k]
+
         if self._reranker and len(candidates) > 1:
             return self._reranker.rerank(text, candidates, top_k=top_k)
         return candidates[:top_k]
