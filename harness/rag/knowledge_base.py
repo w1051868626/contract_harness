@@ -379,8 +379,8 @@ class KnowledgeBase:
 
     @staticmethod
     def _extract_zip_texts(path: Path) -> list[tuple[str, str]]:
-        """解压 zip，返回 (内部文件名, 解析文本) 列表。"""
-        supported = {".txt", ".md", ".json", ".pdf", ".docx"}
+        """解压 zip，返回 (内部文件名, 解析文本) 列表。支持嵌套 zip。"""
+        supported = {".txt", ".md", ".json", ".pdf", ".docx", ".zip"}
         results: list[tuple[str, str]] = []
         with zipfile.ZipFile(path) as zf:
             for info in zf.infolist():
@@ -394,10 +394,14 @@ class KnowledgeBase:
                     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
                         tmp.write(raw)
                         tmp_path = Path(tmp.name)
-                    content = KnowledgeBase._parse_file(tmp_path)
+                    if ext == ".zip":
+                        nested = KnowledgeBase._extract_zip_texts(tmp_path)
+                        results.extend(nested)
+                    else:
+                        content = KnowledgeBase._parse_file(tmp_path)
+                        if content.strip():
+                            results.append((info.filename, content))
                     tmp_path.unlink(missing_ok=True)
-                    if content.strip():
-                        results.append((info.filename, content))
                 except (json.JSONDecodeError, KeyError, OSError, zipfile.BadZipFile):
                     logger.warning("ZIP 中文件解析失败: {}", info.filename, exc_info=True)
                     continue
