@@ -282,8 +282,9 @@ def kb() -> None:
 @kb.command()
 @click.argument("file_path", type=click.Path(exists=True))
 @click.option("--docling", is_flag=True, help="使用 Docling 解析（保留结构）")
+@click.option("--work-dir", default=None, help="临时文件目录（Windows 上 C 盘空间不足时指定其他盘符）")
 @click.pass_context
-def import_file(ctx: click.Context, file_path: str, docling: bool) -> None:
+def import_file(ctx: click.Context, file_path: str, docling: bool, work_dir: str | None) -> None:
     """将单个文件导入知识库（zip 会自动解压分别导入）。"""
     config: HarnessConfig = ctx.obj["config"]
     config.use_docling = docling
@@ -291,7 +292,7 @@ def import_file(ctx: click.Context, file_path: str, docling: bool) -> None:
     kb_instance = KnowledgeBase.from_config(config)
     logger.info("正在导入文件: {}", Path(file_path).name)
     if file_path.lower().endswith(".zip"):
-        doc_ids = kb_instance.add_zip(Path(file_path))
+        doc_ids = kb_instance.add_zip(Path(file_path), work_dir=work_dir)
         if doc_ids:
             logger.info("导入成功: {}", Path(file_path).name)
             for did in doc_ids:
@@ -309,8 +310,9 @@ def import_file(ctx: click.Context, file_path: str, docling: bool) -> None:
 @kb.command()
 @click.argument("directory", type=click.Path(exists=True, file_okay=False))
 @click.option("--docling", is_flag=True, help="使用 Docling 解析（保留结构）")
+@click.option("--work-dir", default=None, help="临时文件目录（Windows 上 C 盘空间不足时指定其他盘符）")
 @click.pass_context
-def import_dir(ctx: click.Context, directory: str, docling: bool) -> None:
+def import_dir(ctx: click.Context, directory: str, docling: bool, work_dir: str | None) -> None:
     """批量导入目录下所有支持的文件。"""
     config: HarnessConfig = ctx.obj["config"]
     config.use_docling = docling
@@ -324,7 +326,7 @@ def import_dir(ctx: click.Context, directory: str, docling: bool) -> None:
     for f in files:
         logger.info("正在导入 {}...", f.name)
         if f.suffix.lower() == ".zip":
-            doc_ids = kb_instance.add_zip(f)
+            doc_ids = kb_instance.add_zip(f, work_dir=work_dir)
             logger.info("  + {} ({} 篇)", f.name, len(doc_ids))
         else:
             doc_id = kb_instance.add_file(str(f))

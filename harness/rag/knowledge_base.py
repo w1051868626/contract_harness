@@ -378,8 +378,13 @@ class KnowledgeBase:
         )
 
     @staticmethod
-    def extract_zip_texts(path: Path) -> list[tuple[str, str]]:
-        """解压 zip，返回 (内部文件名, 解析文本) 列表。支持嵌套 zip。"""
+    def extract_zip_texts(path: Path, work_dir: str | None = None) -> list[tuple[str, str]]:
+        """解压 zip，返回 (内部文件名, 解析文本) 列表。支持嵌套 zip。
+
+        Args:
+            path: ZIP 文件路径。
+            work_dir: 临时文件解压目录（如 Windows 上 C 盘空间不足时可指定其他盘符）。
+        """
         supported = {".txt", ".md", ".json", ".pdf", ".docx", ".zip"}
         results: list[tuple[str, str]] = []
         with zipfile.ZipFile(path) as zf:
@@ -391,17 +396,16 @@ class KnowledgeBase:
                     continue
                 try:
                     raw = zf.read(info.filename)
-                    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-                        tmp.write(raw)
-                        tmp_path = Path(tmp.name)
-                    if ext == ".zip":
-                        nested = KnowledgeBase.extract_zip_texts(tmp_path)
-                        results.extend(nested)
-                    else:
-                        content = KnowledgeBase.parse_file(tmp_path)
-                        if content.strip():
-                            results.append((info.filename, content))
-                    tmp_path.unlink(missing_ok=True)
+                    with tempfile.TemporaryDirectory(dir=work_dir) as tmpdir:
+                        tmp_path = Path(tmpdir) / Path(info.filename).name
+                        tmp_path.write_bytes(raw)
+                        if ext == ".zip":
+                            nested = KnowledgeBase.extract_zip_texts(tmp_path, work_dir=work_dir)
+                            results.extend(nested)
+                        else:
+                            content = KnowledgeBase.parse_file(tmp_path)
+                            if content.strip():
+                                results.append((info.filename, content))
                 except (json.JSONDecodeError, KeyError, OSError, zipfile.BadZipFile):
                     logger.warning("ZIP 中文件解析失败: {}", info.filename, exc_info=True)
                     continue
@@ -413,11 +417,16 @@ class KnowledgeBase:
         chunk_size: int = 512,
         chunk_overlap: int = 64,
         use_ai_chunking: bool = True,
+        work_dir: str | None = None,
     ) -> list[str]:
-        """解压 zip 并以内部文件名为标题分别导入。"""
+        """解压 zip 并以内部文件名为标题分别导入。
+
+        Args:
+            work_dir: 临时文件解压目录（如 Windows 上 C 盘空间不足时可指定其他盘符）。
+        """
         doc_ids: list[str] = []
         logger.debug("解压 zip 导入: path={}", path)
-        for filename, content in KnowledgeBase.extract_zip_texts(path):
+        for filename, content in KnowledgeBase.extract_zip_texts(path, work_dir=work_dir):
             try:
                 title = Path(filename).stem
                 doc_id = self.add_text(
