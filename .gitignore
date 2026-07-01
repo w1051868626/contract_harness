@@ -30,3 +30,8 @@ coverage.xml
 
 *.env
 !example.envdebug/test_chunking/chinese-laws/
+*.zip
+*.docx
+*test*
+!tests/**
+*.json
