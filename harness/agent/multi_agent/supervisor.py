@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from harness.core.types import (
@@ -127,6 +128,10 @@ class SupervisorAgent:
                         )
                     )
 
+        report_raw = ""
+        if arbitration_results:
+            report_raw = json.dumps({"arbitration": arbitration_results}, ensure_ascii=False)
+
         overall_risk = self._compute_overall_risk(risks)
         summary = self._build_summary(clauses, risks, compliance)
         return ReviewReport(
@@ -138,6 +143,7 @@ class SupervisorAgent:
             risks=risks,
             compliance_checks=compliance,
             overall_risk=overall_risk,
+            raw_output=report_raw,
         )
 
     @staticmethod

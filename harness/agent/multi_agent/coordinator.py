@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 
 from harness.agent.llm import LLMClient
 from harness.agent.memory import MemoryStore
 from harness.agent.multi_agent.supervisor import SupervisorAgent
 from harness.agent.multi_agent.validator import CrossValidator
 from harness.agent.multi_agent.worker import WorkerAgent
-from harness.core.types import AgentSession, AgentStep, ContractDocument, ReviewReport, ToolCall, WorkerOutput
+from harness.core.types import (
+    AgentSession,
+    AgentStep,
+    ContractDocument,
+    ReviewReport,
+    ToolCall,
+    WorkerOutput,
+)
 from harness.utils.io import make_id
 from harness.utils.log import logger
 
@@ -97,19 +103,22 @@ class MultiAgentCoordinator:
             input={},
             started_at=datetime.now(timezone.utc).isoformat(),
         )
+        cross_validation_outputs: dict[str, str] = {}
         for role, worker in self._workers.items():
             if role not in outputs:
                 continue
             try:
                 peer = {k: v.content for k, v in outputs.items() if k != role}
                 if peer:
-                    worker.execute("确认审查结果", peer_results=peer)
+                    cv_out = worker.execute("确认审查结果", peer_results=peer)
+                    cross_validation_outputs[role] = cv_out.content[:500]
             except Exception as e:
                 logger.warning("Cross-validation for {} failed: {}", role, e)
         tc.output = "交叉验证完成"
         tc.finished_at = datetime.now(timezone.utc).isoformat()
         step.tool_calls.append(tc)
         session.steps.append(step)
+        session.metadata["cross_validation"] = cross_validation_outputs
 
         # Phase 5: 分歧检测
         disagreements = self._supervisor.validate_consensus({k: v for k, v in outputs.items() if v})

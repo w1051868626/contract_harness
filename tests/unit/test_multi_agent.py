@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from harness.agent.contract_agent import ContractAgent
 from harness.agent.llm import LLMResponse
 from harness.agent.multi_agent.coordinator import MultiAgentCoordinator
 from harness.core.types import (
@@ -355,3 +356,52 @@ class TestMultiAgentCoordinator:
         coordinator = MultiAgentCoordinator(llm=llm)
         report, session = coordinator.run(sample_document)
         assert report is not None
+
+
+class TestContractAgentMultiAgent:
+    """ContractAgent Multi-Agent 模式集成测试。"""
+
+    def test_multi_agent_mode_dispatch(self, sample_document):
+        """MULTI_AGENT 模式应正确分发到 MultiAgentCoordinator。"""
+        llm = MockLLMClient(
+            [
+                LLMResponse(
+                    content=json.dumps(
+                        [
+                            {"type": "保密", "content": "双方应保守商业秘密"},
+                            {"type": "违约责任", "content": "违约方应赔偿损失"},
+                        ],
+                        ensure_ascii=False,
+                    ),
+                    model="mock",
+                ),
+                LLMResponse(
+                    content=json.dumps(
+                        [
+                            {
+                                "clause_type": "保密",
+                                "risk_level": "low",
+                                "reason": "标准",
+                                "suggestion": "",
+                            },
+                            {
+                                "clause_type": "违约责任",
+                                "risk_level": "medium",
+                                "reason": "模糊",
+                                "suggestion": "明确",
+                            },
+                        ],
+                        ensure_ascii=False,
+                    ),
+                    model="mock",
+                ),
+                LLMResponse(content=json.dumps([], ensure_ascii=False), model="mock"),
+                LLMResponse(content="无分歧", model="mock"),
+                LLMResponse(content="无分歧", model="mock"),
+                LLMResponse(content="无分歧", model="mock"),
+            ]
+        )
+        agent = ContractAgent(llm=llm, mode=AgentMode.MULTI_AGENT)
+        report, session = agent.review(sample_document)
+        assert report.document_id == sample_document.id
+        assert session.session_id

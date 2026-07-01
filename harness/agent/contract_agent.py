@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from harness.agent.llm import LLMClient
 from harness.agent.memory import MemoryStore
+from harness.agent.multi_agent.coordinator import MultiAgentCoordinator
 from harness.agent.prompts import REVIEW_SUMMARY_PROMPT, SYSTEM_PROMPT
 from harness.agent.react_loop import ReActLoop
 from harness.agent.reflection import reflect_on_report
@@ -81,6 +82,8 @@ class ContractAgent:
             return self._review_react(document)
         if self._mode == AgentMode.REFLECTION:
             return self._review_reflection(document)
+        if self._mode == AgentMode.MULTI_AGENT:
+            return self._review_multi_agent(document)
         return self._review_pipeline(document)
 
     def _review_react(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
@@ -101,6 +104,14 @@ class ContractAgent:
         revised_report = reflect_on_report(self._llm, report)
         session.report = revised_report
         return revised_report, session
+
+    def _review_multi_agent(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
+        """Multi-Agent 模式：多 Agent 协同审查。"""
+        coordinator = MultiAgentCoordinator(
+            llm=self._llm,
+            memory_store=self._memory,
+        )
+        return coordinator.run(document)
 
     def _review_pipeline(self, document: ContractDocument) -> tuple[ReviewReport, AgentSession]:
         """管道模式：固定步骤串联执行（默认行为）。"""
