@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+
 from harness.agent.llm import LLMResponse
+from harness.agent.multi_agent.coordinator import MultiAgentCoordinator
 from harness.core.types import (
     AgentMode,
     Disagreement,
@@ -265,3 +268,90 @@ class TestSupervisorAgent:
         report = supervisor.synthesize_report(sample_document, outputs, [])
         assert isinstance(report, ReviewReport)
         assert report.document_id == sample_document.id
+
+
+class TestMultiAgentCoordinator:
+    """MultiAgentCoordinator 集成测试。"""
+
+    def test_run_returns_report_and_session(self, sample_document):
+        """全流程应返回报告和会话。"""
+        llm = MockLLMClient(
+            [
+                LLMResponse(
+                    content=json.dumps(
+                        [
+                            {"type": "保密", "content": "双方应保守商业秘密"},
+                            {"type": "违约责任", "content": "违约方应赔偿损失"},
+                        ],
+                        ensure_ascii=False,
+                    ),
+                    model="mock",
+                ),
+                LLMResponse(
+                    content=json.dumps(
+                        [
+                            {
+                                "clause_type": "保密",
+                                "risk_level": "low",
+                                "reason": "标准",
+                                "suggestion": "",
+                            },
+                            {
+                                "clause_type": "违约责任",
+                                "risk_level": "medium",
+                                "reason": "模糊",
+                                "suggestion": "明确",
+                            },
+                        ],
+                        ensure_ascii=False,
+                    ),
+                    model="mock",
+                ),
+                LLMResponse(content=json.dumps([], ensure_ascii=False), model="mock"),
+                # 3 次交叉验证 LLM 调用
+                LLMResponse(content="无分歧", model="mock"),
+                LLMResponse(content="无分歧", model="mock"),
+                LLMResponse(content="无分歧", model="mock"),
+            ]
+        )
+        coordinator = MultiAgentCoordinator(llm=llm)
+        report, session = coordinator.run(sample_document)
+        assert report.document_id == sample_document.id
+        assert session.session_id
+        assert len(session.steps) >= 3
+
+    def test_run_with_worker_failure_falls_back(self, sample_document):
+        """单个 Worker 失败时不影响整体流程。"""
+        llm = MockLLMClient(
+            [
+                LLMResponse(
+                    content=json.dumps(
+                        [
+                            {"type": "保密", "content": "保密内容"},
+                        ],
+                        ensure_ascii=False,
+                    ),
+                    model="mock",
+                ),
+                # RiskExpert 返回空（模拟失败）
+                LLMResponse(content="{}", model="mock"),
+                LLMResponse(content=json.dumps([], ensure_ascii=False), model="mock"),
+                # 交叉验证（跳过失败的 RiskExpert）
+                LLMResponse(content="ok", model="mock"),
+            ]
+        )
+        coordinator = MultiAgentCoordinator(llm=llm)
+        report, session = coordinator.run(sample_document)
+        assert report.document_id == sample_document.id
+        assert report.summary
+
+    def test_all_workers_fail_fallsback_to_pipeline(self, sample_document):
+        """全部 Worker 失败时降级到 Pipeline。"""
+        llm = MockLLMClient(
+            [
+                LLMResponse(content="{}", model="mock"),
+            ]
+        )
+        coordinator = MultiAgentCoordinator(llm=llm)
+        report, session = coordinator.run(sample_document)
+        assert report is not None
