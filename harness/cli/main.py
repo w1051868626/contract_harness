@@ -282,7 +282,7 @@ def kb() -> None:
 @kb.command()
 @click.argument("file_path", type=click.Path(exists=True))
 @click.option("--docling", is_flag=True, help="使用 Docling 解析（保留结构）")
-@click.option("--work-dir", default=None, help="临时文件目录（Windows 上 C 盘空间不足时指定其他盘符）")
+@click.option("--work-dir", default=None, help="临时文件目录（C 盘空间不足时指定）")
 @click.pass_context
 def import_file(ctx: click.Context, file_path: str, docling: bool, work_dir: str | None) -> None:
     """将单个文件导入知识库（zip 会自动解压分别导入）。"""
@@ -310,7 +310,7 @@ def import_file(ctx: click.Context, file_path: str, docling: bool, work_dir: str
 @kb.command()
 @click.argument("directory", type=click.Path(exists=True, file_okay=False))
 @click.option("--docling", is_flag=True, help="使用 Docling 解析（保留结构）")
-@click.option("--work-dir", default=None, help="临时文件目录（Windows 上 C 盘空间不足时指定其他盘符）")
+@click.option("--work-dir", default=None, help="临时文件目录（C 盘空间不足时指定）")
 @click.pass_context
 def import_dir(ctx: click.Context, directory: str, docling: bool, work_dir: str | None) -> None:
     """批量导入目录下所有支持的文件。"""
