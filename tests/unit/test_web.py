@@ -41,8 +41,7 @@ class TestWebApp:
         """POST /review 文本内容应重定向到会话页面。"""
         mock_session = MagicMock()
         mock_session.session_id = "test123"
-        with patch("harness.web.app._agent") as mock_agent_fn, \
-             patch("harness.web.app._recorder"):
+        with patch("harness.web.app._agent") as mock_agent_fn, patch("harness.web.app._recorder"):
             mock_agent = MagicMock()
             mock_agent.review.return_value = (None, mock_session)
             mock_agent_fn.return_value = mock_agent

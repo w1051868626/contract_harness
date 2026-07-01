@@ -146,7 +146,8 @@ async def sessions_list(request: Request, q: str = ""):
     if q:
         ql = q.lower()
         sessions_list = [
-            s for s in sessions_list
+            s
+            for s in sessions_list
             if ql in s.get("title", "").lower() or ql in s.get("session_id", "").lower()
         ]
     sessions_list = [_format_session(s) for s in sessions_list]
