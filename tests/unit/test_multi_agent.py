@@ -178,3 +178,90 @@ class TestCrossValidator:
         result = validator.arbitrate([d1, d2])
         # clause_type 分歧 → 都保留
         assert "c1" in [r["item_id"] for r in result]
+
+
+SAMPLE_CLAUSES = [
+    {"type": "保密", "content": "双方应保守商业秘密", "risk": "low"},
+    {"type": "违约责任", "content": "违约方应赔偿损失", "risk": "medium"},
+]
+
+
+class TestSupervisorAgent:
+    """SupervisorAgent 单元测试。"""
+
+    def test_validate_consensus_no_disagreement(self):
+        from harness.agent.multi_agent.supervisor import SupervisorAgent
+
+        outputs = {
+            "RiskExpert": WorkerOutput(
+                worker_role="RiskExpert",
+                content="风险分析完成",
+                structured=[
+                    {"clause_type": "保密", "risk_level": "low"},
+                    {"clause_type": "违约责任", "risk_level": "medium"},
+                ],
+            ),
+            "ComplianceExpert": WorkerOutput(
+                worker_role="ComplianceExpert",
+                content="合规检查完成",
+                structured=[
+                    {"clause_index": 0, "status": True},
+                    {"clause_index": 1, "status": True},
+                ],
+            ),
+        }
+        supervisor = SupervisorAgent()
+        disagreements = supervisor.validate_consensus(outputs)
+        assert len(disagreements) == 0
+
+    def test_validate_consensus_finds_disagreement(self):
+        from harness.agent.multi_agent.supervisor import SupervisorAgent
+
+        outputs = {
+            "RiskExpert": WorkerOutput(
+                worker_role="RiskExpert",
+                content="风险分析完成",
+                structured=[
+                    {"clause_type": "保密", "risk_level": "low"},
+                ],
+            ),
+            "ComplianceExpert": WorkerOutput(
+                worker_role="ComplianceExpert",
+                content="合规检查完成",
+                structured=[
+                    {"clause_index": 0, "status": True, "risk_level_note": "high"},
+                ],
+            ),
+        }
+        supervisor = SupervisorAgent()
+        disagreements = supervisor.validate_consensus(outputs)
+        assert len(disagreements) > 0
+
+    def test_synthesize_report_returns_report(self, sample_document):
+        from harness.agent.multi_agent.supervisor import SupervisorAgent
+        from harness.core.types import ReviewReport
+
+        outputs = {
+            "ClauseExpert": WorkerOutput(
+                worker_role="ClauseExpert",
+                content="条款提取完成",
+                structured=SAMPLE_CLAUSES,
+            ),
+            "RiskExpert": WorkerOutput(
+                worker_role="RiskExpert",
+                content="风险分析完成",
+                structured=[
+                    {"clause_type": "保密", "risk_level": "low", "reason": "标准条款"},
+                    {"clause_type": "违约责任", "risk_level": "medium", "reason": "赔偿范围模糊"},
+                ],
+            ),
+            "ComplianceExpert": WorkerOutput(
+                worker_role="ComplianceExpert",
+                content="合规检查完成",
+                structured=[],
+            ),
+        }
+        supervisor = SupervisorAgent()
+        report = supervisor.synthesize_report(sample_document, outputs, [])
+        assert isinstance(report, ReviewReport)
+        assert report.document_id == sample_document.id
