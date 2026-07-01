@@ -84,6 +84,8 @@ class EmbeddingConfig:
 
     enable_hybrid_search: bool = False
     rrf_k: int = 60
+    max_rpm: int = 0
+    max_tpm: int = 0
 
     def __post_init__(self):
         """从环境变量自动补充嵌入 API 密钥与地址。"""
@@ -95,6 +97,8 @@ class EmbeddingConfig:
         if self.proxy is None:
             self.proxy = os.getenv("EMBEDDING_PROXY", os.getenv("HTTP_PROXY", "")) or None
         self.model = os.getenv("EMBEDDING_MODEL", self.model)
+        self.max_rpm = int(os.getenv("EMBEDDING_MAX_RPM", str(self.max_rpm)))
+        self.max_tpm = int(os.getenv("EMBEDDING_MAX_TPM", str(self.max_tpm)))
 
         self.rerank_provider = os.getenv("RERANK_PROVIDER", self.rerank_provider)
         if not self.rerank_api_key:

@@ -193,6 +193,8 @@ class KnowledgeBase:
             api_base=cfg.embedding.api_base,
             model=cfg.embedding.model,
             proxy=cfg.embedding.proxy,
+            max_rpm=cfg.embedding.max_rpm,
+            max_tpm=cfg.embedding.max_tpm,
         )
         reranker = create_reranker(
             provider=cfg.embedding.rerank_provider,
