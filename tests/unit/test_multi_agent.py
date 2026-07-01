@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from harness.agent.llm import LLMResponse
 from harness.core.types import (
     AgentMode,
     Disagreement,
     WorkerOutput,
     WorkerTask,
 )
+from tests.conftest import MockLLMClient
 
 
 class TestDataModels:
@@ -87,3 +89,92 @@ class TestWorkerAgent:
         assert output.content
         all_text = " ".join(m.get("content", "") for m in llm.calls[0]["messages"])
         assert "高风险发现" in all_text
+
+
+class TestCrossValidator:
+    """CrossValidator 分歧仲裁测试。"""
+
+    def test_same_level_no_disagreement(self):
+        from harness.agent.multi_agent.validator import CrossValidator
+
+        validator = CrossValidator()
+        disc: list[Disagreement] = []
+        result = validator.arbitrate(disc)
+        assert len(result) == 0
+
+    def test_one_level_diff_uses_stricter(self):
+        from harness.agent.multi_agent.validator import CrossValidator
+
+        d = Disagreement(
+            item_id="clause-0",
+            field="risk_level",
+            value_a="medium",
+            value_b="low",
+            worker_a="A",
+            worker_b="B",
+        )
+        validator = CrossValidator()
+        result = validator.arbitrate([d])
+        assert result[0]["resolved"] == "medium"  # 更严格
+
+    def test_two_level_diff_triggers_llm(self):
+        from harness.agent.multi_agent.validator import CrossValidator
+
+        d = Disagreement(
+            item_id="clause-0",
+            field="risk_level",
+            value_a="critical",
+            value_b="low",
+            worker_a="A",
+            worker_b="B",
+        )
+        llm = MockLLMClient(
+            [
+                LLMResponse(
+                    content='{"resolution": "critical", "explanation": "条款涉及核心义务"}',
+                    model="mock",
+                )
+            ]
+        )
+        validator = CrossValidator(llm=llm)
+        result = validator.arbitrate([d])
+        assert result[0]["resolved"] == "critical"
+
+    def test_compliance_status_disagreement(self):
+        from harness.agent.multi_agent.validator import CrossValidator
+
+        d = Disagreement(
+            item_id="clause-0",
+            field="compliance_status",
+            value_a=True,
+            value_b=False,
+            worker_a="A",
+            worker_b="B",
+        )
+        validator = CrossValidator()
+        result = validator.arbitrate([d])
+        assert result[0]["needs_human_review"] is True
+
+    def test_llm_fallback_keeps_majority(self):
+        from harness.agent.multi_agent.validator import CrossValidator
+
+        d1 = Disagreement(
+            item_id="c0",
+            field="risk_level",
+            value_a="medium",
+            value_b="high",
+            worker_a="A",
+            worker_b="B",
+        )
+        d2 = Disagreement(
+            item_id="c1",
+            field="clause_type",
+            value_a="保密",
+            value_b="违约责任",
+            worker_a="A",
+            worker_b="B",
+        )
+        validator = CrossValidator()
+        result = validator.arbitrate([d1, d2])
+        # clause_type 分歧 → 都保留
+        assert "c1" in [r["item_id"] for r in result]
