@@ -378,7 +378,7 @@ class KnowledgeBase:
         )
 
     @staticmethod
-    def _extract_zip_texts(path: Path) -> list[tuple[str, str]]:
+    def extract_zip_texts(path: Path) -> list[tuple[str, str]]:
         """解压 zip，返回 (内部文件名, 解析文本) 列表。支持嵌套 zip。"""
         supported = {".txt", ".md", ".json", ".pdf", ".docx", ".zip"}
         results: list[tuple[str, str]] = []
@@ -395,7 +395,7 @@ class KnowledgeBase:
                         tmp.write(raw)
                         tmp_path = Path(tmp.name)
                     if ext == ".zip":
-                        nested = KnowledgeBase._extract_zip_texts(tmp_path)
+                        nested = KnowledgeBase.extract_zip_texts(tmp_path)
                         results.extend(nested)
                     else:
                         content = KnowledgeBase._parse_file(tmp_path)
@@ -417,7 +417,7 @@ class KnowledgeBase:
         """解压 zip 并以内部文件名为标题分别导入。"""
         doc_ids: list[str] = []
         logger.debug("解压 zip 导入: path={}", path)
-        for filename, content in KnowledgeBase._extract_zip_texts(path):
+        for filename, content in KnowledgeBase.extract_zip_texts(path):
             try:
                 title = Path(filename).stem
                 doc_id = self.add_text(

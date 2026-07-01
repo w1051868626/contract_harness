@@ -62,7 +62,7 @@ def process_file(file_path: Path, chunk_size: int, overlap: int):
         print(f"\n{'#'*60}")
         print(f"  ZIP 文件: {file_path}")
         print(f"{'#'*60}")
-        entries = KnowledgeBase._extract_zip_texts(file_path)
+        entries = KnowledgeBase.extract_zip_texts(file_path)
         print(f"  成功解析: {len(entries)} 个文件")
         for inner_name, text in entries:
             results = chunk_text(text, inner_name, chunk_size, overlap)
