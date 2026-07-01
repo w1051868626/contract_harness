@@ -56,7 +56,7 @@ def review(ctx: click.Context, contract_file: str, save: bool, model: str, docli
     if docling:
         config.use_docling = True
         KnowledgeBase.enable_docling()
-        content = KnowledgeBase._parse_file(filepath)
+        content = KnowledgeBase.parse_file(filepath)
     else:
         content = read_text(filepath)
 

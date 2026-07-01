@@ -367,7 +367,7 @@ class KnowledgeBase:
         if path.suffix.lower() == ".zip":
             doc_ids = self.add_zip(path, chunk_size, chunk_overlap, use_ai_chunking)
             return doc_ids[0] if doc_ids else ""
-        content = self._parse_file(path)
+        content = self.parse_file(path)
         return self.add_text(
             title=path.stem,
             content=content,
@@ -398,7 +398,7 @@ class KnowledgeBase:
                         nested = KnowledgeBase.extract_zip_texts(tmp_path)
                         results.extend(nested)
                     else:
-                        content = KnowledgeBase._parse_file(tmp_path)
+                        content = KnowledgeBase.parse_file(tmp_path)
                         if content.strip():
                             results.append((info.filename, content))
                     tmp_path.unlink(missing_ok=True)
@@ -435,11 +435,11 @@ class KnowledgeBase:
         return doc_ids
 
     @staticmethod
-    def _parse_txt(path: Path) -> str:
+    def parse_txt(path: Path) -> str:
         return path.read_text(encoding="utf-8")
 
     @staticmethod
-    def _parse_json(path: Path) -> str:
+    def parse_json(path: Path) -> str:
         data = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(data, list):
             return "\n".join(json.dumps(item, ensure_ascii=False) for item in data)
@@ -448,7 +448,7 @@ class KnowledgeBase:
         return str(data)
 
     @staticmethod
-    def _parse_pdf(path: Path) -> str:
+    def parse_pdf(path: Path) -> str:
         try:
             reader = PdfReader(str(path))
             return "\n".join(page.extract_text() or "" for page in reader.pages)
@@ -457,20 +457,20 @@ class KnowledgeBase:
             return path.read_text(encoding="utf-8", errors="replace")
 
     @staticmethod
-    def _parse_docx(path: Path) -> str:
+    def parse_docx(path: Path) -> str:
         doc = DocxDocument(str(path))
         return "\n".join(p.text for p in doc.paragraphs)
 
     _PARSERS: dict[str, Callable[[Path], str]] = {
-        ".txt": _parse_txt,
-        ".md": _parse_txt,
-        ".json": _parse_json,
-        ".pdf": _parse_pdf,
-        ".docx": _parse_docx,
+        ".txt": parse_txt,
+        ".md": parse_txt,
+        ".json": parse_json,
+        ".pdf": parse_pdf,
+        ".docx": parse_docx,
     }
 
     @staticmethod
-    def _parse_file(path: Path) -> str:
+    def parse_file(path: Path) -> str:
         """解析文件内容（支持 txt/md/json/pdf/docx，可选 Docling）。"""
         suffix = path.suffix.lower()
         logger.debug("解析文件: path={}, suffix={}", path.name, suffix)

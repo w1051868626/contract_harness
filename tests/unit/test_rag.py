@@ -589,7 +589,7 @@ class TestFileParsing:
             f.write("hello world")
             path = f.name
         try:
-            content = KnowledgeBase._parse_file(Path(path))
+            content = KnowledgeBase.parse_file(Path(path))
             assert content == "hello world"
         finally:
             Path(path).unlink(missing_ok=True)
@@ -602,7 +602,7 @@ class TestFileParsing:
             f.write('[{"a": 1}, {"b": 2}]')
             path = f.name
         try:
-            content = KnowledgeBase._parse_file(Path(path))
+            content = KnowledgeBase.parse_file(Path(path))
             assert "a" in content
         finally:
             Path(path).unlink(missing_ok=True)
@@ -615,7 +615,7 @@ class TestFileParsing:
             f.write('{"title": "test", "content": "hello"}')
             path = f.name
         try:
-            content = KnowledgeBase._parse_file(Path(path))
+            content = KnowledgeBase.parse_file(Path(path))
             assert "hello" in content
         finally:
             Path(path).unlink(missing_ok=True)
@@ -626,7 +626,7 @@ class TestFileParsing:
             f.write(b"not a real pdf content")
             path = f.name
         try:
-            content = KnowledgeBase._parse_file(Path(path))
+            content = KnowledgeBase.parse_file(Path(path))
             assert content is not None
             assert "not a real pdf content" in content
         finally:

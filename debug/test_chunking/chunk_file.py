@@ -71,7 +71,7 @@ def process_file(file_path: Path, chunk_size: int, overlap: int):
                 display_chunks(tag, chunks, f"{shorten} ({len(text):,} chars)")
 
     elif ext == ".docx":
-        text = KnowledgeBase._parse_file(file_path)
+        text = KnowledgeBase.parse_file(file_path)
         if not text.strip():
             print("(空)")
             return
@@ -80,7 +80,7 @@ def process_file(file_path: Path, chunk_size: int, overlap: int):
             display_chunks(tag, chunks, f"{source_name} ({len(text):,} chars)")
 
     elif ext in (".txt", ".md", ".json", ".pdf"):
-        text = KnowledgeBase._parse_file(file_path)
+        text = KnowledgeBase.parse_file(file_path)
         if not text.strip():
             print("(空)")
             return
