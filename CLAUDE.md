@@ -7,6 +7,7 @@
 ```
 harness/
 ├── agent/        合同审查 Agent（LLM 编排 + 工具调用 + 记忆）
+│   ├── multi_agent/     多 Agent 协同（Worker/Supervisor/CrossValidator）
 │   └── memory.py         持久化记忆 + 自演进（ChromaDB）
 ├── replay/       回放系统（录制 + 回放 + 存储管理）
 ├── eval/         评测系统（数据集 + 指标 + 评分流水线）
@@ -47,7 +48,7 @@ pyright harness/
 
 ```bash
 harness kb seed                            # 导入内置法律条文
-harness kb import-file <file>              # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析
+harness kb import-file <file>              # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析；--work-dir 指定临时目录
 harness kb search <query>                  # 检索知识库
 harness review <file>                      # 审查合同
 harness converse <session_id> <query>      # 继续对话
@@ -70,6 +71,8 @@ harness serve                              # 启动 Web 界面
 | `CHUNK_API_KEY` | AI 分块 API 密钥 |
 | `CHUNK_API_BASE` | AI 分块 API 地址 |
 | `CHUNK_MODEL` | AI 分块模型 |
+| `EMBEDDING_MAX_RPM` | Embedding API 每分钟最大请求数（0=不限） |
+| `EMBEDDING_MAX_TPM` | Embedding API 每分钟最大 Token 数（0=不限） |
 | `VECTOR_STORE_BACKEND` | 向量存储后端（已废弃，仅支持 chroma） |
 
 ### .env 文件
@@ -99,3 +102,6 @@ harness serve                              # 启动 Web 界面
 - 2026-06-18: 提取 `MetaKey`/`DocType` 枚举 + 新建 `harness/rag/constants.py`；`_detect_meta` 提升为 `_detect_md_heading_meta` 静态方法。
 - 2026-06-19: Embedding 截断（`EMBED_MAX_CHARS=1024` 句子边界）+ openai 库替换 httpx；`_chunk_legal_text` 补 overlap + 元数据全行扫描；新增 10 个测试用例，累计 139 个。
 - 2026-06-22: 新增 `examples/contracts_creval/` 评测数据集（25 个中文民法典高风条款测试用例，来自 Contract-Reviewer-Agent-Eval）。
+- 2026-07-01: Multi-Agent 协同审查——新增 `AgentMode.MULTI_AGENT` 模式；`WorkerAgent`（ClauseExpert/RiskExpert/ComplianceExpert 三个专业子 Agent，独立 LLM + system prompt）；`SupervisorAgent`（任务分配+分歧检测+报告合成）；`CrossValidator`（规则优先+LLM 兜底仲裁）；`MultiAgentCoordinator`（7 阶段全流程编排）；新增 20 个测试用例，累计 166 个。
+- 2026-07-01: ZIP 解压改用 `TemporaryDirectory` 保留原始文件名；`extract_zip_texts`/`add_zip` 新增 `--work-dir` 参数指定临时目录。
+- 2026-07-01: Embedding 速率限制——`OpenAIEmbeddingProvider` 集成滑动窗口速率限制器；`EmbeddingConfig` 新增 `max_rpm`/`max_tpm` 配置；支持 `EMBEDDING_MAX_RPM`/`EMBEDDING_MAX_TPM` 环境变量。

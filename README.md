@@ -35,7 +35,14 @@ pip install -e ".[local]"  # 本地 Embedding 模型（sentence-transformers）
 harness review examples/contracts/sample_nda.json
 ```
 
-审查流程：条款提取 → 风险分析 → 合规检查 → 生成报告
+支持 4 种 Agent 模式（通过 `--mode` 或 `HARNESS_AGENT_MODE` 配置）：
+
+| 模式 | 说明 |
+|---|---|
+| `pipeline`（默认） | 固定步骤串行：条款提取 → 风险分析 → 合规检查 → 生成报告 |
+| `react` | ReAct 循环，LLM 自主决策工具调用顺序 |
+| `reflection` | Pipeline 审查后追加自审修正，提升报告质量 |
+| `multi_agent` | Supervisor + 3 个专业子 Agent 协同审查 + 交叉验证 |
 
 ### 继续对话（追问）
 
@@ -79,8 +86,8 @@ harness serve
 
 ```bash
 harness kb seed                    # 导入内置法律条文（民法典、劳动合同法等 7 部）
-harness kb import-file <file>      # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析
-harness kb import-dir <directory>  # 批量导入；--docling 启用结构解析
+harness kb import-file <file>      # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析；--work-dir 指定临时目录（Windows C 盘空间不足时）
+harness kb import-dir <directory>  # 批量导入；--docling 启用结构解析；--work-dir 指定临时目录
 harness kb list                    # 列出所有文档
 harness kb search <query>          # 检索知识库
 ```
@@ -90,6 +97,7 @@ harness kb search <query>          # 检索知识库
 ```
 harness/
 ├── agent/        合同审查 Agent（LLM 编排 + 工具调用 + 记忆）
+│   ├── multi_agent/     多 Agent 协同（Worker/Supervisor/CrossValidator）
 │   └── memory.py         持久化记忆 + 自演进（ChromaDB）
 ├── replay/       回放系统（录制 + 回放 + 存储管理）
 ├── eval/         评测系统（数据集 + 指标 + 评分流水线）
@@ -164,6 +172,7 @@ agent = ContractAgent(llm, knowledge_base=kb)
 - **Embedding**：支持 OpenAI API（默认）和本地 sentence-transformers 模型
 - **向量存储**：Chroma 持久化，HNSW ANN 近似搜索
 - **文档解析**：支持 TXT / JSON / PDF / DOCX / ZIP（自动解压提取）格式；可选 Docling 引擎（PDF/DOCX/PPTX/图片 → 结构化 Markdown）
+- **Embedding 速率限制**：支持 `EMBEDDING_MAX_RPM` / `EMBEDDING_MAX_TPM` 配置，滑动窗口自动限速，避免 API 429
 - **分块策略**：AI 智能分块（可选 LLM 驱动）→ 逐条法律分块 → 段落级 → 句子级 → 字符回退
 - **检索策略**：默认稠密向量 ANN 检索；可启用**混合检索**（稠密 + BM25 稀疏 + RRF 融合），提升法律术语精确匹配
 - **重排序**：支持 Reranker 精排，在向量检索后对候选结果重新打分排序（OpenAI API / local cross-encoder）
@@ -267,6 +276,8 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `RERANK_API_BASE` | Reranker API 地址 | 同 `OPENAI_API_BASE` |
 | `RERANK_MODEL` | Reranker 模型 | `rerank-v1` |
 | `ENABLE_HYBRID_SEARCH` | 启用混合检索（稠密+BM25+RRF） | `false` |
+| `EMBEDDING_MAX_RPM` | Embedding API 每分钟最大请求数（0=不限） | `0` |
+| `EMBEDDING_MAX_TPM` | Embedding API 每分钟最大 Token 数（0=不限） | `0` |
 | `VECTOR_STORE_BACKEND` | 向量存储后端（已废弃，仅支持 chroma） | `chroma` |
 | `HTTP_PROXY` | 通用代理（回退） | - |
 | `HARNESS_DATA_DIR` | 数据根目录（知识库、回放、记忆等） | 项目下 `.harness/` |
@@ -346,7 +357,7 @@ def search(ctx: click.Context, query: str, top_k: int) -> None:
 ```bash
 conda activate contract-harness
 pip install -e ".[dev]"
-pytest tests/ -v             # 运行 146 个单元测试
+pytest tests/ -v             # 运行 166 个单元测试
 ruff check harness/ tests/   # 代码检查
 ruff format --check harness/ tests/  # 格式检查
 pyright harness/             # 类型检查

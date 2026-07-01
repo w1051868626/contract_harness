@@ -9,6 +9,7 @@
 ```
 harness/
 ├── agent/        合同审查 Agent（LLM 编排 + 工具调用 + 记忆）
+│   ├── multi_agent/     多 Agent 协同（Worker/Supervisor/CrossValidator）
 │   └── memory.py         持久化记忆 + 自演进（ChromaDB）
 ├── replay/       回放系统（录制 + 回放 + 存储管理）
 ├── eval/         评测系统（数据集 + 指标 + 评分流水线）
@@ -81,8 +82,8 @@ harness regression diff <a> <b>
 
 # 知识库
 harness kb seed                    # 导入内置法律条文
-harness kb import-file <file>      # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析
-harness kb import-dir <dir>        # 批量导入；--docling 启用结构解析
+harness kb import-file <file>      # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析；--work-dir 指定临时目录
+harness kb import-dir <dir>        # 批量导入；--docling 启用结构解析；--work-dir 指定临时目录
 harness kb list                    # 列出文档
 harness kb search <query>          # 检索
 
@@ -121,6 +122,8 @@ conda activate contract-harness
 - `VECTOR_STORE_BACKEND` — 向量存储后端（已废弃，仅支持 chroma）
 - `HTTP_PROXY` — 通用代理回退
 - `HARNESS_DATA_DIR` — 数据根目录
+- `EMBEDDING_MAX_RPM` — Embedding API 每分钟最大请求数（0=不限）
+- `EMBEDDING_MAX_TPM` — Embedding API 每分钟最大 Token 数（0=不限）
 
 支持 `.env` 文件（项目根目录自动加载）。
 
@@ -153,3 +156,6 @@ conda activate contract-harness
 - 2026-06-19: Embedding 截断 + openai 库替换——`add_text` 入口清洗全角空格 `\u3000`；`EMBED_MAX_CHARS=1024` 句子边界截断；`OpenAIEmbeddingProvider` 改用 `openai` 库替代裸 httpx；`_chunk_legal_text` 补上 `overlap` 支持；章/节元数据提取从首行改为扫描 part 全部行，修复跨章节合并时的元数据丢失；累计 139 个测试用例。
 - 2026-06-22: 新增评测数据集 `examples/contracts_creval/`——基于开源 [Contract-Reviewer-Agent-Eval](https://github.com/evan66547/Contract-Reviewer-Agent-Eval) 的 25 个中文民法典测试用例（MIT），覆盖违约责任、越权担保、数据合规、竞业限制等高风险条款场景；`harness eval run examples/contracts_creval/` 即可使用。
 - 2026-06-29: 混合检索（稠密 + BM25 稀疏 + RRF 融合）——新增 `SparseRetriever`（`harness/rag/sparse.py`）、`rrf_fuse` RRF 融合函数；`KnowledgeBase._search_single()` 支持双路检索；`EmbeddingConfig` 新增 `enable_hybrid_search` / `rrf_k` 配置；新增 `rank-bm25` 依赖；新增 7 个测试用例，累计 146 个。
+- 2026-07-01: Multi-Agent 协同审查——新增 `AgentMode.MULTI_AGENT` 模式；`WorkerAgent`（ClauseExpert/RiskExpert/ComplianceExpert 三个专业子 Agent，独立 LLM + system prompt）；`SupervisorAgent`（任务分配+分歧检测+报告合成）；`CrossValidator`（规则优先+LLM 兜底仲裁）；`MultiAgentCoordinator`（7 阶段全流程编排）；新增 20 个测试用例，累计 166 个。
+- 2026-07-01: ZIP 解压改用 `TemporaryDirectory` 保留原始文件名；`extract_zip_texts`/`add_zip` 新增 `--work-dir` 参数指定临时目录。
+- 2026-07-01: Embedding 速率限制——`OpenAIEmbeddingProvider` 集成滑动窗口速率限制器；`EmbeddingConfig` 新增 `max_rpm`/`max_tpm` 配置；支持 `EMBEDDING_MAX_RPM`/`EMBEDDING_MAX_TPM` 环境变量。
