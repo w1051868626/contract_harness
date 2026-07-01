@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -37,21 +37,18 @@ class TestWebApp:
         assert resp.status_code == 200
         assert "请输入合同内容" in resp.text
 
-    @patch("harness.web.app._run_review")
-    def test_review_submit_text(self, mock_run_review, client):
-        """POST /review 文本内容应正常处理。"""
-        mock_run_review.return_value = {
-            "session_id": "test123",
-            "summary": "审查完成",
-            "overall_risk": "low",
-            "clauses": [],
-            "risks": [],
-            "compliance": [],
-        }
-        resp = client.post("/review", data={"content": "测试合同内容"})
-        assert resp.status_code == 200
-        assert "审查完成" in resp.text
-        mock_run_review.assert_called_once()
+    def test_review_submit_text(self, client):
+        """POST /review 文本内容应重定向到会话页面。"""
+        mock_session = MagicMock()
+        mock_session.session_id = "test123"
+        with patch("harness.web.app._agent") as mock_agent_fn, \
+             patch("harness.web.app._recorder"):
+            mock_agent = MagicMock()
+            mock_agent.review.return_value = (None, mock_session)
+            mock_agent_fn.return_value = mock_agent
+            resp = client.post("/review", data={"content": "测试合同内容"}, follow_redirects=False)
+        assert resp.status_code == 303, f"Got {resp.status_code}: {resp.text[:200]}"
+        assert resp.headers["location"] == "/sessions/test123"
 
     def test_review_submit_file_oversized(self, client):
         """POST /review 超大文件应返回错误。"""
@@ -72,13 +69,13 @@ class TestWebApp:
         assert "不是 UTF-8" in resp.text
 
     def test_sessions_returns_html(self, client):
-        """GET /sessions 应返回会话列表页面。"""
+        """GET /sessions 应返回会话列表。"""
         resp = client.get("/sessions")
         assert resp.status_code == 200
         assert "text/html" in resp.headers["content-type"]
 
     def test_sessions_detail_nonexistent(self, client):
-        """GET /sessions/{id} 不存在的会话应返回提示。"""
+        """GET /sessions/{id} 不存在的会话应返回错误。"""
         resp = client.get("/sessions/nonexistent")
         assert resp.status_code == 200
         assert "不存在" in resp.text

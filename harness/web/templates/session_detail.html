@@ -1,56 +1,98 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="result-header">
-  <h1>会话详情</h1>
-  <span class="session-id">{{ session.session_id }}</span>
+  <h1>审查结果</h1>
+  <span class="session-id">会话: {{ session.session_id }}</span>
 </div>
 
+{% if session.report %}
 <section>
-  <h3>合同</h3>
-  <p><strong>{{ session.document.title }}</strong></p>
-  <pre>{{ session.document.content[:500] }}{% if session.document.content|length > 500 %}...{% endif %}</pre>
+  <h3>审查摘要</h3>
+  <p><strong>整体风险:</strong>
+    <span class="risk-badge risk-{{ session.report.overall_risk.value }}">{{ session.report.overall_risk.value }}</span>
+  </p>
+  <p>{{ session.report.summary }}</p>
 </section>
 
 <section>
-  <h3>流水线步骤</h3>
-  {% for step in session.steps %}
-  <div class="step">
-    <h4>Step {{ step.step_index }}: {{ step.agent_message }}</h4>
-    {% for tc in step.tool_calls %}
-    <div class="tool-call">
-      <strong>⚙ {{ tc.tool_name }}</strong>
-      {% if tc.output is string %}
-      <pre>{{ tc.output[:300] }}</pre>
-      {% endif %}
-    </div>
+  <h3>条款提取</h3>
+  <div class="table-wrap">
+  <table>
+    <tr><th>类型</th><th>风险</th><th>内容</th><th>备注</th></tr>
+    {% for c in session.report.clauses %}
+    <tr>
+      <td>{{ c.clause_type }}</td>
+      <td><span class="risk-tag risk-{{ c.risk.value }}">{{ c.risk.value }}</span></td>
+      <td><details><summary>{{ c.content[:60] }}…</summary>{{ c.content }}</details></td>
+      <td>{{ c.comment }}</td>
+    </tr>
     {% endfor %}
+  </table>
+  </div>
+</section>
+
+<section>
+  <h3>风险分析</h3>
+  {% for r in session.report.risks %}
+  <div class="risk-card risk-{{ r.risk_level.value }}">
+    <strong>{{ r.clause.clause_type }}</strong> —
+    <span class="risk-tag risk-{{ r.risk_level.value }}">{{ r.risk_level.value }}</span>
+    <p><em>原因:</em> {{ r.reason }}</p>
+    {% if r.suggestion %}<p><em>建议:</em> {{ r.suggestion }}</p>{% endif %}
   </div>
   {% endfor %}
 </section>
 
-{% if session.report %}
 <section>
-  <h3>审查报告</h3>
-  <p><strong>整体风险:</strong>
-    <span class="risk-badge risk-{{ session.report.overall_risk.value }}">{{ session.report.overall_risk.value }}</span>
-  </p>
-  <p><strong>摘要:</strong></p>
-  <p>{{ session.report.summary }}</p>
-  <p><strong>条款数:</strong> {{ session.report.clauses|length }} |
-     <strong>风险评估:</strong> {{ session.report.risks|length }} |
-     <strong>合规检查:</strong> {{ session.report.compliance_checks|length }}
-  </p>
+  <h3>合规检查</h3>
+  <div class="table-wrap">
+  <table>
+    <tr><th>法规</th><th>状态</th><th>详情</th></tr>
+    {% for c in session.report.compliance_checks %}
+    <tr>
+      <td>{{ c.regulation }}</td>
+      <td>{{ "✅ 合规" if c.status else "❌ 不合规" }}</td>
+      <td>{{ c.detail }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
 </section>
 {% endif %}
 
 <section>
-  <h3>追问</h3>
+  <h3>审查过程</h3>
+  {% for step in session.steps %}
+  <details class="step" {% if loop.first %}open{% endif %}>
+    <summary>Step {{ step.step_index }}: {{ step.agent_message }}</summary>
+    {% for tc in step.tool_calls %}
+    <div class="tool-call">
+      <strong>{{ tc.tool_name }}</strong>
+      {% if tc.output is string %}
+      <pre>{{ tc.output[:500] }}{% if tc.output|length > 500 %}…{% endif %}</pre>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </details>
+  {% endfor %}
+</section>
+
+<section>
+  <h3>合同原文</h3>
+  <details>
+    <summary>查看完整合同</summary>
+    <pre>{{ session.document.content }}</pre>
+  </details>
+</section>
+
+<section>
+  <h3>继续追问</h3>
 
   {% if session.metadata and session.metadata.conversation %}
   <div class="conversation">
     {% for turn in session.metadata.conversation %}
     <div class="conversation-turn {{ 'turn-user' if turn.role == 'user' else 'turn-assistant' }}">
-      <div class="turn-role">{{ '👤 用户' if turn.role == 'user' else '🤖 Agent' }}</div>
+      <div class="turn-role">{{ '用户' if turn.role == 'user' else 'Agent' }}</div>
       <div class="turn-content">{{ turn.content }}</div>
     </div>
     {% endfor %}
@@ -59,20 +101,17 @@
 
   {% if answer %}
   <div class="conversation-turn turn-assistant">
-    <div class="turn-role">🤖 Agent</div>
+    <div class="turn-role">Agent</div>
     <div class="turn-content">{{ answer }}</div>
   </div>
   {% endif %}
 
   <form method="post" action="/sessions/{{ session.session_id }}/converse" class="converse-form" id="converseForm">
-    <div class="form-group">
-      <label for="query">输入问题</label>
-      <div class="converse-input-row">
-        <input type="text" name="query" id="query" placeholder="例如：这个保密条款风险高吗？" required>
-        <button type="submit" class="btn" id="converseBtn">发送</button>
-      </div>
+    <div class="converse-input-row">
+      <input type="text" name="query" id="query" placeholder="例如：这个保密条款风险高吗？" required>
+      <button type="submit" class="btn" id="converseBtn">发送</button>
     </div>
-    <div id="converseLoading" class="loading" style="display:none">🤖 思考中...</div>
+    <div id="converseLoading" class="loading" style="display:none">思考中...</div>
   </form>
 </section>
 

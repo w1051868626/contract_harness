@@ -2,10 +2,14 @@
 {% block content %}
 <h1>合同审查</h1>
 
-<form method="post" enctype="multipart/form-data" class="form">
+<form method="post" enctype="multipart/form-data" class="form" id="reviewForm">
   <div class="form-group">
     <label>上传合同文件</label>
-    <input type="file" name="file" accept=".txt,.json,.md,.docx">
+    <div class="drop-zone" id="dropZone">
+      <p>拖拽文件到此处，或点击选择文件</p>
+      <input type="file" name="file" id="fileInput" accept=".txt,.json,.md,.docx" hidden>
+      <span class="file-name" id="fileName"></span>
+    </div>
   </div>
   <div class="form-group">
     <label>或直接粘贴合同内容</label>
@@ -13,7 +17,7 @@
   </div>
   <div class="form-actions">
     <button type="submit" class="btn" id="reviewBtn">开始审查</button>
-    <div id="reviewLoading" class="loading" style="display:none">🔍 正在分析合同...</div>
+    <div id="reviewLoading" class="loading" style="display:none">正在分析合同，请稍候...</div>
   </div>
 </form>
 
@@ -22,65 +26,32 @@
 {% endif %}
 
 <script>
-document.querySelector('.form')?.addEventListener('submit', function() {
+document.getElementById('dropZone').addEventListener('click', function() {
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', function() {
+  var name = this.files[0] ? this.files[0].name : '';
+  document.getElementById('fileName').textContent = name;
+});
+document.getElementById('dropZone').addEventListener('dragover', function(e) {
+  e.preventDefault();
+  this.classList.add('drag-over');
+});
+document.getElementById('dropZone').addEventListener('dragleave', function() {
+  this.classList.remove('drag-over');
+});
+document.getElementById('dropZone').addEventListener('drop', function(e) {
+  e.preventDefault();
+  this.classList.remove('drag-over');
+  var files = e.dataTransfer.files;
+  if (files.length) {
+    document.getElementById('fileInput').files = files;
+    document.getElementById('fileName').textContent = files[0].name;
+  }
+});
+document.getElementById('reviewForm').addEventListener('submit', function() {
   document.getElementById('reviewBtn').style.display = 'none';
   document.getElementById('reviewLoading').style.display = 'block';
 });
 </script>
-
-{% if result %}
-<div class="result">
-  <div class="result-header">
-    <h2>审查结果</h2>
-    <span class="risk-badge risk-{{ result.overall_risk }}">{{ result.overall_risk }}</span>
-    <span class="session-id">会话: {{ result.session_id }}</span>
-  </div>
-
-  <section>
-    <h3>审查摘要</h3>
-    <p>{{ result.summary }}</p>
-  </section>
-
-  <section>
-    <h3>条款提取</h3>
-    <table>
-      <tr><th>类型</th><th>风险</th><th>内容</th><th>备注</th></tr>
-      {% for c in result.clauses %}
-      <tr>
-        <td>{{ c.type }}</td>
-        <td><span class="risk-tag risk-{{ c.risk }}">{{ c.risk }}</span></td>
-        <td>{{ c.content[:80] }}{% if c.content|length > 80 %}...{% endif %}</td>
-        <td>{{ c.comment }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-  </section>
-
-  <section>
-    <h3>风险分析</h3>
-    {% for r in result.risks %}
-    <div class="risk-card risk-{{ r.level }}">
-      <strong>{{ r.clause_type }}</strong> —
-      <span class="risk-tag risk-{{ r.level }}">{{ r.level }}</span>
-      <p><em>原因:</em> {{ r.reason }}</p>
-      {% if r.suggestion %}<p><em>建议:</em> {{ r.suggestion }}</p>{% endif %}
-    </div>
-    {% endfor %}
-  </section>
-
-  <section>
-    <h3>合规检查</h3>
-    <table>
-      <tr><th>法规</th><th>状态</th><th>详情</th></tr>
-      {% for c in result.compliance %}
-      <tr>
-        <td>{{ c.regulation }}</td>
-        <td>{{ "✅ 合规" if c.status else "❌ 不合规" }}</td>
-        <td>{{ c.detail }}</td>
-      </tr>
-      {% endfor %}
-    </table>
-  </section>
-</div>
-{% endif %}
 {% endblock %}
