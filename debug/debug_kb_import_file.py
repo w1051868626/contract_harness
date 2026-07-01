@@ -1,5 +1,7 @@
 """调试：harness kb import-file — 导入单个文件到知识库"""
+
 from pathlib import Path
+
 from harness.cli.main import load_dotenv
 from harness.core.config import HarnessConfig
 from harness.rag.knowledge_base import KnowledgeBase

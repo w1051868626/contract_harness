@@ -1,5 +1,7 @@
 """调试：harness kb import-dir — 批量导入目录下所有文件"""
+
 from pathlib import Path
+
 from harness.cli.main import load_dotenv
 from harness.core.config import HarnessConfig
 from harness.rag.knowledge_base import KnowledgeBase

@@ -5,6 +5,7 @@
     python -m debug.test_chunking.chunk_file contract.zip
     python -m debug.test_chunking.chunk_file contract.docx --chunk-size 256
 """
+
 import argparse
 from pathlib import Path
 
@@ -41,10 +42,10 @@ def chunk_text(text: str, source: str, chunk_size: int, overlap: int):
 
 
 def display_chunks(tag: str, chunks, label: str):
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {label}")
     print(f"  分块器: {tag}  |  切片数: {len(chunks)}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     for i, c in enumerate(chunks):
         meta = fmt_meta(c.metadata or {})
         content_preview = c.content[:150].replace("\n", " ").replace("\r", "")
@@ -59,9 +60,9 @@ def process_file(file_path: Path, chunk_size: int, overlap: int):
     source_name = file_path.name
 
     if ext == ".zip":
-        print(f"\n{'#'*60}")
+        print(f"\n{'#' * 60}")
         print(f"  ZIP 文件: {file_path}")
-        print(f"{'#'*60}")
+        print(f"{'#' * 60}")
         entries = KnowledgeBase.extract_zip_texts(file_path)
         print(f"  成功解析: {len(entries)} 个文件")
         for inner_name, text in entries:
@@ -94,16 +95,10 @@ def process_file(file_path: Path, chunk_size: int, overlap: int):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="文件切片测试工具 — 解析文件并展示切片结果"
-    )
+    parser = argparse.ArgumentParser(description="文件切片测试工具 — 解析文件并展示切片结果")
     parser.add_argument("file", type=Path, help="输入文件路径（zip/docx/txt/md/pdf）")
-    parser.add_argument(
-        "--chunk-size", type=int, default=512, help="切片大小（默认 512）"
-    )
-    parser.add_argument(
-        "--overlap", type=int, default=64, help="切片重叠（默认 64）"
-    )
+    parser.add_argument("--chunk-size", type=int, default=512, help="切片大小（默认 512）")
+    parser.add_argument("--overlap", type=int, default=64, help="切片重叠（默认 64）")
     args = parser.parse_args()
 
     if not args.file.exists():

@@ -7,9 +7,10 @@
 
 首次运行会自动从 ModelScope 下载数据集（约 1.5MB）。
 """
+
+import subprocess
 import sys
 import zipfile
-import subprocess
 from pathlib import Path
 
 from harness.rag.knowledge_base import KnowledgeBase
@@ -27,12 +28,19 @@ def download_dataset():
         return DATASET_DIR / "chinese_laws.txt"
 
     import subprocess
+
     print("正在下载 Chinese-Laws 数据集...")
     subprocess.run(
-        ["git", "clone", "--depth", "1",
-         "https://www.modelscope.cn/datasets/dengcao/Chinese-Laws.git",
-         str(DATASET_DIR)],
-        check=True, capture_output=True,
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "https://www.modelscope.cn/datasets/dengcao/Chinese-Laws.git",
+            str(DATASET_DIR),
+        ],
+        check=True,
+        capture_output=True,
     )
 
     zip_path = DATASET_DIR / "Chinese-Laws.zip"
@@ -45,7 +53,8 @@ def download_dataset():
         subprocess.run(
             ["git", "lfs", "pull"],
             cwd=str(DATASET_DIR),
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
     # 解压（重读，LFS pull 后文件已被替换为真实 zip）
@@ -72,9 +81,9 @@ def run_chunking_demo(file_path: Path):
     doc_id = "chinese-laws"
 
     # 整体文本切片（模拟整库导入）
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  方式一：全文一次性切片 (_chunk_legal_text)")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     legal = KnowledgeBase.chunk_legal_text(text, doc_id, CHUNK_SIZE, OVERLAP)
     if legal:
         _report_chunks(legal, "legal_text")
@@ -84,9 +93,9 @@ def run_chunking_demo(file_path: Path):
         _report_chunks(txt, "text")
 
     # 按行切片（每条法律独立 entry，模拟 kb.add_text）
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  方式二：逐条切片 (模拟 add_text 逐个添加)")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     all_chunks = []
     for line in lines:
         line = line.strip()
@@ -113,15 +122,15 @@ def _report_chunks(chunks, label: str):
     end_aligned = sum(1 for c in chunks if c.content.rstrip()[-1:] in "。！？；.!?；")
     # 统计开头截断（以非句子开头开头，且不是元数据行）
     start_cut = sum(
-        1 for c in chunks
-        if c.content and c.content[0] not in "《第\u201c\u2018"
-        and not c.content[0].isalpha()
+        1
+        for c in chunks
+        if c.content and c.content[0] not in "《第\u201c\u2018" and not c.content[0].isalpha()
     )
 
     print(f"  切片数:      {len(chunks)}")
     print(f"  平均长度:    {total_chars // len(chunks)} chars")
     print(f"  最短/最长:   {min_chars} / {max_chars} chars")
-    print(f"  结尾句柄对齐: {end_aligned}/{len(chunks)} ({end_aligned/len(chunks)*100:.0f}%)")
+    print(f"  结尾句柄对齐: {end_aligned}/{len(chunks)} ({end_aligned / len(chunks) * 100:.0f}%)")
     print(f"  可能开头截断: {start_cut}")
 
     # 展示前 3 个切片
@@ -133,10 +142,14 @@ def _report_chunks(chunks, label: str):
     # 检查重叠
     overlap_ok = 0
     for i in range(1, len(chunks)):
-        prev_tail = chunks[i-1].content[-OVERLAP:] if len(chunks[i-1].content) >= OVERLAP else chunks[i-1].content
+        prev_tail = (
+            chunks[i - 1].content[-OVERLAP:]
+            if len(chunks[i - 1].content) >= OVERLAP
+            else chunks[i - 1].content
+        )
         if prev_tail and prev_tail in chunks[i].content:
             overlap_ok += 1
-    print(f"  overlap 携带: {overlap_ok}/{len(chunks)-1}")
+    print(f"  overlap 携带: {overlap_ok}/{len(chunks) - 1}")
 
 
 if __name__ == "__main__":

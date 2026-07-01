@@ -1,8 +1,8 @@
 """调试：harness converse — 对已有会话继续追问"""
-from harness.cli.main import load_dotenv
-from harness.core.config import HarnessConfig
 from harness.agent.contract_agent import ContractAgent
 from harness.agent.llm import LLMClient
+from harness.cli.main import load_dotenv
+from harness.core.config import HarnessConfig
 
 load_dotenv()
 config = HarnessConfig()
