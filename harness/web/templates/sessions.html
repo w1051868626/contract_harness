@@ -1,32 +1,37 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>审查会话</h1>
+    <h1>审查会话</h1>
 
-<form method="get" class="search-form">
-  <input type="text" name="q" placeholder="搜索会话 ID 或合同标题..." value="{{ q }}" class="search-input">
-  <button type="submit" class="btn">搜索</button>
-  {% if q %}<a href="/sessions" class="btn btn-secondary">清除</a>{% endif %}
-</form>
+    <form method="get" class="search-form">
+        <input type="text" name="q" placeholder="搜索会话 ID 或合同标题..." value="{{ q }}" class="search-input">
+        <button type="submit" class="btn">搜索</button>
+        {% if q %}<a href="/sessions" class="btn btn-secondary">清除</a>{% endif %}
+    </form>
 
-{% if error %}
-<div class="error">{{ error }}</div>
-{% endif %}
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
 
-{% if sessions %}
-<div class="table-wrap">
-<table>
-  <tr><th>会话 ID</th><th>合同</th><th>时间</th><th></th></tr>
-  {% for s in sessions %}
-  <tr>
-    <td><code>{{ s.session_id[:8] }}…</code></td>
-    <td>{{ s.document_title or s.title or "未命名" }}</td>
-    <td class="time-cell">{{ s.time_ago or s.started_at }}</td>
-    <td><a href="/sessions/{{ s.session_id }}" class="btn-small">查看</a></td>
-  </tr>
-  {% endfor %}
-</table>
-</div>
-{% else %}
-<p class="empty">{% if q %}未找到匹配的会话{% else %}暂无会话记录{% endif %}</p>
-{% endif %}
+    {% if sessions %}
+        <div class="table-wrap">
+            <table>
+                <tr>
+                    <th>会话 ID</th>
+                    <th>合同</th>
+                    <th>时间</th>
+                    <th></th>
+                </tr>
+                {% for s in sessions %}
+                    <tr>
+                        <td><code>{{ s.session_id[:8] }}…</code></td>
+                        <td>{{ s.document_title or s.title or "未命名" }}</td>
+                        <td class="time-cell">{{ s.time_ago or s.started_at }}</td>
+                        <td><a href="/sessions/{{ s.session_id }}" class="btn-small">查看</a></td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </div>
+    {% else %}
+        <p class="empty">{% if q %}未找到匹配的会话{% else %}暂无会话记录{% endif %}</p>
+    {% endif %}
 {% endblock %}

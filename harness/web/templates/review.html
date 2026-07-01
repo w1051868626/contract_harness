@@ -1,57 +1,57 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>合同审查</h1>
+    <h1>合同审查</h1>
 
-<form method="post" enctype="multipart/form-data" class="form" id="reviewForm">
-  <div class="form-group">
-    <label>上传合同文件</label>
-    <div class="drop-zone" id="dropZone">
-      <p>拖拽文件到此处，或点击选择文件</p>
-      <input type="file" name="file" id="fileInput" accept=".txt,.json,.md,.docx" hidden>
-      <span class="file-name" id="fileName"></span>
-    </div>
-  </div>
-  <div class="form-group">
-    <label>或直接粘贴合同内容</label>
-    <textarea name="content" rows="10" placeholder="在此粘贴合同文本..."></textarea>
-  </div>
-  <div class="form-actions">
-    <button type="submit" class="btn" id="reviewBtn">开始审查</button>
-    <div id="reviewLoading" class="loading" style="display:none">正在分析合同，请稍候...</div>
-  </div>
-</form>
+    <form method="post" enctype="multipart/form-data" class="form" id="reviewForm">
+        <div class="form-group">
+            <label>上传合同文件</label>
+            <div class="drop-zone" id="dropZone">
+                <p>拖拽文件到此处，或点击选择文件</p>
+                <input type="file" name="file" id="fileInput" accept=".txt,.json,.md,.docx" hidden>
+                <span class="file-name" id="fileName"></span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>或直接粘贴合同内容</label>
+            <textarea name="content" rows="10" placeholder="在此粘贴合同文本..."></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn" id="reviewBtn">开始审查</button>
+            <div id="reviewLoading" class="loading" style="display:none">正在分析合同，请稍候...</div>
+        </div>
+    </form>
 
-{% if error %}
-<div class="error">{{ error }}</div>
-{% endif %}
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
 
-<script>
-document.getElementById('dropZone').addEventListener('click', function() {
-  document.getElementById('fileInput').click();
-});
-document.getElementById('fileInput').addEventListener('change', function() {
-  var name = this.files[0] ? this.files[0].name : '';
-  document.getElementById('fileName').textContent = name;
-});
-document.getElementById('dropZone').addEventListener('dragover', function(e) {
-  e.preventDefault();
-  this.classList.add('drag-over');
-});
-document.getElementById('dropZone').addEventListener('dragleave', function() {
-  this.classList.remove('drag-over');
-});
-document.getElementById('dropZone').addEventListener('drop', function(e) {
-  e.preventDefault();
-  this.classList.remove('drag-over');
-  var files = e.dataTransfer.files;
-  if (files.length) {
-    document.getElementById('fileInput').files = files;
-    document.getElementById('fileName').textContent = files[0].name;
-  }
-});
-document.getElementById('reviewForm').addEventListener('submit', function() {
-  document.getElementById('reviewBtn').style.display = 'none';
-  document.getElementById('reviewLoading').style.display = 'block';
-});
-</script>
+    <script>
+        document.getElementById('dropZone').addEventListener('click', function () {
+            document.getElementById('fileInput').click();
+        });
+        document.getElementById('fileInput').addEventListener('change', function () {
+            var name = this.files[0] ? this.files[0].name : '';
+            document.getElementById('fileName').textContent = name;
+        });
+        document.getElementById('dropZone').addEventListener('dragover', function (e) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        });
+        document.getElementById('dropZone').addEventListener('dragleave', function () {
+            this.classList.remove('drag-over');
+        });
+        document.getElementById('dropZone').addEventListener('drop', function (e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            var files = e.dataTransfer.files;
+            if (files.length) {
+                document.getElementById('fileInput').files = files;
+                document.getElementById('fileName').textContent = files[0].name;
+            }
+        });
+        document.getElementById('reviewForm').addEventListener('submit', function () {
+            document.getElementById('reviewBtn').style.display = 'none';
+            document.getElementById('reviewLoading').style.display = 'block';
+        });
+    </script>
 {% endblock %}

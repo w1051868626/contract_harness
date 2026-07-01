@@ -1,27 +1,28 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>contract-harness</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
-<link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>contract-harness</title>
+    <link rel="icon"
+          href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <nav class="nav">
-  <a class="nav-brand" href="/">contract-harness</a>
-  <div class="nav-links">
-    <a href="/review">审查</a>
-    <a href="/sessions">会话</a>
-  </div>
+    <a class="nav-brand" href="/">contract-harness</a>
+    <div class="nav-links">
+        <a href="/review">审查</a>
+        <a href="/sessions">会话</a>
+    </div>
 </nav>
 <main class="main">
-{% block content %}{% endblock %}
+    {% block content %}{% endblock %}
 </main>
 <footer class="footer">
-  <span>contract-harness v{{ version }}</span>
-  <span>·</span>
-  <a href="https://github.com/w1051868626/contract_harness" target="_blank">GitHub</a>
+    <span>contract-harness v{{ version }}</span>
+    <span>·</span>
+    <a href="https://github.com/w1051868626/contract_harness" target="_blank">GitHub</a>
 </footer>
 </body>
 </html>
