@@ -64,6 +64,7 @@ class AgentMode(str, Enum):
     PIPELINE = "pipeline"
     REACT = "react"
     REFLECTION = "reflection"
+    MULTI_AGENT = "multi_agent"
 
 
 class RiskLevel(str, Enum):
@@ -199,3 +200,35 @@ class RegressionResult:
     regressions: list[str] = field(default_factory=list)
     improvements: list[str] = field(default_factory=list)
     passed: bool = True
+
+
+@dataclass
+class WorkerTask:
+    """分派给 Worker Agent 的任务。"""
+
+    worker_role: str
+    prompt: str
+    input_data: Any
+    context: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class WorkerOutput:
+    """Worker Agent 的执行输出。"""
+
+    worker_role: str
+    content: str
+    structured: Any = None
+    confidence: float = 1.0
+
+
+@dataclass
+class Disagreement:
+    """两个 Worker 之间的分歧记录。"""
+
+    item_id: str
+    field: str
+    value_a: Any
+    value_b: Any
+    worker_a: str
+    worker_b: str
