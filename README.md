@@ -88,7 +88,7 @@ harness serve
 harness kb seed                    # 导入内置法律条文（民法典、劳动合同法等 7 部）
 harness kb import-file <file>      # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析；--work-dir 指定临时目录（Windows C 盘空间不足时）
 harness kb import-dir <directory>  # 批量导入；--docling 启用结构解析；--work-dir 指定临时目录
-harness kb list                    # 列出所有文档
+harness kb list-docs               # 列出所有文档
 harness kb search <query>          # 检索知识库
 harness kb eval generate           # 从 KB 自动生成评估数据集（LLM 从每个 chunk 生成 query）
 harness kb eval run <dataset>      # 执行 RAG 检索质量评估（HitRate/MRR/Precision/Recall）

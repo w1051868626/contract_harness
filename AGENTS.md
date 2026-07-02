@@ -85,7 +85,7 @@ harness regression diff <a> <b>
 harness kb seed                    # 导入内置法律条文
 harness kb import-file <file>      # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析；--work-dir 指定临时目录
 harness kb import-dir <dir>        # 批量导入；--docling 启用结构解析；--work-dir 指定临时目录
-harness kb list                    # 列出文档
+harness kb list-docs               # 列出文档
 harness kb search <query>          # 检索
 harness kb eval generate           # 从 KB 自动生成评估数据集
 harness kb eval run <dataset>      # 执行 RAG 检索质量评估
