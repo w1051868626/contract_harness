@@ -178,3 +178,4 @@ class TestRagEvalCLI:
         result = runner.invoke(cli, ["kb", "eval", "generate"])
         assert result.exit_code != 0
         assert result.exception is not None
+        assert "Missing" in str(result.exception)
