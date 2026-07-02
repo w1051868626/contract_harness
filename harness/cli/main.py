@@ -388,3 +388,50 @@ def seed(ctx: click.Context) -> None:
         logger.info("  + {}", law.title)
         imported += 1
     logger.info("导入完成: {} 部法律", imported)
+
+
+@kb.group()
+def eval() -> None:
+    """RAG 检索质量评估。"""
+
+
+@eval.command()
+@click.option("--queries-per-chunk", default=2, help="每个 chunk 生成的问题数")
+@click.option("--output", default=None, help="输出数据集路径")
+@click.pass_context
+def generate(ctx: click.Context, queries_per_chunk: int, output: str | None) -> None:
+    """从知识库 chunk 自动生成评估数据集。"""
+    config: HarnessConfig = ctx.obj["config"]
+    config.ensure_dirs()
+    kb_instance = KnowledgeBase.from_config(config)
+    llm = LLMClient(config.llm)
+    from harness.eval_rag.generator import RagDatasetGenerator
+
+    generator = RagDatasetGenerator()
+    items = generator.generate(kb_instance, llm, queries_per_chunk=queries_per_chunk)
+    path = output or str(Path(config.data_dir) / "rag_eval_dataset.jsonl")
+    from harness.eval_rag.dataset import save_jsonl
+
+    save_jsonl(path, items)
+    logger.info("生成 {} 条评估数据 -> {}", len(items), path)
+
+
+@eval.command(name="run")
+@click.argument("dataset", type=click.Path(exists=True))
+@click.option("--top-ks", default="1,3,5", help="评估的 K 值，逗号分隔")
+@click.pass_context
+def eval_run(ctx: click.Context, dataset: str, top_ks: str) -> None:
+    """执行 RAG 检索质量评估。"""
+    config: HarnessConfig = ctx.obj["config"]
+    config.ensure_dirs()
+    kb_instance = KnowledgeBase.from_config(config)
+    from harness.eval_rag.dataset import load_jsonl
+    from harness.eval_rag.reporter import RagEvalReporter
+    from harness.eval_rag.runner import RagEvalRunner
+
+    items = load_jsonl(dataset)
+    top_ks_list = [int(k.strip()) for k in top_ks.split(",")]
+    runner = RagEvalRunner()
+    result = runner.run(kb_instance, items, top_ks=top_ks_list, dataset_name=Path(dataset).stem)
+    reporter = RagEvalReporter()
+    print(reporter.to_markdown(result))

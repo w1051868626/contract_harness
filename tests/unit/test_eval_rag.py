@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import tempfile
 
+from click.testing import CliRunner
+
 from harness.agent.llm import LLMResponse
+from harness.cli.main import cli
 from harness.eval_rag.dataset import EvalRagItem, EvalRagResult, load_jsonl, save_jsonl
 from harness.eval_rag.generator import RagDatasetGenerator
 from harness.eval_rag.metrics import RagMetricsCalculator
@@ -161,3 +164,16 @@ class TestRagDatasetGenerator:
         assert items[0].query == "违约金的上限是多少？"
         assert items[0].expected_chunk_ids == ["c1"]
         assert items[1].expected_chunk_ids == ["c2"]
+
+
+class TestRagEvalCLI:
+    def test_kb_eval_help(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["kb", "eval", "--help"])
+        assert result.exit_code == 0
+        assert "generate" in result.output or "运行" in result.output
+
+    def test_kb_eval_generate_no_kb(self):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["kb", "eval", "generate"])
+        assert result.exit_code != 0
