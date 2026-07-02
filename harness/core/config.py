@@ -45,6 +45,7 @@ class LLMConfig:
             self.api_base = os.getenv(provider_base, "https://api.openai.com/v1")
         if self.proxy is None:
             self.proxy = os.getenv("LLM_PROXY", os.getenv("HTTP_PROXY", "")) or None
+        self.model = os.getenv("LLM_MODEL", self.model)
         self.chunk_model = os.getenv("CHUNK_MODEL", self.chunk_model)
         if not self.chunk_api_key:
             self.chunk_api_key = os.getenv("CHUNK_API_KEY", self.api_key)
