@@ -607,6 +607,12 @@ class KnowledgeBase:
     def clear_cache(self) -> None:
         """清除知识库内部缓存（当前无缓存，预留接口）。"""
 
+    def list_chunks(self) -> list[Chunk]:
+        """列出知识库中所有分块。"""
+        chunks = self._store.get_all_chunks()
+        logger.debug("列出分块: count={}", len(chunks))
+        return chunks
+
     def list_documents(self) -> list[Document]:
         """列出所有文档。"""
         docs = self._store.list_documents()

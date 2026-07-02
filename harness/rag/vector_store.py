@@ -59,6 +59,9 @@ class VectorStore(ABC):
     def delete_document(self, document_id: str) -> None: ...
 
     @abstractmethod
+    def get_all_chunks(self) -> list[Chunk]: ...
+
+    @abstractmethod
     def close(self) -> None: ...
 
 
@@ -191,6 +194,31 @@ class ChromaVectorStore(VectorStore):
         results = self._collection.get(where={"document_id": document_id})
         if results and results.get("ids"):
             self._collection.delete(ids=results["ids"])
+
+    def get_all_chunks(self) -> list[Chunk]:
+        raw = self._collection.get()
+        ids: list[str] = raw.get("ids", [])
+        metadatas_raw = raw.get("metadatas", []) or []
+        documents = raw.get("documents", []) or []
+        chunks: list[Chunk] = []
+        for i in range(len(ids)):
+            meta: dict[str, Any] = (
+                dict(metadatas_raw[i]) if metadatas_raw and i < len(metadatas_raw) else {}
+            )
+            doc_id = str(meta.get("document_id", ""))
+            c_idx = int(meta.get("chunk_index", 0))
+            chunks.append(
+                Chunk(
+                    id=ids[i],
+                    document_id=doc_id,
+                    content=str(documents[i]) if documents and i < len(documents) else "",
+                    metadata={
+                        k: v for k, v in meta.items() if k not in ("document_id", "chunk_index")
+                    },
+                    chunk_index=c_idx,
+                )
+            )
+        return chunks
 
     def close(self) -> None:
         pass

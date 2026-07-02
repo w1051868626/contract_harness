@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import tempfile
 
+from harness.agent.llm import LLMResponse
 from harness.eval_rag.dataset import EvalRagItem, EvalRagResult, load_jsonl, save_jsonl
+from harness.eval_rag.generator import RagDatasetGenerator
 from harness.eval_rag.metrics import RagMetricsCalculator
+from tests.conftest import MockLLMClient
 
 
 class TestDataModels:
@@ -76,3 +79,33 @@ class TestRagMetrics:
         calc = RagMetricsCalculator()
         result = calc.compute(items, top_ks=[3])
         assert result.precisions[3] == round(1.0 / 3, 4)
+
+
+class TestRagDatasetGenerator:
+    def test_generate_returns_items(self):
+        """从 mock KB chunk 生成 eval 数据集。"""
+        llm = MockLLMClient(
+            [
+                LLMResponse(content="违约金的上限是多少？", model="mock"),
+                LLMResponse(content="保密义务的期限是多久？", model="mock"),
+            ]
+        )
+
+        class MockChunk:
+            id = "c1"
+            content = "违约金不得超过实际损失的30%"
+
+        class MockChunk2:
+            id = "c2"
+            content = "保密义务期限为合同终止后三年"
+
+        class MockKB:
+            def list_chunks(self):
+                return [MockChunk(), MockChunk2()]
+
+        generator = RagDatasetGenerator()
+        items = generator.generate(MockKB(), llm, queries_per_chunk=1)
+        assert len(items) == 2
+        assert items[0].query == "违约金的上限是多少？"
+        assert items[0].expected_chunk_ids == ["c1"]
+        assert items[1].expected_chunk_ids == ["c2"]
