@@ -6,6 +6,8 @@ from harness.agent.llm import LLMResponse
 from harness.eval_rag.dataset import EvalRagItem, EvalRagResult, load_jsonl, save_jsonl
 from harness.eval_rag.generator import RagDatasetGenerator
 from harness.eval_rag.metrics import RagMetricsCalculator
+from harness.eval_rag.reporter import RagEvalReporter
+from harness.eval_rag.runner import RagEvalRunner
 from tests.conftest import MockLLMClient
 
 
@@ -79,6 +81,56 @@ class TestRagMetrics:
         calc = RagMetricsCalculator()
         result = calc.compute(items, top_ks=[3])
         assert result.precisions[3] == round(1.0 / 3, 4)
+
+
+class TestRagEvalRunner:
+    def test_run_returns_result(self):
+        items = [
+            EvalRagItem(query="q1", expected_chunk_ids=["c1"]),
+            EvalRagItem(query="q2", expected_chunk_ids=["c2"]),
+        ]
+
+        class MockKB:
+            def query(self, query, top_k=5):
+                if query == "q1":
+                    return [type("", (), {"id": "c1", "score": 0.9})()]
+                return [type("", (), {"id": "c2", "score": 0.8})()]
+
+        runner = RagEvalRunner()
+        result = runner.run(MockKB(), items, top_ks=[1, 3])
+        assert isinstance(result, EvalRagResult)
+        assert result.hit_rates[1] == 1.0
+
+
+class TestRagEvalReporter:
+    def test_to_markdown(self):
+        result = EvalRagResult(
+            dataset_name="test",
+            top_ks=[1, 3, 5],
+            hit_rates={1: 0.85, 3: 0.95, 5: 1.0},
+            mrr={1: 0.85, 3: 0.88, 5: 0.88},
+            precisions={1: 0.85, 3: 0.35, 5: 0.22},
+            recalls={1: 0.50, 3: 0.70, 5: 0.85},
+            details=[],
+        )
+        reporter = RagEvalReporter()
+        md = reporter.to_markdown(result)
+        assert "85.00%" in md
+        assert "test" in md
+
+    def test_to_json(self):
+        result = EvalRagResult(
+            dataset_name="test",
+            top_ks=[1],
+            hit_rates={1: 1.0},
+            mrr={1: 1.0},
+            precisions={1: 1.0},
+            recalls={1: 1.0},
+            details=[],
+        )
+        reporter = RagEvalReporter()
+        js = reporter.to_json(result)
+        assert '"hit_rates"' in js
 
 
 class TestRagDatasetGenerator:
