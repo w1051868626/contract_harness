@@ -304,6 +304,7 @@ def cli(ctx: click.Context, verbose: bool) -> None:
 
 - `@click.group()` 定义根命令组，所有子命令挂载在其上
 - `@click.option` 定义全局选项（如 `--verbose`），所有子命令共享
+- **⚠️ 组级别选项必须放在子命令之前**：`harness --verbose review` ✅ / `harness review --verbose` ❌
 - `@click.pass_context` 注入 `click.Context`，通过 `ctx.obj` 字典在命令间传递共享对象（如 `HarnessConfig`）
 
 ### 子命令（平级）
@@ -360,7 +361,7 @@ def search(ctx: click.Context, query: str, top_k: int) -> None:
 ```bash
 conda activate contract-harness
 pip install -e ".[dev]"
-pytest tests/ -v             # 运行 166 个单元测试
+pytest tests/ -v             # 运行 179 个单元测试
 ruff check harness/ tests/   # 代码检查
 ruff format --check harness/ tests/  # 格式检查
 pyright harness/             # 类型检查
