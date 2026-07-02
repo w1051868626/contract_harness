@@ -22,7 +22,7 @@ class LLMConfig:
     provider: str = "openai"
     model: str = "gpt-4o"
     api_key: str = ""
-    api_base: str = "https://api.openai.com/v1"
+    api_base: str = ""
     proxy: str | None = None
     temperature: float = 0.1
     max_tokens: int = 4096
