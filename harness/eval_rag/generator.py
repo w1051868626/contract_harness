@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from typing import Any
 
 from harness.agent.llm import LLMClient
@@ -16,7 +18,33 @@ GENERATOR_PROMPT = """你是一位法律知识库的测试数据生成专家。
 文本：
 {text}
 
-请直接输出问题，每行一个。"""
+请直接输出 JSON 格式（不要 Markdown 代码块标记），例如：
+{{"questions": ["问题1", "问题2"]}}"""
+
+
+def _parse_json_queries(text: str) -> list[str]:
+    """从 LLM 回复中提取 JSON 问题列表，兼容可能携带的 markdown 代码块。"""
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    cleaned = cleaned.strip()
+    try:
+        data = json.loads(cleaned)
+        if isinstance(data, dict) and "questions" in data:
+            return data["questions"]
+        if isinstance(data, list):
+            return data
+    except json.JSONDecodeError:
+        pass
+    lines = [
+        q.strip().removeprefix(f"{i + 1}.").strip()
+        for i, q in enumerate(cleaned.split("\n"))
+        if q.strip()
+    ]
+    if lines:
+        return lines
+    return []
 
 
 class RagDatasetGenerator:
@@ -40,12 +68,8 @@ class RagDatasetGenerator:
                     {"role": "user", "content": prompt},
                 ]
             )
-            queries = [
-                q.strip().removeprefix(f"{i + 1}.").strip()
-                for i, q in enumerate(resp.content.strip().split("\n"))
-                if q.strip()
-            ]
-            for q in queries[:queries_per_chunk]:
+            queries = _parse_json_queries(resp.content)[:queries_per_chunk]
+            for q in queries:
                 items.append(
                     EvalRagItem(
                         query=q,

@@ -141,8 +141,8 @@ class TestRagDatasetGenerator:
         """从 mock KB chunk 生成 eval 数据集。"""
         llm = MockLLMClient(
             [
-                LLMResponse(content="违约金的上限是多少？", model="mock"),
-                LLMResponse(content="保密义务的期限是多久？", model="mock"),
+                LLMResponse(content='{"questions": ["违约金的上限是多少？"]}', model="mock"),
+                LLMResponse(content='{"questions": ["保密义务的期限是多久？"]}', model="mock"),
             ]
         )
 
