@@ -1,4 +1,6 @@
 """调试：harness eval run — 在数据集上运行评测"""
+import argparse
+
 from harness.cli.main import load_dotenv
 from harness.core.config import HarnessConfig
 from harness.eval.dataset import EvalDataset
@@ -8,9 +10,12 @@ from harness.eval.reporters import EvalReporter
 load_dotenv()
 config = HarnessConfig()
 
-dataset = input("数据集路径: ")
+parser = argparse.ArgumentParser(description="在数据集上运行评测")
+parser.add_argument("--dataset", required=True, help="数据集路径")
+args = parser.parse_args()
+
 ds = EvalDataset()
-ds.load(dataset)
+ds.load(args.dataset)
 
 scorer = EvalScorer()
 data = scorer.score(ds)

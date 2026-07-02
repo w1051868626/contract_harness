@@ -1,4 +1,6 @@
 """调试：harness regression diff — 对比两个会话"""
+import argparse
+
 from harness.cli.main import load_dotenv
 from harness.core.config import HarnessConfig
 from harness.regression.comparator import OutputComparator
@@ -8,11 +10,13 @@ from harness.replay.storage import ReplayStorage
 load_dotenv()
 config = HarnessConfig()
 
-a = input("会话 A: ")
-b = input("会话 B: ")
+parser = argparse.ArgumentParser(description="对比两个会话")
+parser.add_argument("--a", required=True, help="会话 A")
+parser.add_argument("--b", required=True, help="会话 B")
+args = parser.parse_args()
 
 comparator = OutputComparator(SessionPlayer(ReplayStorage(config.replay_dir)))
-result = comparator.compare_by_session_id(a, b)
+result = comparator.compare_by_session_id(args.a, args.b)
 
 if result.get("risk_level_changed"):
     print("  风险等级发生变化")
