@@ -390,12 +390,12 @@ def seed(ctx: click.Context) -> None:
     logger.info("导入完成: {} 部法律", imported)
 
 
-@kb.group()
-def eval() -> None:
+@kb.group(name="eval")
+def kb_eval() -> None:
     """RAG 检索质量评估。"""
 
 
-@eval.command()
+@kb_eval.command()
 @click.option("--queries-per-chunk", default=2, help="每个 chunk 生成的问题数")
 @click.option("--output", default=None, help="输出数据集路径")
 @click.pass_context
@@ -416,7 +416,7 @@ def generate(ctx: click.Context, queries_per_chunk: int, output: str | None) -> 
     logger.info("生成 {} 条评估数据 -> {}", len(items), path)
 
 
-@eval.command(name="run")
+@kb_eval.command(name="run")
 @click.argument("dataset", type=click.Path(exists=True))
 @click.option("--top-ks", default="1,3,5", help="评估的 K 值，逗号分隔")
 @click.pass_context
