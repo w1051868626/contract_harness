@@ -51,6 +51,8 @@ pyright harness/
 harness kb seed                            # 导入内置法律条文
 harness kb import-file <file>              # 导入单个文件（支持 txt/md/json/pdf/docx/zip）；--docling 启用结构解析；--work-dir 指定临时目录
 harness kb search <query>                  # 检索知识库
+harness kb eval generate                   # 从 KB 自动生成评估数据集
+harness kb eval run <dataset>              # 执行 RAG 检索质量评估
 harness review <file>                      # 审查合同
 harness converse <session_id> <query>      # 继续对话
 harness replay <session_id>               # 回放会话
