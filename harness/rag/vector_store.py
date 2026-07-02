@@ -195,29 +195,36 @@ class ChromaVectorStore(VectorStore):
         if results and results.get("ids"):
             self._collection.delete(ids=results["ids"])
 
+    BATCH_SIZE = 1000
+
     def get_all_chunks(self) -> list[Chunk]:
-        raw = self._collection.get()
-        ids: list[str] = raw.get("ids", [])
-        metadatas_raw = raw.get("metadatas", []) or []
-        documents = raw.get("documents", []) or []
         chunks: list[Chunk] = []
-        for i in range(len(ids)):
-            meta: dict[str, Any] = (
-                dict(metadatas_raw[i]) if metadatas_raw and i < len(metadatas_raw) else {}
-            )
-            doc_id = str(meta.get("document_id", ""))
-            c_idx = int(meta.get("chunk_index", 0))
-            chunks.append(
-                Chunk(
-                    id=ids[i],
-                    document_id=doc_id,
-                    content=str(documents[i]) if documents and i < len(documents) else "",
-                    metadata={
-                        k: v for k, v in meta.items() if k not in ("document_id", "chunk_index")
-                    },
-                    chunk_index=c_idx,
+        offset = 0
+        while True:
+            raw = self._collection.get(limit=self.BATCH_SIZE, offset=offset)
+            ids: list[str] = raw.get("ids", [])
+            if not ids:
+                break
+            metadatas_raw = raw.get("metadatas", []) or []
+            documents = raw.get("documents", []) or []
+            for i in range(len(ids)):
+                meta: dict[str, Any] = (
+                    dict(metadatas_raw[i]) if metadatas_raw and i < len(metadatas_raw) else {}
                 )
-            )
+                doc_id = str(meta.get("document_id", ""))
+                c_idx = int(meta.get("chunk_index", 0))
+                chunks.append(
+                    Chunk(
+                        id=ids[i],
+                        document_id=doc_id,
+                        content=str(documents[i]) if documents and i < len(documents) else "",
+                        metadata={
+                            k: v for k, v in meta.items() if k not in ("document_id", "chunk_index")
+                        },
+                        chunk_index=c_idx,
+                    )
+                )
+            offset += len(ids)
         return chunks
 
     def close(self) -> None:
