@@ -23,7 +23,11 @@ class RagMetricsCalculator:
         for item in items:
             expected = set(item["expected"])
             retrieved = item["retrieved"][:max_k]
-            detail = {"expected": list(expected), "retrieved": retrieved}
+            detail = {
+                "expected": list(expected),
+                "retrieved": retrieved,
+                "query": item.get("query", ""),
+            }
 
             for k in top_ks:
                 top_k = retrieved[:k]

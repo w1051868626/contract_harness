@@ -16,7 +16,8 @@ class RagEvalReporter:
             return f"{val:.2%}"
 
         def row(name: str, source: dict[int, float]) -> str:
-            return f"| {name} | " + " | ".join(fmt(source[k]) for k in result.top_ks) + " |"
+            cols = " | ".join(fmt(source.get(k, 0.0)) for k in result.top_ks)
+            return f"| {name} | {cols} |"
 
         lines.append(row("Hit Rate", result.hit_rates))
         lines.append(row("MRR", result.mrr))

@@ -44,8 +44,11 @@ def save_jsonl(path: str, items: list[EvalRagItem]) -> None:
 def load_jsonl(path: str) -> list[EvalRagItem]:
     items: list[EvalRagItem] = []
     with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            data = json.loads(line)
+        for line_no, line in enumerate(f, 1):
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"JSONL 第 {line_no} 行解析失败: {e}") from e
             items.append(
                 EvalRagItem(
                     query=data["query"],

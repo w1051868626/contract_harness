@@ -16,7 +16,7 @@ GENERATOR_PROMPT = """你是一位法律知识库的测试数据生成专家。
 文本：
 {text}
 
-请直接输出问题，每行一个，不要编号。"""
+请直接输出问题，每行一个。"""
 
 
 class RagDatasetGenerator:
