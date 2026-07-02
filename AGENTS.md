@@ -13,6 +13,7 @@ harness/
 │   └── memory.py         持久化记忆 + 自演进（ChromaDB）
 ├── replay/       回放系统（录制 + 回放 + 存储管理）
 ├── eval/         评测系统（数据集 + 指标 + 评分流水线）
+├── eval_rag/     RAG 检索质量评估（数据模型 + 指标 + 生成 + 执行 + 报告）
 ├── regression/   回归系统（测试套件 + 对比器）
 ├── rag/          知识库（Embedding + 向量存储 + 检索 + Reranker）
 ├── web/          FastAPI Web 界面（审查 + 会话 + 追问）
@@ -159,3 +160,4 @@ conda activate contract-harness
 - 2026-07-01: Multi-Agent 协同审查——新增 `AgentMode.MULTI_AGENT` 模式；`WorkerAgent`（ClauseExpert/RiskExpert/ComplianceExpert 三个专业子 Agent，独立 LLM + system prompt）；`SupervisorAgent`（任务分配+分歧检测+报告合成）；`CrossValidator`（规则优先+LLM 兜底仲裁）；`MultiAgentCoordinator`（7 阶段全流程编排）；新增 20 个测试用例，累计 166 个。
 - 2026-07-01: ZIP 解压改用 `TemporaryDirectory` 保留原始文件名；`extract_zip_texts`/`add_zip` 新增 `--work-dir` 参数指定临时目录。
 - 2026-07-01: Embedding 速率限制——`OpenAIEmbeddingProvider` 集成滑动窗口速率限制器；`EmbeddingConfig` 新增 `max_rpm`/`max_tpm` 配置；支持 `EMBEDDING_MAX_RPM`/`EMBEDDING_MAX_TPM` 环境变量。
+- 2026-07-02: 新增 RAG 检索质量评估模块——`harness/eval_rag/`（数据模型 `EvalRagItem`/`EvalRagResult` + JSONL I/O）；同步更新文档；新增 3 个测试用例。

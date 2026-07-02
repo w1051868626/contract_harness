@@ -101,6 +101,7 @@ harness/
 │   └── memory.py         持久化记忆 + 自演进（ChromaDB）
 ├── replay/       回放系统（录制 + 回放 + 存储管理）
 ├── eval/         评测系统（数据集 + 指标 + 评分流水线）
+├── eval_rag/     RAG 检索质量评估（数据模型 + 指标 + 生成 + 执行 + 报告）
 ├── regression/   回归系统（测试套件 + 对比器）
 ├── rag/          知识库（Embedding + 向量存储 + 检索 + 稀疏检索 + Reranker）
 ├── web/          FastAPI Web 界面（审查 + 会话 + 追问）
