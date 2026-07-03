@@ -36,6 +36,10 @@ from harness.rag.vector_store import Chunk
 from harness.utils.io import make_id
 from harness.utils.log import logger
 
+_LAW_NAME_SCAN_CHARS = 500
+_DATE_SCAN_CHARS = 2000
+_CASE_SCAN_CHARS = 1000
+
 
 def _chinese_to_int(text: str) -> int:
     """中文数字转整数。"""
@@ -298,7 +302,7 @@ def _extract_law_metadata(text: str, filename: str = "") -> dict[str, Any]:
         r"^(.+(?:法典|法|条例|规定|办法|决定|解释))",
     ]
     for pat in name_pats:
-        m = re.search(pat, text[:500])
+        m = re.search(pat, text[:_LAW_NAME_SCAN_CHARS])
         if m:
             meta[MetaKey.LAW_NAME] = m.group(1).strip("《》")
             break
@@ -312,7 +316,7 @@ def _extract_law_metadata(text: str, filename: str = "") -> dict[str, Any]:
         r"(\d{4}-\d{2}-\d{2})",
     ]
     for pat in date_pats:
-        m = re.search(pat, text[:2000])
+        m = re.search(pat, text[:_DATE_SCAN_CHARS])
         if m:
             meta[MetaKey.EFFECTIVE_DATE] = m.group(1)
             break
@@ -331,15 +335,15 @@ def _extract_case_metadata(text: str, filename: str = "") -> dict[str, Any]:
         MetaKey.KEYWORDS: "",
     }
 
-    g = re.search(r"指导案例(\d+)号", text[:500])
+    g = re.search(r"指导案例(\d+)号", text[:_LAW_NAME_SCAN_CHARS])
     if g:
         meta[MetaKey.GUIDING_NUMBER] = f"指导案例{g.group(1)}号"
 
-    c = re.search(r"[（(]\d{4}[）)][^\s]*\d+号", text[:1000])
+    c = re.search(r"[（(]\d{4}[）)][^\s]*\d+号", text[:_CASE_SCAN_CHARS])
     if c:
         meta[MetaKey.CASE_NUMBER] = c.group(0)
 
-    kw = re.search(r"关键词[：:]\s*(.+?)(?:\n|$)", text[:1000])
+    kw = re.search(r"关键词[：:]\s*(.+?)(?:\n|$)", text[:_CASE_SCAN_CHARS])
     if kw:
         keywords = re.split(r"[；;,，\s]+", kw.group(1).strip())
         kw_list = [k.strip() for k in keywords if k.strip()]
@@ -385,6 +389,53 @@ def _inject_contextual_header(
     return content
 
 
+def _process_law_line(
+    line: str,
+    ctx: _LawContext,
+    state: dict[str, Any],
+) -> bool:
+    """处理一行法律文本，返回 True 表示触发了条号变更（需要外部 flush）。"""
+    if not line:
+        return False
+
+    if ctx.law_name is None and _TITLE_RE.match(line):
+        ctx.law_name = line
+        return False
+
+    if ctx.pub_date is None:
+        m = _DATE_RE.search(line)
+        if m:
+            y, mo, d = m.group(1), int(m.group(2)), int(m.group(3))
+            ctx.pub_date = f"{y}-{mo:02d}-{d:02d}"
+
+    m = _CHAPTER_LAW_RE.match(line)
+    if m:
+        ctx.chapter = m.group(1)
+        return False
+
+    m = _SECTION_LAW_RE.match(line)
+    if m:
+        ctx.section = m.group(1)
+        return False
+
+    m = _ARTICLE_LAW_RE.match(line)
+    if m:
+        state["idx"] = _flush_law_article(
+            state["buffer"],
+            state["cur_article"],
+            state["cur_article_no"],
+            ctx,
+            state["idx"],
+        )
+        state["cur_article"] = m.group(1)
+        state["cur_article_no"] = _chinese_to_int(m.group(2))
+        state["buffer"] = [line]
+        return True
+
+    state["buffer"].append(line)
+    return False
+
+
 def chunk_law_text(
     text: str,
     doc_id: str,
@@ -403,62 +454,23 @@ def chunk_law_text(
 
     lines = text.splitlines()
     ctx = _LawContext(doc_id=doc_id, chunk_size=chunk_size)
-    cur_article: str | None = None
-    cur_article_no: int | None = None
-    buffer: list[str] = []
-    idx = 0
+    state: dict[str, Any] = {
+        "cur_article": None,
+        "cur_article_no": None,
+        "buffer": [],
+        "idx": 0,
+    }
 
     for line in lines:
         line = line.strip()
-        if not line:
-            continue
+        _process_law_line(line, ctx, state)
 
-        # 法律名称
-        if ctx.law_name is None and _TITLE_RE.match(line):
-            ctx.law_name = line
-            continue
-
-        # 发布日期
-        if ctx.pub_date is None:
-            m = _DATE_RE.search(line)
-            if m:
-                y, mo, d = m.group(1), int(m.group(2)), int(m.group(3))
-                ctx.pub_date = f"{y}-{mo:02d}-{d:02d}"
-
-        # 章
-        m = _CHAPTER_LAW_RE.match(line)
-        if m:
-            ctx.chapter = m.group(1)
-            continue
-
-        # 节
-        m = _SECTION_LAW_RE.match(line)
-        if m:
-            ctx.section = m.group(1)
-            continue
-
-        # 条
-        m = _ARTICLE_LAW_RE.match(line)
-        if m:
-            idx = _flush_law_article(
-                buffer,
-                cur_article,
-                cur_article_no,
-                ctx,
-                idx,
-            )
-            cur_article = m.group(1)
-            cur_article_no = _chinese_to_int(m.group(2))
-            buffer = [line]
-        else:
-            buffer.append(line)
-
-    idx = _flush_law_article(
-        buffer,
-        cur_article,
-        cur_article_no,
+    state["idx"] = _flush_law_article(
+        state["buffer"],
+        state["cur_article"],
+        state["cur_article_no"],
         ctx,
-        idx,
+        state["idx"],
     )
 
     return ctx.chunks
@@ -548,6 +560,45 @@ def _flush_law_article(
     return idx
 
 
+def _scan_chunk_meta(
+    part: str,
+    cur_chapter: str,
+    cur_section: str,
+) -> tuple[dict[str, Any], str, str]:
+    """扫描片段中的章节和条文元数据，返回 (meta, updated_cur_chapter, updated_cur_section)。"""
+    meta: dict[str, Any] = {}
+
+    first_ch = ""
+    first_sec = ""
+    for line in part.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        if _CHAPTER_DIVISION_RE.match(line) and not first_ch:
+            first_ch = line
+        if _SECTION_HEAD_RE.match(line) and not first_sec:
+            first_sec = line
+
+    if first_ch:
+        cur_chapter = first_ch
+        cur_section = ""
+    if first_sec:
+        cur_section = first_sec
+
+    if cur_chapter:
+        meta[MetaKey.CHAPTER] = cur_chapter
+    if cur_section:
+        meta[MetaKey.SECTION] = cur_section
+
+    arts = _ART_PAT_RE.findall(part)
+    if arts:
+        meta[MetaKey.ARTICLES] = (
+            f"第{arts[0]}条" if len(arts) == 1 else f"第{arts[0]}条—第{arts[-1]}条"
+        )
+
+    return meta, cur_chapter, cur_section
+
+
 def chunk_legal_text(
     text: str,
     doc_id: str,
@@ -583,35 +634,7 @@ def chunk_legal_text(
 
     for part in parts:
         content = prev_tail + part if prev_tail else part
-        meta: dict[str, Any] = {}
-
-        first_ch = ""
-        first_sec = ""
-        for line in part.split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-            if _CHAPTER_DIVISION_RE.match(line) and not first_ch:
-                first_ch = line
-            if _SECTION_HEAD_RE.match(line) and not first_sec:
-                first_sec = line
-
-        if first_ch:
-            cur_chapter = first_ch
-            cur_section = ""
-        if first_sec:
-            cur_section = first_sec
-
-        if cur_chapter:
-            meta[MetaKey.CHAPTER] = cur_chapter
-        if cur_section:
-            meta[MetaKey.SECTION] = cur_section
-
-        arts = _ART_PAT_RE.findall(part)
-        if arts:
-            meta[MetaKey.ARTICLES] = (
-                f"第{arts[0]}条" if len(arts) == 1 else f"第{arts[0]}条—第{arts[-1]}条"
-            )
+        meta, cur_chapter, cur_section = _scan_chunk_meta(part, cur_chapter, cur_section)
 
         chunks.append(
             Chunk(

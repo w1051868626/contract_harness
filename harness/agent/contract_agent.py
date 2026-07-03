@@ -24,6 +24,7 @@ from harness.core.types import (
     ContractDocument,
     ReviewReport,
     RiskAssessment,
+    RiskLevel,
     ToolCall,
 )
 from harness.replay.storage import ReplayStorage
@@ -122,92 +123,35 @@ class ContractAgent:
         )
         logger.info("Starting pipeline review for document_id={}", document.id)
 
-        # Step 0: 知识库检索（可选）
-        kb_context = ""
-        if self._knowledge_retriever.available:
-            step0 = AgentStep(step_index=0, timestamp=datetime.now(timezone.utc).isoformat())
-            step0.agent_message = "正在检索知识库..."
-            tc = ToolCall(
-                tool_name="knowledge_retriever",
-                input={"query": document.content[:500]},
-                started_at=datetime.now(timezone.utc).isoformat(),
-            )
-            kb_context = self._knowledge_retriever.retrieve(document.content)
-            tc.output = kb_context
-            tc.finished_at = datetime.now(timezone.utc).isoformat()
-            step0.tool_calls.append(tc)
+        kb_context, step0 = self._step_knowledge_retrieval(document.id, document.content)
+        if step0:
             session.steps.append(step0)
 
-        # Step 1: 条款提取
-        step1 = AgentStep(step_index=1, timestamp=datetime.now(timezone.utc).isoformat())
-        step1.agent_message = "正在提取合同条款..."
-        tc = ToolCall(
-            tool_name="clause_extractor",
-            input={"document_id": document.id},
-            started_at=datetime.now(timezone.utc).isoformat(),
-        )
-        clauses = self._clause_extractor.extract(document)
-        tc.output = [c.__dict__ for c in clauses]
-        tc.finished_at = datetime.now(timezone.utc).isoformat()
-        step1.tool_calls.append(tc)
+        clauses, step1 = self._step_clause_extraction(document)
         session.steps.append(step1)
-        logger.info("Extracted {} clauses from document", len(clauses))
 
-        # 从记忆中检索相似案例作为参考上下文
-        mem_risk_ctx = ""
-        mem_compliance_ctx = ""
-        if self._memory and self._memory.enabled:
-            memories: list = []
-            seen: set[str] = set()
-            for c in clauses:
-                for m in self._memory.recall(c.content, top_k=2):
-                    if m.clause_content not in seen:
-                        seen.add(m.clause_content)
-                        memories.append(m)
-            if memories:
-                mem_risk_ctx = self._memory.format_memory_context(memories)
-                mem_compliance_ctx = mem_risk_ctx
+        mem_risk_ctx, mem_compliance_ctx = self._recall_memories(clauses)
 
-        # Step 2: 批量风险分析（单次 LLM 调用）
-        step2 = AgentStep(step_index=2, timestamp=datetime.now(timezone.utc).isoformat())
-        step2.agent_message = "正在进行风险分析..."
-        tc = ToolCall(
-            tool_name="risk_analyzer",
-            input={"clause_count": len(clauses)},
-            started_at=datetime.now(timezone.utc).isoformat(),
-        )
-        risks = self._risk_analyzer.batch_analyze(clauses, memory_context=mem_risk_ctx)
-        tc.output = [r.__dict__ for r in risks]
-        tc.finished_at = datetime.now(timezone.utc).isoformat()
-        step2.tool_calls.append(tc)
+        risks, step2 = self._step_risk_analysis(clauses, mem_risk_ctx)
         session.steps.append(step2)
-        logger.info("Analyzed {} clauses for risk", len(risks))
 
-        # Step 3: 批量合规检查（单次 LLM 调用）
-        step3 = AgentStep(step_index=3, timestamp=datetime.now(timezone.utc).isoformat())
-        step3.agent_message = "正在进行合规检查..."
-        tc = ToolCall(
-            tool_name="compliance_checker",
-            input={"clause_count": len(clauses)},
-            started_at=datetime.now(timezone.utc).isoformat(),
+        all_compliance, compliance_results, step3 = self._step_compliance_check(
+            clauses,
+            mem_compliance_ctx,
         )
-        compliance_results = self._compliance_checker.batch_check(
-            clauses, memory_context=mem_compliance_ctx
-        )
-        all_compliance: list[ComplianceCheck] = []
-        for checks in compliance_results:
-            all_compliance.extend(checks)
-        tc.output = [c.__dict__ for c in all_compliance]
-        tc.finished_at = datetime.now(timezone.utc).isoformat()
-        step3.tool_calls.append(tc)
         session.steps.append(step3)
-        logger.info("Performed {} compliance checks", len(all_compliance))
 
-        # Step 4: 生成报告摘要
-        step4 = AgentStep(step_index=4, timestamp=datetime.now(timezone.utc).isoformat())
+        overall_risk, summary = self._step_report_generation(
+            clauses,
+            risks,
+            all_compliance,
+            kb_context,
+        )
+        step4 = AgentStep(
+            step_index=4,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
         step4.agent_message = "正在生成审查报告..."
-        overall_risk = compute_overall_risk(risks)
-        summary = self._generate_summary(clauses, risks, all_compliance, kb_context)
         session.steps.append(step4)
 
         report = ReviewReport(
@@ -223,18 +167,133 @@ class ContractAgent:
         session.report = report
         session.finished_at = datetime.now(timezone.utc).isoformat()
 
-        # 将本次审查结果存入持久化记忆
+        self._step_save_memory(clauses, risks, compliance_results, session.session_id)
+
+        logger.info("Pipeline review completed for document_id={}", document.id)
+        return report, session
+
+    def _step_knowledge_retrieval(self, doc_id: str, content: str) -> tuple[str, AgentStep | None]:
+        """Step 0: 知识库检索（可选）。"""
+        if not self._knowledge_retriever.available:
+            return "", None
+        step = AgentStep(step_index=0, timestamp=datetime.now(timezone.utc).isoformat())
+        step.agent_message = "正在检索知识库..."
+        tc = ToolCall(
+            tool_name="knowledge_retriever",
+            input={"query": content[:500]},
+            started_at=datetime.now(timezone.utc).isoformat(),
+        )
+        kb_context = self._knowledge_retriever.retrieve(content)
+        tc.output = kb_context
+        tc.finished_at = datetime.now(timezone.utc).isoformat()
+        step.tool_calls.append(tc)
+        return kb_context, step
+
+    def _step_clause_extraction(self, document: ContractDocument) -> tuple[list[Clause], AgentStep]:
+        """Step 1: 条款提取。"""
+        step = AgentStep(step_index=1, timestamp=datetime.now(timezone.utc).isoformat())
+        step.agent_message = "正在提取合同条款..."
+        tc = ToolCall(
+            tool_name="clause_extractor",
+            input={"document_id": document.id},
+            started_at=datetime.now(timezone.utc).isoformat(),
+        )
+        clauses = self._clause_extractor.extract(document)
+        tc.output = [c.__dict__ for c in clauses]
+        tc.finished_at = datetime.now(timezone.utc).isoformat()
+        step.tool_calls.append(tc)
+        logger.info("Extracted {} clauses from document", len(clauses))
+        return clauses, step
+
+    def _recall_memories(self, clauses: list[Clause]) -> tuple[str, str]:
+        """从记忆中检索相似案例作为参考上下文。"""
+        mem_risk_ctx = ""
+        mem_compliance_ctx = ""
+        if self._memory and self._memory.enabled:
+            memories: list = []
+            seen: set[str] = set()
+            for c in clauses:
+                for m in self._memory.recall(c.content, top_k=2):
+                    if m.clause_content not in seen:
+                        seen.add(m.clause_content)
+                        memories.append(m)
+            if memories:
+                mem_risk_ctx = self._memory.format_memory_context(memories)
+                mem_compliance_ctx = mem_risk_ctx
+        return mem_risk_ctx, mem_compliance_ctx
+
+    def _step_risk_analysis(
+        self,
+        clauses: list[Clause],
+        mem_ctx: str,
+    ) -> tuple[list[RiskAssessment], AgentStep]:
+        """Step 2: 批量风险分析（单次 LLM 调用）。"""
+        step = AgentStep(step_index=2, timestamp=datetime.now(timezone.utc).isoformat())
+        step.agent_message = "正在进行风险分析..."
+        tc = ToolCall(
+            tool_name="risk_analyzer",
+            input={"clause_count": len(clauses)},
+            started_at=datetime.now(timezone.utc).isoformat(),
+        )
+        risks = self._risk_analyzer.batch_analyze(clauses, memory_context=mem_ctx)
+        tc.output = [r.__dict__ for r in risks]
+        tc.finished_at = datetime.now(timezone.utc).isoformat()
+        step.tool_calls.append(tc)
+        logger.info("Analyzed {} clauses for risk", len(risks))
+        return risks, step
+
+    def _step_compliance_check(
+        self,
+        clauses: list[Clause],
+        mem_ctx: str,
+    ) -> tuple[list[ComplianceCheck], list[list[ComplianceCheck]], AgentStep]:
+        """Step 3: 批量合规检查（单次 LLM 调用）。返回 (扁平列表, 嵌套列表, step)。"""
+        step = AgentStep(step_index=3, timestamp=datetime.now(timezone.utc).isoformat())
+        step.agent_message = "正在进行合规检查..."
+        tc = ToolCall(
+            tool_name="compliance_checker",
+            input={"clause_count": len(clauses)},
+            started_at=datetime.now(timezone.utc).isoformat(),
+        )
+        compliance_results = self._compliance_checker.batch_check(clauses, memory_context=mem_ctx)
+        all_compliance: list[ComplianceCheck] = []
+        for checks in compliance_results:
+            all_compliance.extend(checks)
+        tc.output = [c.__dict__ for c in all_compliance]
+        tc.finished_at = datetime.now(timezone.utc).isoformat()
+        step.tool_calls.append(tc)
+        logger.info("Performed {} compliance checks", len(all_compliance))
+        return all_compliance, compliance_results, step
+
+    def _step_report_generation(
+        self,
+        clauses: list[Clause],
+        risks: list[RiskAssessment],
+        compliance: list[ComplianceCheck],
+        kb_context: str,
+    ) -> tuple[RiskLevel, str]:
+        """Step 4: 生成报告摘要。"""
+        step = AgentStep(step_index=4, timestamp=datetime.now(timezone.utc).isoformat())
+        step.agent_message = "正在生成审查报告..."
+        overall_risk = compute_overall_risk(risks)
+        summary = self._generate_summary(clauses, risks, compliance, kb_context)
+        return overall_risk, summary
+
+    def _step_save_memory(
+        self,
+        clauses: list[Clause],
+        risks: list[RiskAssessment],
+        compliance_results: list[list[ComplianceCheck]],
+        session_id: str,
+    ) -> None:
+        """将本次审查结果存入持久化记忆。"""
         if self._memory and self._memory.enabled:
             self._memory.remember_session(
                 clauses=clauses,
                 risks=risks,
                 compliance=compliance_results,
-                session_id=session.session_id,
+                session_id=session_id,
             )
-
-        logger.info("Pipeline review completed for document_id={}", document.id)
-
-        return report, session
 
     def converse(self, session_id: str, query: str, replay_dir: str | None = None) -> str:
         """根据会话 ID 继续对话，回答对上次审查的追问。
@@ -256,7 +315,21 @@ class ContractAgent:
         if not report:
             return "该会话没有审查报告，无法继续对话"
 
-        # 重建报告上下文
+        conversation: list[dict[str, str]] = data.get("metadata", {}).get("conversation", [])  # type: ignore[arg-type]
+        messages = self._build_converse_messages(report, query, conversation)
+        resp = self._llm.chat(messages)
+        answer = resp.content
+
+        conversation.append({"role": "user", "content": query})
+        conversation.append({"role": "assistant", "content": answer})
+        data.setdefault("metadata", {})["conversation"] = conversation
+        storage.save(session_id, data)  # type: ignore[arg-type]
+
+        logger.info("Converse updated: session_id={}, turns={}", session_id, len(conversation) // 2)
+        return answer
+
+    def _build_converse_context(self, report: dict) -> dict[str, str]:
+        """构建摘要/风险/合规等上下文段落。"""
         summary = report.get("summary", "无摘要")
         overall_risk = report.get("overall_risk", "info")
         clauses = report.get("clauses", [])
@@ -269,12 +342,10 @@ class ContractAgent:
             )
             or "无"
         )
-
         risks_section = (
             "\n".join(f"- [{r.get('risk_level', '?')}] {r.get('reason', '')[:200]}" for r in risks)
             or "无"
         )
-
         compliance_section = (
             "\n".join(
                 f"- {c.get('regulation', '?')}: {'✅合规' if c.get('status') else '❌不合规'}"
@@ -283,37 +354,37 @@ class ContractAgent:
             or "无"
         )
 
-        # 读取历史对话记录
-        conversation: list[dict[str, str]] = data.get("metadata", {}).get("conversation", [])  # type: ignore[arg-type]
+        return {
+            "summary": summary,
+            "overall_risk": overall_risk,
+            "clauses_section": clauses_section,
+            "risks_section": risks_section,
+            "compliance_section": compliance_section,
+        }
 
+    def _build_converse_messages(
+        self,
+        report: dict,
+        query: str,
+        conversation: list[dict[str, str]],
+    ) -> list[dict[str, str]]:
+        """构造 LLM messages。"""
+        ctx = self._build_converse_context(report)
         prompt = CONVERSE_PROMPT.format(
-            summary=summary,
-            overall_risk=overall_risk,
-            clauses_section=clauses_section,
-            risks_section=risks_section,
-            compliance_section=compliance_section,
+            summary=ctx["summary"],
+            overall_risk=ctx["overall_risk"],
+            clauses_section=ctx["clauses_section"],
+            risks_section=ctx["risks_section"],
+            compliance_section=ctx["compliance_section"],
             query=query,
         )
-
         messages: list[dict[str, str]] = [
             {"role": "system", "content": "你是一位资深法律合同审查专家。"},
         ]
-        # 注入历史对话作为上下文
         for turn in conversation:
             messages.append({"role": turn.get("role", "user"), "content": turn.get("content", "")})
         messages.append({"role": "user", "content": prompt})
-
-        resp = self._llm.chat(messages)
-        answer = resp.content
-
-        # 更新对话记录
-        conversation.append({"role": "user", "content": query})
-        conversation.append({"role": "assistant", "content": answer})
-        data.setdefault("metadata", {})["conversation"] = conversation
-        storage.save(session_id, data)  # type: ignore[arg-type]
-
-        logger.info("Converse updated: session_id={}, turns={}", session_id, len(conversation) // 2)
-        return answer
+        return messages
 
     def _generate_summary(
         self,
