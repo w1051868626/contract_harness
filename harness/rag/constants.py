@@ -10,6 +10,14 @@ from enum import Enum
 CHUNK_MAX_CHARS = 8000
 EMBED_MAX_CHARS = 1024 * 8
 
+# ===== Embedding / Reranker 默认值 =====
+
+DEFAULT_EMBED_MODEL = "text-embedding-3-small"
+DEFAULT_EMBED_API_BASE = "https://api.openai.com/v1"
+DEFAULT_RERANK_MODEL = "rerank-v1"
+DEFAULT_LOCAL_EMBED_MODEL = "BAAI/bge-small-zh-v1.5"
+DEFAULT_LOCAL_RERANK_MODEL = "BAAI/bge-reranker-v2-m3"
+
 # ===== 混合检索参数 =====
 
 RRF_K = 60

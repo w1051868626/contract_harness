@@ -50,7 +50,7 @@ def read_json(path: str | Path) -> dict[str, Any]:
 def write_json(path: str | Path, data: Any) -> None:
     """将数据写入 JSON 文件（含缩进与中文支持）。"""
     Path(path).write_text(
-        json.dumps(data, ensure_ascii=False, indent=2, default=str),
+        json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 

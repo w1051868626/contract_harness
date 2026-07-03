@@ -7,6 +7,11 @@ from typing import Any
 
 import httpx
 
+from harness.rag.constants import (
+    DEFAULT_EMBED_API_BASE,
+    DEFAULT_LOCAL_RERANK_MODEL,
+    DEFAULT_RERANK_MODEL,
+)
 from harness.rag.vector_store import Chunk
 from harness.utils.log import logger
 
@@ -71,7 +76,7 @@ class OpenAIReranker(Reranker):
 class LocalReranker(Reranker):
     """基于本地 cross-encoder 模型的重排序实现。"""
 
-    def __init__(self, model_name: str = "BAAI/bge-reranker-v2-m3"):
+    def __init__(self, model_name: str = DEFAULT_LOCAL_RERANK_MODEL):
         self.model_name = model_name
         self._model: Any = None
 
@@ -122,8 +127,8 @@ def create_reranker(
     if provider == "openai":
         return OpenAIReranker(
             api_key=api_key,
-            api_base=api_base or "https://api.openai.com/v1",
-            model=model or "rerank-v1",
+            api_base=api_base or DEFAULT_EMBED_API_BASE,
+            model=model or DEFAULT_RERANK_MODEL,
             proxy=proxy,
         )
     if provider == "local":

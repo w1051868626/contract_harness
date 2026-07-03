@@ -12,6 +12,8 @@ from harness.eval.scorer import EvalScorer
 from harness.utils.io import read_json, write_json
 from harness.utils.log import logger
 
+_REGRESSION_THRESHOLD = 0.05
+
 
 class RegressionSuite:
     """回归测试套件，管理基线保存、加载与指标对比。"""
@@ -57,12 +59,12 @@ class RegressionSuite:
                 diff = current_val - baseline_val
                 result.metrics_diff[name] = round(diff, 4)
 
-                if diff < -0.05:
+                if diff < -_REGRESSION_THRESHOLD:
                     result.regressions.append(
                         f"{name}: {baseline_val:.2%} → {current_val:.2%} (下降 {abs(diff):.2%})"
                     )
                     result.passed = False
-                elif diff > 0.05:
+                elif diff > _REGRESSION_THRESHOLD:
                     result.improvements.append(
                         f"{name}: {baseline_val:.2%} → {current_val:.2%} (提升 {diff:.2%})"
                     )

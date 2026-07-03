@@ -13,7 +13,12 @@ import httpx
 from openai import APIError, AuthenticationError, BadRequestError, InternalServerError, OpenAI
 
 from harness.core.exceptions import EmbeddingError
-from harness.rag.constants import EMBED_MAX_CHARS
+from harness.rag.constants import (
+    DEFAULT_EMBED_API_BASE,
+    DEFAULT_EMBED_MODEL,
+    DEFAULT_LOCAL_EMBED_MODEL,
+    EMBED_MAX_CHARS,
+)
 from harness.utils.log import logger
 
 _SENTENCE_SPLIT = re.compile(r"[。！？；.!?;\n]")
@@ -113,8 +118,8 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
     def __init__(
         self,
         api_key: str = "",
-        api_base: str = "https://api.openai.com/v1",
-        model: str = "text-embedding-3-small",
+        api_base: str = DEFAULT_EMBED_API_BASE,
+        model: str = DEFAULT_EMBED_MODEL,
         proxy: str | None = None,
         max_rpm: int = 0,
         max_tpm: int = 0,
@@ -210,12 +215,12 @@ def create_embedding_provider(
     if provider == "openai":
         return OpenAIEmbeddingProvider(
             api_key=api_key,
-            api_base=api_base or "https://api.openai.com/v1",
-            model=model or "text-embedding-3-small",
+            api_base=api_base or DEFAULT_EMBED_API_BASE,
+            model=model or DEFAULT_EMBED_MODEL,
             proxy=proxy,
             max_rpm=max_rpm,
             max_tpm=max_tpm,
         )
     if provider == "local":
-        return LocalEmbeddingProvider(model_name=model or "BAAI/bge-small-zh-v1.5")
+        return LocalEmbeddingProvider(model_name=model or DEFAULT_LOCAL_EMBED_MODEL)
     raise ValueError(f"Unsupported embedding provider: {provider}")

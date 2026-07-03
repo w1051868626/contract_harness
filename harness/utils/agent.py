@@ -1,18 +1,20 @@
 from harness.core.types import Clause, ComplianceCheck, RiskAssessment, RiskLevel
 
+_RISK_PRIORITY = [
+    RiskLevel.CRITICAL,
+    RiskLevel.HIGH,
+    RiskLevel.MEDIUM,
+    RiskLevel.LOW,
+]
+
 
 def compute_overall_risk(risks: list[RiskAssessment]) -> RiskLevel:
     if not risks:
         return RiskLevel.INFO
-    levels = [r.risk_level for r in risks]
-    if RiskLevel.CRITICAL in levels:
-        return RiskLevel.CRITICAL
-    if RiskLevel.HIGH in levels:
-        return RiskLevel.HIGH
-    if RiskLevel.MEDIUM in levels:
-        return RiskLevel.MEDIUM
-    if RiskLevel.LOW in levels:
-        return RiskLevel.LOW
+    levels = {r.risk_level for r in risks}
+    for level in _RISK_PRIORITY:
+        if level in levels:
+            return level
     return RiskLevel.INFO
 
 
