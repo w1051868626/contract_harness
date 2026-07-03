@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from harness.core.config import HarnessConfig
 from harness.core.types import SessionData, SessionSummary
@@ -38,7 +38,8 @@ class ReplayStorage:
         if not filepath.exists():
             logger.debug("Session file not found session_id={}", session_id)
             return None
-        data: SessionData = read_json(filepath)  # type: ignore[assignment]
+        raw = read_json(filepath)
+        data: SessionData | None = cast(SessionData, raw) if raw else None
         logger.debug("Session loaded session_id={}", session_id)
         return data
 

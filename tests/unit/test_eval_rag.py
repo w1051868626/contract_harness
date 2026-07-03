@@ -11,6 +11,7 @@ from harness.eval_rag.generator import RagDatasetGenerator
 from harness.eval_rag.metrics import RagMetricsCalculator
 from harness.eval_rag.reporter import RagEvalReporter
 from harness.eval_rag.runner import RagEvalRunner
+from harness.rag.vector_store import Chunk
 from tests.conftest import MockLLMClient
 
 
@@ -96,8 +97,10 @@ class TestRagEvalRunner:
         class MockKB:
             def query(self, query, top_k=5):
                 if query == "q1":
-                    return [type("", (), {"id": "c1", "score": 0.9})()]
-                return [type("", (), {"id": "c2", "score": 0.8})()]
+                    return [
+                        Chunk(id="c1", document_id="d1", content="test", chunk_index=0, score=0.9)
+                    ]
+                return [Chunk(id="c2", document_id="d1", content="test", chunk_index=0, score=0.8)]
 
         runner = RagEvalRunner()
         result = runner.run(MockKB(), items, top_ks=[1, 3])

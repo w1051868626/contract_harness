@@ -78,3 +78,41 @@ class TestWebApp:
         resp = client.get("/sessions/nonexistent")
         assert resp.status_code == 200
         assert "不存在" in resp.text
+
+    def test_converse_api_nonexistent(self, client):
+        """POST /sessions/{id}/converse 不存在的会话应返回错误。"""
+        mock_session = MagicMock()
+        mock_session.session_id = "nonexistent"
+        mock_session.document.content = "测试合同"
+        mock_session.report = None
+        mock_session.steps = []
+        mock_session.metadata = {}
+        with (
+            patch("harness.web.app._agent") as mock_agent_fn,
+            patch("harness.web.app._player") as mock_player_fn,
+        ):
+            mock_agent = MagicMock()
+            mock_agent.converse.side_effect = ValueError("未找到会话")
+            mock_agent_fn.return_value = mock_agent
+            mock_player = MagicMock()
+            mock_player.load.return_value = mock_session
+            mock_player_fn.return_value = mock_player
+            resp = client.post("/sessions/nonexistent/converse", data={"query": "追问测试"})
+        assert resp.status_code == 200
+        assert "未找到会话" in resp.text
+
+    def test_converse_api_empty_query(self, client):
+        """POST /sessions/{id}/converse 空查询应返回错误。"""
+        mock_session = MagicMock()
+        mock_session.session_id = "nonexistent"
+        mock_session.document.content = "测试合同"
+        mock_session.report = None
+        mock_session.steps = []
+        mock_session.metadata = {}
+        with patch("harness.web.app._player") as mock_player_fn:
+            mock_player = MagicMock()
+            mock_player.load.return_value = mock_session
+            mock_player_fn.return_value = mock_player
+            resp = client.post("/sessions/nonexistent/converse", data={"query": ""})
+        assert resp.status_code == 200
+        assert "请输入问题" in resp.text

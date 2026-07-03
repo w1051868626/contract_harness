@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 
 from harness.agent.memory import MemoryEntry, MemoryStore
+from harness.core.types import Clause, ComplianceCheck, RiskAssessment, RiskLevel
 from harness.rag.embedding import EmbeddingProvider
 
 
@@ -85,24 +86,18 @@ class TestMemoryStore:
             emb = _FixedEmbedding()
             store = MemoryStore(tmpdir, embedding=emb)
 
+            clause = Clause(clause_type="保密", content="双方应严格保密")
             store.remember_session(
-                clauses=[
-                    type("Clause", (), {"clause_type": "保密", "content": "双方应严格保密"})()
-                ],
+                clauses=[clause],
                 risks=[
-                    type(
-                        "RA",
-                        (),
-                        {
-                            "risk_level": type("RL", (), {"value": "medium"})(),
-                            "reason": "模糊",
-                            "suggestion": "明确",
-                        },
-                    )()
+                    RiskAssessment(
+                        clause=clause,
+                        risk_level=RiskLevel.MEDIUM,
+                        reason="模糊",
+                        suggestion="明确",
+                    )
                 ],
-                compliance=[
-                    [type("CC", (), {"regulation": "民法典", "status": True, "detail": "合规"})()]
-                ],
+                compliance=[[ComplianceCheck(regulation="民法典", status=True, detail="合规")]],
                 session_id="test_s1",
             )
             results = store.recall("保密", top_k=5)
