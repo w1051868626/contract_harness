@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 from harness.agent.llm import LLMClient
@@ -80,7 +81,7 @@ class MultiAgentCoordinator:
                 outputs[role] = worker_out
                 tc.output = f"{role} 执行完成"
                 logger.info("{} completed successfully", role)
-            except Exception as e:
+            except (ValueError, RuntimeError, json.JSONDecodeError) as e:
                 logger.warning("{} failed: {}", role, e)
                 tc.output = str(e)
             finally:
@@ -112,7 +113,7 @@ class MultiAgentCoordinator:
                 if peer:
                     cv_out = worker.execute("确认审查结果", peer_results=peer)
                     cross_validation_outputs[role] = cv_out.content[:500]
-            except Exception as e:
+            except (ValueError, RuntimeError, json.JSONDecodeError) as e:
                 logger.warning("Cross-validation for {} failed: {}", role, e)
         tc.output = "交叉验证完成"
         tc.finished_at = datetime.now(timezone.utc).isoformat()

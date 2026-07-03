@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timezone
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,10 @@ from harness.utils.log import logger, setup_logging
 load_dotenv()
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+_SECONDS_MINUTE = 60
+_SECONDS_HOUR = 3600
+_SECONDS_DAY = 86400
+_SECONDS_MONTH = 2592000
 
 HERE = Path(__file__).parent
 
@@ -41,7 +46,7 @@ templates = Jinja2Templates(directory=str(HERE / "templates"))
 
 try:
     PKG_VERSION = version("contract-harness")
-except Exception:
+except (PackageNotFoundError, ValueError, TypeError):
     PKG_VERSION = "0.0.0"
 
 
@@ -71,16 +76,18 @@ def _format_session(s: dict[str, Any]) -> dict[str, Any]:
     if ts:
         try:
             dt = datetime.fromisoformat(ts)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
             now = datetime.now(timezone.utc)
-            delta = now - dt.replace(tzinfo=timezone.utc) if dt.tzinfo else now - dt
-            if delta.total_seconds() < 60:
+            delta = now - dt
+            if delta.total_seconds() < _SECONDS_MINUTE:
                 s["time_ago"] = "刚刚"
-            elif delta.total_seconds() < 3600:
-                s["time_ago"] = f"{int(delta.total_seconds() // 60)} 分钟前"
-            elif delta.total_seconds() < 86400:
-                s["time_ago"] = f"{int(delta.total_seconds() // 3600)} 小时前"
-            elif delta.total_seconds() < 2592000:
-                s["time_ago"] = f"{int(delta.total_seconds() // 86400)} 天前"
+            elif delta.total_seconds() < _SECONDS_HOUR:
+                s["time_ago"] = f"{int(delta.total_seconds() // _SECONDS_MINUTE)} 分钟前"
+            elif delta.total_seconds() < _SECONDS_DAY:
+                s["time_ago"] = f"{int(delta.total_seconds() // _SECONDS_HOUR)} 小时前"
+            elif delta.total_seconds() < _SECONDS_MONTH:
+                s["time_ago"] = f"{int(delta.total_seconds() // _SECONDS_DAY)} 天前"
             else:
                 s["time_ago"] = dt.strftime("%Y-%m-%d")
         except (ValueError, TypeError):
@@ -110,7 +117,11 @@ async def review_submit(
         if file and file.filename:
             raw_bytes = await file.read()
             if len(raw_bytes) > MAX_UPLOAD_SIZE:
-                return _render("review.html", request, error="文件大小超过限制（最大 10MB）")
+                return _render(
+                    "review.html",
+                    request,
+                    error=f"文件大小超过限制（最大 {MAX_UPLOAD_SIZE // (1024 * 1024)}MB）",
+                )
             try:
                 raw = raw_bytes.decode("utf-8")
             except UnicodeDecodeError:
@@ -134,7 +145,7 @@ async def review_submit(
             f"/sessions/{session.session_id}",
             status_code=303,
         )
-    except Exception as e:
+    except (OSError, ValueError, RuntimeError) as e:
         logger.error("审查失败: {}", str(e))
         return _render("review.html", request, error=f"审查失败: {e}")
 
@@ -176,7 +187,7 @@ async def session_converse(request: Request, session_id: str, query: str = Form(
         player = _player()
         session = player.load(session_id)
         return _render("session_detail.html", request, session=session, error=str(e))
-    except Exception as e:
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as e:
         logger.error("追问失败: {}", str(e))
         player = _player()
         session = player.load(session_id)

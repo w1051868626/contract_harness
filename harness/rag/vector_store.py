@@ -196,7 +196,7 @@ class ChromaVectorStore(VectorStore):
         try:
             self._client.delete_collection(meta_key)
         except ValueError:
-            pass
+            logger.warning("ChromaDB delete_collection 失败，集合可能不存在: {}", meta_key)
         results = self._collection.get(where={"document_id": document_id})
         if results and results.get("ids"):
             self._collection.delete(ids=results["ids"])

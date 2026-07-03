@@ -189,7 +189,7 @@ class MemoryStore:
                     chunk.embedding = emb
                 self._store.add_chunks(chunks)
                 logger.debug("记忆存储完成: entries={}", len(chunks))
-            except Exception:
+            except (ValueError, RuntimeError):
                 logger.warning("记忆存储失败", exc_info=True)
 
     def recall(self, clause_content: str, top_k: int = 3) -> list[MemoryEntry]:
@@ -202,7 +202,7 @@ class MemoryStore:
             entries = [MemoryEntry.from_chunk(c) for c in raw_chunks if c.score > 0.3]
             entries.sort(key=lambda e: 0 if e.is_correction else 1, reverse=False)
             return entries[:top_k]
-        except Exception:
+        except (ValueError, RuntimeError):
             logger.warning("记忆检索失败", exc_info=True)
             return []
 
@@ -229,7 +229,7 @@ class MemoryStore:
                 chunk.embedding = self._embedding.embed(clause_content)
             self._store.add_chunks([chunk])
             logger.info("记忆修正已存储: field={}, value={}", field, correct_value)
-        except Exception:
+        except (ValueError, RuntimeError):
             logger.warning("记忆修正存储失败", exc_info=True)
 
     def format_memory_context(self, memories: list[MemoryEntry]) -> str:

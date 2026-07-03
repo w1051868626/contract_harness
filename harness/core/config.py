@@ -36,6 +36,11 @@ class LLMConfig:
 
     def __post_init__(self):
         """从环境变量自动补充缺失的 API 密钥与地址，并校验参数范围。"""
+        self._load_defaults_from_env()
+        self._validate()
+
+    def _load_defaults_from_env(self) -> None:
+        """环境变量加载逻辑。"""
         self.provider = os.getenv("LLM_PROVIDER", self.provider)
         if not self.api_key:
             provider_key = f"{self.provider.upper()}_API_KEY"
@@ -56,7 +61,6 @@ class LLMConfig:
             self.expansion_api_key = os.getenv("EXPANSION_API_KEY", self.api_key)
         if not self.expansion_api_base:
             self.expansion_api_base = os.getenv("EXPANSION_API_BASE", self.api_base)
-        self._validate()
 
     def _validate(self) -> None:
         """校验配置参数范围。"""
@@ -90,6 +94,10 @@ class EmbeddingConfig:
 
     def __post_init__(self):
         """从环境变量自动补充嵌入 API 密钥与地址。"""
+        self._load_defaults_from_env()
+
+    def _load_defaults_from_env(self) -> None:
+        """环境变量加载逻辑。"""
         self.provider = os.getenv("EMBEDDING_PROVIDER", self.provider)
         if not self.api_key:
             self.api_key = os.getenv("EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", ""))
@@ -134,6 +142,10 @@ class HarnessConfig:
 
     def __post_init__(self):
         """通过环境变量 HARNESS_DATA_DIR 自定义数据根目录，否则使用项目根目录。"""
+        self._load_defaults_from_env()
+
+    def _load_defaults_from_env(self) -> None:
+        """环境变量加载逻辑。"""
         root = Path(os.getenv("HARNESS_DATA_DIR", str(_default_data_root())))
         if not self.data_dir:
             self.data_dir = str(root / "data")

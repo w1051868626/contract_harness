@@ -90,25 +90,30 @@ class OutputComparator:
         self, risks_a: list[RiskAssessment], risks_b: list[RiskAssessment]
     ) -> list[dict[str, Any]]:
         """对比风险评估列表，返回等级变化与增删差异。"""
+        risk_map_a = {r.clause.clause_type: r for r in risks_a}
+        risk_map_b = {r.clause.clause_type: r for r in risks_b}
+        all_keys = set(risk_map_a) | set(risk_map_b)
         diffs = []
-        min_len = min(len(risks_a), len(risks_b))
-        for i in range(min_len):
-            if risks_a[i].risk_level != risks_b[i].risk_level:
+        for key in sorted(all_keys):
+            ra = risk_map_a.get(key)
+            rb = risk_map_b.get(key)
+            if ra is None and rb is not None:
+                diffs.append(
+                    {"type": "added", "clause_type": key, "risk_level": rb.risk_level.value}
+                )
+            elif rb is None and ra is not None:
+                diffs.append(
+                    {"type": "removed", "clause_type": key, "risk_level": ra.risk_level.value}
+                )
+            elif ra is not None and rb is not None and ra.risk_level != rb.risk_level:
                 diffs.append(
                     {
-                        "index": i,
-                        "from": risks_a[i].risk_level.value,
-                        "to": risks_b[i].risk_level.value,
+                        "type": "changed",
+                        "clause_type": key,
+                        "from": ra.risk_level.value,
+                        "to": rb.risk_level.value,
                     }
                 )
-
-        if len(risks_a) > len(risks_b):
-            for i in range(len(risks_b), len(risks_a)):
-                diffs.append({"index": i, "change": "removed"})
-        elif len(risks_b) > len(risks_a):
-            for i in range(len(risks_a), len(risks_b)):
-                diffs.append({"index": i, "change": "added"})
-
         return diffs
 
     def _compare_compliance(
@@ -156,10 +161,10 @@ class OutputComparator:
         if diff.get("risk_diffs"):
             lines.append("## 风险评估变化")
             for d in diff["risk_diffs"]:
-                if "from" in d:
-                    lines.append(f"- 第{d['index']}项: {d['from']} → {d['to']}")
+                if d["type"] == "changed":
+                    lines.append(f"- {d['clause_type']}: {d['from']} → {d['to']}")
                 else:
-                    lines.append(f"- 第{d['index']}项: {d['change']}")
+                    lines.append(f"- {d['clause_type']}: {d['type']}")
             lines.append("")
 
         if diff.get("compliance_diffs"):

@@ -227,7 +227,7 @@ class ReActLoop:
                 observation = f"未知工具: {tool}，可用: {known}"
 
             tc.output = observation
-        except Exception as e:
+        except (ValueError, RuntimeError, json.JSONDecodeError, KeyError) as e:
             observation = f"工具执行出错: {e}"
             tc.output = str(e)
 

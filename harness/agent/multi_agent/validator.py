@@ -106,7 +106,7 @@ class CrossValidator:
                 "resolved": resolved,
                 "explanation": data.get("explanation", "LLM 仲裁"),
             }
-        except Exception as e:
+        except (ValueError, RuntimeError, json.JSONDecodeError) as e:
             logger.warning("LLM 风险仲裁失败: {}", e)
             rank_a = RISK_RANK.get(str(d.value_a), 0)
             rank_b = RISK_RANK.get(str(d.value_b), 0)
