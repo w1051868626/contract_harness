@@ -16,6 +16,8 @@ from harness.eval.dataset import EvalDataset
 from harness.eval.reporters import EvalReporter
 from harness.eval.scorer import EvalScorer
 from harness.rag.knowledge_base import KnowledgeBase
+from harness.rag.parsing import enable_docling as _enable_docling
+from harness.rag.parsing import parse_file as _parse_file
 from harness.rag.seed_laws import get_seed_laws
 from harness.regression.comparator import OutputComparator
 from harness.regression.suite import RegressionSuite
@@ -26,6 +28,21 @@ from harness.utils.io import load_dotenv, read_text
 from harness.utils.log import logger, setup_logging
 
 load_dotenv()
+
+
+def _get_config(ctx: click.Context) -> HarnessConfig:
+    return ctx.obj["config"]
+
+
+def _get_kb(ctx: click.Context) -> KnowledgeBase:
+    config = _get_config(ctx)
+    config.ensure_dirs()
+    return KnowledgeBase.from_config(config)
+
+
+def _get_player(ctx: click.Context) -> SessionPlayer:
+    config = _get_config(ctx)
+    return SessionPlayer(ReplayStorage(config.replay_dir))
 
 
 @click.group()
@@ -51,12 +68,12 @@ def cli(ctx: click.Context, verbose: bool) -> None:
 @click.pass_context
 def review(ctx: click.Context, contract_file: str, save: bool, model: str, docling: bool) -> None:
     """审查一份合同并展示结果。"""
-    config: HarnessConfig = ctx.obj["config"]
+    config = _get_config(ctx)
     filepath = Path(contract_file)
     if docling:
         config.use_docling = True
-        KnowledgeBase.enable_docling()
-        content = KnowledgeBase.parse_file(filepath)
+        _enable_docling()
+        content = _parse_file(filepath)
     else:
         content = read_text(filepath)
 
@@ -97,7 +114,7 @@ def review(ctx: click.Context, contract_file: str, save: bool, model: str, docli
 @click.pass_context
 def converse(ctx: click.Context, session_id: str, query: tuple[str], model: str) -> None:
     """对已有审查会话继续追问。"""
-    config: HarnessConfig = ctx.obj["config"]
+    config = _get_config(ctx)
     if model:
         config.llm.model = model
     agent = ContractAgent(LLMClient(config.llm))
@@ -111,8 +128,7 @@ def converse(ctx: click.Context, session_id: str, query: tuple[str], model: str)
 @click.pass_context
 def replay(ctx: click.Context, session_id: str, as_json: bool) -> None:
     """回放指定审查会话。"""
-    config: HarnessConfig = ctx.obj["config"]
-    player = SessionPlayer(ReplayStorage(config.replay_dir))
+    player = _get_player(ctx)
     session = player.load(session_id)
 
     if session is None:
@@ -140,8 +156,7 @@ def replay(ctx: click.Context, session_id: str, as_json: bool) -> None:
 @click.pass_context
 def sessions(ctx: click.Context, limit: int) -> None:
     """列出所有回放会话。"""
-    config: HarnessConfig = ctx.obj["config"]
-    player = SessionPlayer(ReplayStorage(config.replay_dir))
+    player = _get_player(ctx)
     sessions_list = player.list_sessions()
 
     if not sessions_list:
@@ -163,7 +178,7 @@ def eval() -> None:
 @click.pass_context
 def run(ctx: click.Context, dataset: str) -> None:
     """在指定数据集上运行评测并生成报告。"""
-    config: HarnessConfig = ctx.obj["config"]
+    config = _get_config(ctx)
     ds = EvalDataset()
     ds.load(dataset)
 
@@ -189,7 +204,7 @@ def run(ctx: click.Context, dataset: str) -> None:
 @click.pass_context
 def report(ctx: click.Context, output: str) -> None:
     """展示评测报告相关信息。"""
-    config: HarnessConfig = ctx.obj["config"]
+    config = _get_config(ctx)
     logger.info("报告目录: {}", config.report_dir)
     logger.info("使用 'eval run' 运行评测后会自动生成报告")
 
@@ -237,7 +252,7 @@ def regression_run(ctx: click.Context, dataset: str, version: str) -> None:
 @click.pass_context
 def diff(ctx: click.Context, session_a: str, session_b: str) -> None:
     """对比两个会话的审查差异。"""
-    config: HarnessConfig = ctx.obj["config"]
+    config = _get_config(ctx)
     comparator = OutputComparator(SessionPlayer(ReplayStorage(config.replay_dir)))
 
     logger.info("正在对比...")
@@ -286,10 +301,9 @@ def kb() -> None:
 @click.pass_context
 def import_file(ctx: click.Context, file_path: str, docling: bool, work_dir: str | None) -> None:
     """将单个文件导入知识库（zip 会自动解压分别导入）。"""
-    config: HarnessConfig = ctx.obj["config"]
+    config = _get_config(ctx)
     config.use_docling = docling
-    config.ensure_dirs()
-    kb_instance = KnowledgeBase.from_config(config)
+    kb_instance = _get_kb(ctx)
     logger.info("正在导入文件: {}", Path(file_path).name)
     if file_path.lower().endswith(".zip"):
         doc_ids = kb_instance.add_zip(Path(file_path), work_dir=work_dir)
@@ -314,10 +328,9 @@ def import_file(ctx: click.Context, file_path: str, docling: bool, work_dir: str
 @click.pass_context
 def import_dir(ctx: click.Context, directory: str, docling: bool, work_dir: str | None) -> None:
     """批量导入目录下所有支持的文件。"""
-    config: HarnessConfig = ctx.obj["config"]
+    config = _get_config(ctx)
     config.use_docling = docling
-    config.ensure_dirs()
-    kb_instance = KnowledgeBase.from_config(config)
+    kb_instance = _get_kb(ctx)
     supported = (".txt", ".md", ".json", ".pdf", ".docx", ".zip")
     files = [p for p in Path(directory).iterdir() if p.suffix.lower() in supported]
     if not files:
@@ -337,9 +350,7 @@ def import_dir(ctx: click.Context, directory: str, docling: bool, work_dir: str 
 @click.pass_context
 def list_docs(ctx: click.Context) -> None:
     """列出知识库中的所有文档。"""
-    config: HarnessConfig = ctx.obj["config"]
-    config.ensure_dirs()
-    kb_instance = KnowledgeBase.from_config(config)
+    kb_instance = _get_kb(ctx)
     docs = kb_instance.list_documents()
     if not docs:
         logger.info("知识库为空")
@@ -355,9 +366,7 @@ def list_docs(ctx: click.Context) -> None:
 @click.pass_context
 def search(ctx: click.Context, query: str, top_k: int) -> None:
     """检索知识库。"""
-    config: HarnessConfig = ctx.obj["config"]
-    config.ensure_dirs()
-    kb_instance = KnowledgeBase.from_config(config)
+    kb_instance = _get_kb(ctx)
     logger.info("正在检索: {} (top-k={})", query, top_k)
     chunks = kb_instance.query(query, top_k=top_k)
     if not chunks:
@@ -373,9 +382,7 @@ def search(ctx: click.Context, query: str, top_k: int) -> None:
 @click.pass_context
 def seed(ctx: click.Context) -> None:
     """导入内置法律条文种子数据。"""
-    config: HarnessConfig = ctx.obj["config"]
-    config.ensure_dirs()
-    kb_instance = KnowledgeBase.from_config(config)
+    kb_instance = _get_kb(ctx)
     laws = get_seed_laws()
     imported = 0
     for law in laws:
@@ -401,9 +408,8 @@ def kb_eval() -> None:
 @click.pass_context
 def generate(ctx: click.Context, queries_per_chunk: int, output: str | None) -> None:
     """从知识库 chunk 自动生成评估数据集。"""
-    config: HarnessConfig = ctx.obj["config"]
-    config.ensure_dirs()
-    kb_instance = KnowledgeBase.from_config(config)
+    config = _get_config(ctx)
+    kb_instance = _get_kb(ctx)
     llm = LLMClient(config.llm)
     from harness.eval_rag.generator import RagDatasetGenerator
 
@@ -422,9 +428,7 @@ def generate(ctx: click.Context, queries_per_chunk: int, output: str | None) -> 
 @click.pass_context
 def eval_run(ctx: click.Context, dataset: str, top_ks: str) -> None:
     """执行 RAG 检索质量评估。"""
-    config: HarnessConfig = ctx.obj["config"]
-    config.ensure_dirs()
-    kb_instance = KnowledgeBase.from_config(config)
+    kb_instance = _get_kb(ctx)
     from harness.eval_rag.dataset import load_jsonl
     from harness.eval_rag.reporter import RagEvalReporter
     from harness.eval_rag.runner import RagEvalRunner

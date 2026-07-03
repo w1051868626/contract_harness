@@ -20,10 +20,10 @@ from harness.core.types import (
     ComplianceCheck,
     ContractDocument,
     ReviewReport,
-    RiskAssessment,
     RiskLevel,
     ToolCall,
 )
+from harness.utils.agent import compute_overall_risk
 from harness.utils.io import make_id
 from harness.utils.log import logger
 
@@ -257,7 +257,7 @@ class ReActLoop:
             if isinstance(checks, list):
                 all_compliance.extend(checks)
 
-        overall_risk = self._compute_overall_risk(all_risks)
+        overall_risk = compute_overall_risk(all_risks)
 
         clauses_summary = f"共发现 {len(state['clauses'])} 个条款"
         high_risks = [r for r in all_risks if r.risk_level in (RiskLevel.CRITICAL, RiskLevel.HIGH)]
@@ -291,19 +291,3 @@ class ReActLoop:
             compliance_checks=all_compliance,
             overall_risk=overall_risk,
         )
-
-    @staticmethod
-    def _compute_overall_risk(risks: list[RiskAssessment]) -> RiskLevel:
-        """根据所有风险项计算综合风险等级。"""
-        if not risks:
-            return RiskLevel.INFO
-        levels = [r.risk_level for r in risks]
-        if RiskLevel.CRITICAL in levels:
-            return RiskLevel.CRITICAL
-        if RiskLevel.HIGH in levels:
-            return RiskLevel.HIGH
-        if RiskLevel.MEDIUM in levels:
-            return RiskLevel.MEDIUM
-        if RiskLevel.LOW in levels:
-            return RiskLevel.LOW
-        return RiskLevel.INFO

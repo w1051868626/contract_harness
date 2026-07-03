@@ -15,6 +15,7 @@ from harness.core.types import (
     RiskLevel,
     WorkerOutput,
 )
+from harness.utils.agent import build_risk_summary, compute_overall_risk
 from harness.utils.log import logger
 
 
@@ -132,8 +133,8 @@ class SupervisorAgent:
         if arbitration_results:
             report_raw = json.dumps({"arbitration": arbitration_results}, ensure_ascii=False)
 
-        overall_risk = self._compute_overall_risk(risks)
-        summary = self._build_summary(clauses, risks, compliance)
+        overall_risk = compute_overall_risk(risks)
+        summary = build_risk_summary(clauses, risks, compliance)
         return ReviewReport(
             document_id=document.id,
             document_title=document.title,
@@ -145,24 +146,3 @@ class SupervisorAgent:
             overall_risk=overall_risk,
             raw_output=report_raw,
         )
-
-    @staticmethod
-    def _compute_overall_risk(risks: list[RiskAssessment]) -> RiskLevel:
-        if not risks:
-            return RiskLevel.INFO
-        levels = [r.risk_level for r in risks]
-        for lv in (RiskLevel.CRITICAL, RiskLevel.HIGH, RiskLevel.MEDIUM, RiskLevel.LOW):
-            if lv in levels:
-                return lv
-        return RiskLevel.INFO
-
-    @staticmethod
-    def _build_summary(
-        clauses: list[Clause], risks: list[RiskAssessment], compliance: list[ComplianceCheck]
-    ) -> str:
-        parts = [f"共发现 {len(clauses)} 个条款"]
-        high = [r for r in risks if r.risk_level in (RiskLevel.CRITICAL, RiskLevel.HIGH)]
-        parts.append(f"高风险项: {len(high)} 个")
-        bad = [c for c in compliance if not c.status]
-        parts.append(f"不合规项: {len(bad)} 个")
-        return "；".join(parts)

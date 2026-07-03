@@ -62,14 +62,12 @@ class TestKnowledgeBaseDoclingIntegration:
 
     def test_enable_docling_when_not_installed(self):
         """docling 未安装时 enable_docling 不应抛出异常。"""
-        from harness.rag.knowledge_base import KnowledgeBase
+        import harness.rag.parsing as _parsing_mod
+        from harness.rag.parsing import enable_docling
 
         # Reset any previous state
-        if hasattr(KnowledgeBase, "_docling_parser"):
-            delattr(KnowledgeBase, "_docling_parser")
+        _parsing_mod._docling_parser = None
 
         # Should not raise
-        KnowledgeBase.enable_docling()
-        assert (
-            not hasattr(KnowledgeBase, "_docling_parser") or KnowledgeBase._docling_parser is None
-        )
+        enable_docling()
+        assert _parsing_mod._docling_parser is None

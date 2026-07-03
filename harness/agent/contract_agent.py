@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from harness.agent.llm import LLMClient
 from harness.agent.memory import MemoryStore
 from harness.agent.multi_agent.coordinator import MultiAgentCoordinator
-from harness.agent.prompts import REVIEW_SUMMARY_PROMPT, SYSTEM_PROMPT
+from harness.agent.prompts import SYSTEM_PROMPT
 from harness.agent.react_loop import ReActLoop
 from harness.agent.reflection import reflect_on_report
 from harness.agent.tools.clause_extractor import ClauseExtractor
@@ -24,10 +24,10 @@ from harness.core.types import (
     ContractDocument,
     ReviewReport,
     RiskAssessment,
-    RiskLevel,
     ToolCall,
 )
 from harness.replay.storage import ReplayStorage
+from harness.utils.agent import build_risk_summary, compute_overall_risk
 from harness.utils.io import make_id
 from harness.utils.log import logger
 
@@ -206,7 +206,7 @@ class ContractAgent:
         # Step 4: 生成报告摘要
         step4 = AgentStep(step_index=4, timestamp=datetime.now(timezone.utc).isoformat())
         step4.agent_message = "正在生成审查报告..."
-        overall_risk = self._compute_overall_risk(risks)
+        overall_risk = compute_overall_risk(risks)
         summary = self._generate_summary(clauses, risks, all_compliance, kb_context)
         session.steps.append(step4)
 
@@ -315,21 +315,6 @@ class ContractAgent:
         logger.info("Converse updated: session_id={}, turns={}", session_id, len(conversation) // 2)
         return answer
 
-    def _compute_overall_risk(self, risks: list[RiskAssessment]) -> RiskLevel:
-        """根据所有风险项计算综合风险等级。"""
-        if not risks:
-            return RiskLevel.INFO
-        levels = [r.risk_level for r in risks]
-        if RiskLevel.CRITICAL in levels:
-            return RiskLevel.CRITICAL
-        if RiskLevel.HIGH in levels:
-            return RiskLevel.HIGH
-        if RiskLevel.MEDIUM in levels:
-            return RiskLevel.MEDIUM
-        if RiskLevel.LOW in levels:
-            return RiskLevel.LOW
-        return RiskLevel.INFO
-
     def _generate_summary(
         self,
         clauses: list[Clause],
@@ -338,17 +323,13 @@ class ContractAgent:
         kb_context: str = "",
     ) -> str:
         """调用 LLM 生成审查报告摘要文本。"""
-        clauses_summary = f"共发现 {len(clauses)} 个条款"
-        high_risks = [r for r in risks if r.risk_level in (RiskLevel.CRITICAL, RiskLevel.HIGH)]
-        risks_summary = f"高风险项: {len(high_risks)} 个"
-        non_compliant = [c for c in compliance if not c.status]
-        compliance_summary = f"不合规项: {len(non_compliant)} 个"
+        risk_summary = build_risk_summary(clauses, risks, compliance)
 
         kb_section = f"\n\n## 知识库参考\n{kb_context}" if kb_context else ""
-        summary_prompt = REVIEW_SUMMARY_PROMPT.format(
-            clauses_summary=clauses_summary,
-            risks_summary=risks_summary,
-            compliance_summary=compliance_summary,
+        summary_prompt = (
+            f"请根据以下审查结果，生成合同审查报告摘要：\n\n"
+            f"{risk_summary}\n\n"
+            f"请生成：\n1. 整体风险评级\n2. 核心风险总结（3-5点）\n3. 总体修改建议"
         )
         user_content = summary_prompt + kb_section
         resp = self._llm.chat(

@@ -133,37 +133,43 @@ class ChromaVectorStore(VectorStore):
                 documents=documents,
             )
 
+    @staticmethod
+    def _raw_to_chunks(raw: Any) -> list[Chunk]:
+        ids_raw = raw.get("ids", [])
+        if ids_raw and isinstance(ids_raw[0], list):
+            ids = ids_raw[0] or []
+            distances = raw.get("distances", [[]])[0] or []
+            metadatas = raw.get("metadatas", [[]])[0] or []
+            documents = raw.get("documents", [[]])[0] or []
+        else:
+            ids = ids_raw or []
+            distances = raw.get("distances", []) or []
+            metadatas = raw.get("metadatas", []) or []
+            documents = raw.get("documents", []) or []
+        chunks: list[Chunk] = []
+        for i, cid in enumerate(ids):
+            meta = metadatas[i] if i < len(metadatas) else {}
+            doc_id = meta.pop("document_id", "") if meta else ""
+            chunk_idx = meta.pop("chunk_index", 0) if meta else 0
+            chunks.append(
+                Chunk(
+                    id=cid,
+                    document_id=doc_id,
+                    content=documents[i] if i < len(documents) else "",
+                    chunk_index=chunk_idx,
+                    score=1.0 - distances[i] if i < len(distances) else 0.0,
+                    metadata=meta or {},
+                )
+            )
+        return chunks
+
     def search(self, query_embedding: list[float], top_k: int = 5) -> list[Chunk]:
         logger.debug("向量检索: top_k={}", top_k)
         raw: Any = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
         )
-        ids: list[str] = raw.get("ids", [[]])[0] if raw.get("ids") else []
-        distances: list[float] = raw.get("distances", [[]])[0] if raw.get("distances") else []
-        metadatas_raw = raw.get("metadatas", [[]])[0] if raw.get("metadatas") else []
-        documents = raw.get("documents", [[]])[0] if raw.get("documents") else []
-
-        chunks: list[Chunk] = []
-        for i in range(len(ids)):
-            meta: dict[str, Any] = (
-                dict(metadatas_raw[i]) if metadatas_raw and i < len(metadatas_raw) else {}
-            )
-            doc_id = str(meta.get("document_id", ""))
-            c_idx = int(meta.get("chunk_index", 0))
-            chunks.append(
-                Chunk(
-                    id=ids[i],
-                    document_id=doc_id,
-                    content=str(documents[i]) if documents and i < len(documents) else "",
-                    score=1.0 - distances[i] if distances and i < len(distances) else 0.0,
-                    metadata={
-                        k: v for k, v in meta.items() if k not in ("document_id", "chunk_index")
-                    },
-                    chunk_index=c_idx,
-                )
-            )
-        return chunks
+        return self._raw_to_chunks(raw)
 
     def list_documents(self) -> list[Document]:
         collections = self._client.list_collections()
@@ -205,25 +211,7 @@ class ChromaVectorStore(VectorStore):
             ids: list[str] = raw.get("ids", [])
             if not ids:
                 break
-            metadatas_raw = raw.get("metadatas", []) or []
-            documents = raw.get("documents", []) or []
-            for i in range(len(ids)):
-                meta: dict[str, Any] = (
-                    dict(metadatas_raw[i]) if metadatas_raw and i < len(metadatas_raw) else {}
-                )
-                doc_id = str(meta.get("document_id", ""))
-                c_idx = int(meta.get("chunk_index", 0))
-                chunks.append(
-                    Chunk(
-                        id=ids[i],
-                        document_id=doc_id,
-                        content=str(documents[i]) if documents and i < len(documents) else "",
-                        metadata={
-                            k: v for k, v in meta.items() if k not in ("document_id", "chunk_index")
-                        },
-                        chunk_index=c_idx,
-                    )
-                )
+            chunks.extend(self._raw_to_chunks(raw))
             offset += len(ids)
         return chunks
 
