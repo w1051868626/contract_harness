@@ -404,22 +404,24 @@ def kb_eval() -> None:
 
 @kb_eval.command()
 @click.option("--queries-per-chunk", default=2, help="每个 chunk 生成的问题数")
-@click.option("--output", default=None, help="输出数据集路径")
+@click.option("--output", default=None, help="输出数据集路径（启用断点续增）")
 @click.pass_context
 def generate(ctx: click.Context, queries_per_chunk: int, output: str | None) -> None:
-    """从知识库 chunk 自动生成评估数据集。"""
+    """从知识库 chunk 自动生成评估数据集。
+    支持断点继续：重复执行同一 --output 会自动跳过已处理 chunk。"""
     config = _get_config(ctx)
     kb_instance = _get_kb(ctx)
     llm = LLMClient(config.llm)
     from harness.eval_rag.generator import RagDatasetGenerator
 
     generator = RagDatasetGenerator()
-    items = generator.generate(kb_instance, llm, queries_per_chunk=queries_per_chunk)
     path = output or str(Path(config.data_dir) / "rag_eval_dataset.jsonl")
-    from harness.eval_rag.dataset import save_jsonl
-
-    save_jsonl(path, items)
-    logger.info("生成 {} 条评估数据 -> {}", len(items), path)
+    generator.generate(
+        kb_instance,
+        llm,
+        queries_per_chunk=queries_per_chunk,
+        output_path=path,
+    )
 
 
 @kb_eval.command(name="run")

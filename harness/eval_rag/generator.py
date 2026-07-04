@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import json
+import time
+from pathlib import Path
 from typing import Any
 
+import httpx
 from json_repair import repair_json
 from langchain_core.exceptions import OutputParserException
 from langchain_core.output_parsers import PydanticOutputParser
+from openai import APIError, APITimeoutError, RateLimitError
 from pydantic import BaseModel, Field
 
 from harness.agent.llm import LLMClient
@@ -32,6 +37,9 @@ GENERATOR_PROMPT = """你是一位法律知识库的测试数据生成专家。
 
 {format_instructions}"""
 
+_MAX_RETRIES = 3
+_RETRY_DELAY = 1.0
+
 
 def _parse_llm_output(content: str, queries_per_chunk: int) -> list[str]:
     """尝试用 PydanticOutputParser 解析，失败则用 repair_json 修复后重试，最终降级为逐行文本。"""
@@ -47,41 +55,139 @@ def _parse_llm_output(content: str, queries_per_chunk: int) -> list[str]:
     return [q.strip() for q in content.strip().split("\n") if q.strip()][:queries_per_chunk]
 
 
+def _load_existing_chunk_ids(path: str) -> set[str]:
+    """读取已有 JSONL 输出中已处理的 chunk ID 集合（断点恢复用）。"""
+    ids: set[str] = set()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    data = json.loads(line)
+                    source = data.get("metadata", {}).get("source_chunk")
+                    if source:
+                        ids.add(source)
+                except json.JSONDecodeError:
+                    continue
+    except FileNotFoundError:
+        pass
+    return ids
+
+
+def _append_jsonl(path: str, items: list[EvalRagItem]) -> None:
+    """追加 items 到 JSONL 文件（增量写入）。"""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        for item in items:
+            f.write(
+                json.dumps(
+                    {
+                        "query": item.query,
+                        "expected_chunk_ids": item.expected_chunk_ids,
+                        "expected_texts": item.expected_texts,
+                        "metadata": item.metadata,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+
 class RagDatasetGenerator:
     def generate(
         self,
         kb: Any,
         llm: LLMClient,
         queries_per_chunk: int = 2,
+        output_path: str | None = None,
     ) -> list[EvalRagItem]:
-        items: list[EvalRagItem] = []
+        """从知识库 chunk 生成评估数据集。
+
+        Args:
+            kb: 知识库实例（需有 list_chunks 方法）。
+            llm: LLM 客户端。
+            queries_per_chunk: 每个 chunk 生成的问题数。
+            output_path: JSONL 输出路径。
+                提供时启用断点恢复：检测已有条目中已处理的 chunk_id 并跳过；
+                同时每处理完一个 chunk 都增量写入，避免中断时数据丢失。
+        """
         chunks = kb.list_chunks()
         logger.info("Generating eval dataset from {} chunks", len(chunks))
 
+        processed: set[str] = set()
+        if output_path:
+            processed = _load_existing_chunk_ids(output_path)
+            if processed:
+                logger.info("断点恢复：检测到 {} 个已处理 chunk", len(processed))
+
+        items: list[EvalRagItem] = []
         for chunk in chunks:
+            if chunk.id in processed:
+                continue
             if not chunk.content.strip():
                 continue
+
             prompt = GENERATOR_PROMPT.format(
                 count=queries_per_chunk,
                 text=chunk.content[:1000],
                 format_instructions=_parser.get_format_instructions(),
             )
-            resp = llm.chat(
-                [
-                    {"role": "system", "content": "你是一个测试数据生成助手。"},
-                    {"role": "user", "content": prompt},
-                ]
-            )
-            queries = _parse_llm_output(resp.content, queries_per_chunk)
-            for q in queries:
-                items.append(
-                    EvalRagItem(
-                        query=q,
-                        expected_chunk_ids=[chunk.id],
-                        expected_texts=[chunk.content[:200]],
-                        metadata={"source_chunk": chunk.id},
-                    )
-                )
 
-        logger.info("Generated {} eval items", len(items))
+            queries = self._call_llm_with_retry(llm, prompt, queries_per_chunk)
+            if queries is None:
+                logger.error("跳过 chunk {}（LLM 调用全部失败）", chunk.id)
+                continue
+
+            chunk_items: list[EvalRagItem] = []
+            for q in queries:
+                item = EvalRagItem(
+                    query=q,
+                    expected_chunk_ids=[chunk.id],
+                    expected_texts=[chunk.content[:200]],
+                    metadata={"source_chunk": chunk.id},
+                )
+                items.append(item)
+                chunk_items.append(item)
+
+            if output_path and chunk_items:
+                _append_jsonl(output_path, chunk_items)
+
+        total = len(processed) + len(items)
+        logger.info(
+            "生成完成：{} 条（新增 {}，复用 {}）来自 {} 个 chunk",
+            total,
+            len(items),
+            len(processed),
+            len(chunks),
+        )
         return items
+
+    @staticmethod
+    def _call_llm_with_retry(
+        llm: LLMClient,
+        prompt: str,
+        queries_per_chunk: int,
+    ) -> list[str] | None:
+        """调用 LLM 并自动重试，失败时返回 None。"""
+        last_error: Exception | None = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                resp = llm.chat(
+                    [
+                        {"role": "system", "content": "你是一个测试数据生成助手。"},
+                        {"role": "user", "content": prompt},
+                    ]
+                )
+                return _parse_llm_output(resp.content, queries_per_chunk)
+            except (APIError, APITimeoutError, RateLimitError, httpx.HTTPError) as e:
+                last_error = e
+                if attempt < _MAX_RETRIES - 1:
+                    delay = _RETRY_DELAY * (2**attempt)
+                    logger.warning(
+                        "LLM 调用失败（{}），{:.0f} 秒后第 {} 次重试...",
+                        e,
+                        delay,
+                        attempt + 2,
+                    )
+                    time.sleep(delay)
+        logger.error("LLM 重试 {} 次后仍失败: {}", _MAX_RETRIES, last_error)
+        return None
