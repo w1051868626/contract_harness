@@ -172,9 +172,11 @@ class TestRagDatasetGenerator:
 
     def test_generate_skips_chunk_on_llm_error(self):
         """LLM 调用失败时跳过该 chunk，继续处理后续。"""
+
         class FailingLLM:
             def __init__(self):
                 self.call_count = 0
+
             def chat(self, messages, tools=None, **kwargs):
                 self.call_count += 1
                 if self.call_count <= 3:
@@ -187,9 +189,11 @@ class TestRagDatasetGenerator:
         class MockChunk1:
             id = "c1"
             content = "违约金不得超过实际损失的30%"
+
         class MockChunk2:
             id = "c2"
             content = "保密义务期限为合同终止后三年"
+
         class MockKB:
             def list_chunks(self):
                 return [MockChunk1(), MockChunk2()]
@@ -201,12 +205,15 @@ class TestRagDatasetGenerator:
 
     def test_generate_resume_from_output(self):
         """断点恢复：第二次 generate 跳过已有输出中已处理的 chunk。"""
+
         class MockChunk1:
             id = "c1"
             content = "违约金不得超过实际损失的30%"
+
         class MockChunk2:
             id = "c2"
             content = "保密义务期限为合同终止后三年"
+
         class MockKB:
             def list_chunks(self):
                 return [MockChunk1(), MockChunk2()]
@@ -216,19 +223,27 @@ class TestRagDatasetGenerator:
 
         try:
             # 第一轮：只处理 chunk 1
-            llm1 = MockLLMClient([
-                LLMResponse(content='{"questions": ["违约金的上限是多少？"]}', model="mock"),
-            ])
+            llm1 = MockLLMClient(
+                [
+                    LLMResponse(content='{"questions": ["违约金的上限是多少？"]}', model="mock"),
+                ]
+            )
             generator = RagDatasetGenerator()
-            items1 = generator.generate(MockKB(), llm1, queries_per_chunk=1, output_path=output_path)
+            items1 = generator.generate(
+                MockKB(), llm1, queries_per_chunk=1, output_path=output_path
+            )
             assert len(items1) == 1
             assert items1[0].expected_chunk_ids == ["c1"]
 
             # 第二轮：重新指定同一 output_path，应跳过 c1 只处理 c2
-            llm2 = MockLLMClient([
-                LLMResponse(content='{"questions": ["保密义务的期限是多久？"]}', model="mock"),
-            ])
-            items2 = generator.generate(MockKB(), llm2, queries_per_chunk=1, output_path=output_path)
+            llm2 = MockLLMClient(
+                [
+                    LLMResponse(content='{"questions": ["保密义务的期限是多久？"]}', model="mock"),
+                ]
+            )
+            items2 = generator.generate(
+                MockKB(), llm2, queries_per_chunk=1, output_path=output_path
+            )
             assert len(items2) == 1
             assert items2[0].expected_chunk_ids == ["c2"]
 
