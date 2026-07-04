@@ -57,19 +57,18 @@ def _parse_llm_output(content: str, queries_per_chunk: int) -> list[str]:
 
 def _load_existing_chunk_ids(path: str) -> set[str]:
     """读取已有 JSONL 输出中已处理的 chunk ID 集合（断点恢复用）。"""
+    if not Path(path).exists():
+        return set()
     ids: set[str] = set()
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                try:
-                    data = json.loads(line)
-                    source = data.get("metadata", {}).get("source_chunk")
-                    if source:
-                        ids.add(source)
-                except json.JSONDecodeError:
-                    continue
-    except FileNotFoundError:
-        pass
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                data = json.loads(line)
+                source = data.get("metadata", {}).get("source_chunk")
+                if source:
+                    ids.add(source)
+            except json.JSONDecodeError:
+                continue
     return ids
 
 
