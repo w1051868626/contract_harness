@@ -67,6 +67,24 @@
 
 ---
 
+## 2026-07-05: ChromaDB 资源释放 — close() 必须真正释放 sqlite3
+
+### 决策
+`ChromaVectorStore.close()` 调用 ChromaDB 1.5+ 的 `client.close()` 释放底层 sqlite3 连接，不能是空实现。
+
+### 原因
+ChromaDB `PersistentClient` 内部持有 sqlite3 连接，Windows 上若不显式释放，`TemporaryDirectory` 清理时 `chroma.sqlite3` 被占用抛 `PermissionError [WinError 32]`（20 个测试失败）。
+
+### 实现要点
+- ChromaDB 类型存根未声明 `close()`，用 `hasattr(client, "close")` 防御 + `# pyright: ignore[reportAttributeAccessIssue]` 绕过
+- **不要把 `self._client` 置 None**：pyright 会推断其为 `ClientAPI | None`，导致所有方法访问报 `reportOptionalMemberAccess`（9 个错误）。close 后再访问属于调用方误用，不在类型层面防御
+- `MemoryStore` 也需加 `close()` 转发到底层 store
+
+### 行为准则
+新增任何持有 ChromaDB 的类（如未来的 Reranker 缓存等），都要在 `close()` 里转发 `store.close()`，并在测试的 `with TemporaryDirectory` 块末尾调用。
+
+---
+
 ## 2026-07-04: LLM 调用重试策略
 
 ### 决策

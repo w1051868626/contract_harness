@@ -33,9 +33,9 @@ LLM/Embedding/Chunk/Expansion/Reranker 各有独立密钥配置：
 1. `git add -f tests/unit/test_xxx.py` 强制加（已用）
 2. 把 `*test*` 改成 `/*test*` 仅匹配根目录（工作区有此改动，但未提交）
 
-### Windows 平台问题（预存）
-- `tests/unit/test_rag.py` 22 个 ChromaDB 测试在 Windows 上失败：`PermissionError [WinError 32]` 文件被占用，`data_level0.bin` 无法 unlink。**与代码改动无关**，是 ChromaDB 临时文件清理的 Windows 平台问题。
-- `tests/unit/test_eval_rag.py::TestRagEvalCLI::test_kb_eval_generate_no_kb` 在 Windows 上失败：`UnicodeDecodeError`（CLI 子进程输出编码）。**预存 bug**，与改动无关。
+### Windows 平台问题（已修复）
+- ~~`tests/unit/test_rag.py` 22 个 ChromaDB 测试在 Windows 上失败~~ → **2026-07-05 已修复**：`ChromaVectorStore.close()` 原为空实现，ChromaDB `PersistentClient` 内部 sqlite3 连接未释放，`TemporaryDirectory` 清理时 `chroma.sqlite3` 被占用抛 `PermissionError [WinError 32]`。修复：`close()` 调用 ChromaDB 1.5+ 的 `client.close()`（`hasattr` 防御 + `pyright: ignore`）；`MemoryStore` 新增 `close()` 转发；相关测试补 `store.close()`。227 用例全过。
+- ~~`tests/unit/test_eval_rag.py::TestRagEvalCLI::test_kb_eval_generate_no_kb` 在 Windows 上失败~~ → **2026-07-05 已修复**：`RagDatasetGenerator.generate` 对空 KB 改为抛 `EvalError("Missing ...")`，测试用 `monkeypatch.setenv("HARNESS_DATA_DIR", tmp_path)` 隔离到临时空目录。
 
 ### CI 与本地差异
 - CI（Ubuntu）跑 `pytest` + `ruff check` + `ruff format --check` + `pyright`
