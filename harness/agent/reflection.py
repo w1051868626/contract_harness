@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timezone
 
 from harness.agent.llm import LLMClient
+from harness.agent.tools.llm_utils import strip_json_fences
 from harness.core.types import (
     ReviewReport,
     RiskLevel,
@@ -89,8 +90,7 @@ def reflect_on_report(
     )
 
     try:
-        raw = resp.content.strip()
-        raw = raw.removeprefix("```json").removesuffix("```").strip()
+        raw = strip_json_fences(resp.content).strip()
         data = json.loads(raw)
     except (json.JSONDecodeError, ValueError) as e:
         logger.warning("Reflection parse failed: {}", e)
@@ -111,11 +111,14 @@ def reflect_on_report(
     else:
         revised_risk = report.overall_risk
 
+    # 真正"改了"的判断：与原值不同，而非仅判非空
+    summary_changed = revised_summary != report.summary
+    risk_changed = revised_risk != report.overall_risk
     logger.info(
         "Reflection found {} issues, summary_changed={}, risk_changed={}",
         len(issues),
-        new_summary != "",
-        new_risk != "",
+        summary_changed,
+        risk_changed,
     )
 
     return ReviewReport(

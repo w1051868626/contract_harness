@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 from harness.agent.contract_agent import ContractAgent
 from harness.agent.llm import LLMClient
 from harness.core.config import HarnessConfig
+from harness.core.exceptions import HarnessError
 from harness.core.types import ContractDocument
 from harness.replay.player import SessionPlayer
 from harness.replay.recorder import SessionRecorder
@@ -145,7 +146,7 @@ async def review_submit(
             f"/sessions/{session.session_id}",
             status_code=303,
         )
-    except (OSError, ValueError, RuntimeError) as e:
+    except (OSError, ValueError, RuntimeError, HarnessError) as e:
         logger.error("审查失败: {}", str(e))
         return _render("review.html", request, error=f"审查失败: {e}")
 

@@ -12,6 +12,7 @@ from harness.agent.prompts import SYSTEM_PROMPT
 from harness.agent.tools.clause_extractor import ClauseExtractor
 from harness.agent.tools.compliance_checker import ComplianceChecker
 from harness.agent.tools.knowledge_retriever import KnowledgeRetriever
+from harness.agent.tools.llm_utils import strip_json_fences
 from harness.agent.tools.risk_analyzer import RiskAnalyzer
 from harness.core.types import (
     AgentSession,
@@ -140,16 +141,10 @@ class ReActLoop:
 
     def _parse_action(self, resp: LLMResponse) -> dict[str, Any]:
         """解析 LLM 响应为 action dict。"""
-        content = resp.content.strip()
-        content = content.removeprefix("```json").removesuffix("```").strip()
+        content = strip_json_fences(resp.content).strip()
 
+        # final_answer 信号：含 FINAL_ANSWER 标记，或 JSON 里 final_answer=True
         if "FINAL_ANSWER" in content or '"final_answer"' in content:
-            try:
-                parsed = json.loads(content) if content.startswith("{") else {}
-                if parsed.get("final_answer"):
-                    return {"type": "final_answer"}
-            except (json.JSONDecodeError, ValueError):
-                pass
             return {"type": "final_answer"}
 
         try:
@@ -162,6 +157,7 @@ class ReActLoop:
             pass
 
         logger.warning("Could not parse ReAct action from: {}", content[:200])
+        # 解析失败回退到条款提取，保证循环不卡死
         return {"type": "action", "tool": "clause_extractor", "input": {}}
 
     def _execute_tool(
