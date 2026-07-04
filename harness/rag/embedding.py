@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 import time
 from abc import ABC, abstractmethod
@@ -136,13 +135,6 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
     def embed(self, text: str) -> list[float]:
         """将单段文本转为向量。"""
         return self.embed_batch([text])[0]
-
-    def _hash_embed(self, text: str) -> list[float]:
-        """基于哈希的伪嵌入（离线回退），使用 SHA256 确保跨运行确定性。"""
-        h = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        return [(int(h[i : i + 2], 16) % 1000) / 1000.0 for i in range(0, min(32, len(h)), 2)] or [
-            0.0
-        ]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """批量通过 openai 库调用嵌入 API，超长文本自动截断，受速率限制保护。"""

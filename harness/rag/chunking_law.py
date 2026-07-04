@@ -340,40 +340,6 @@ def _extract_case_metadata(text: str, filename: str = "") -> dict[str, Any]:
     return meta
 
 
-def _inject_contextual_header(
-    content: str,
-    metadata: dict[str, Any],
-    doc_meta: dict[str, Any],
-) -> str:
-    """在 chunk 内容前插入结构化上下文标头，提升 Embedding 质量。
-
-    标头格式: [法律名称: X | 章节: Y | 条号: 第Z条]
-    """
-    parts: list[str] = []
-
-    law_name = doc_meta.get(MetaKey.LAW_NAME, "") or metadata.get(MetaKey.LAW_NAME, "")
-    if law_name:
-        parts.append(f"法律名称: {law_name}")
-
-    chapter = metadata.get(MetaKey.CHAPTER, "")
-    if chapter:
-        parts.append(f"章节: {chapter}")
-
-    article = metadata.get(MetaKey.ARTICLES, "")
-    if article:
-        parts.append(f"条号: {article}")
-
-    guiding = doc_meta.get(MetaKey.GUIDING_NUMBER, "")
-    if guiding:
-        parts.append(f"案例: {guiding}")
-
-    if parts:
-        header = "[" + " | ".join(parts) + "]\n"
-        return header + content
-
-    return content
-
-
 def _process_law_line(
     line: str,
     ctx: _LawContext,
