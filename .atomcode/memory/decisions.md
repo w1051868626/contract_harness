@@ -95,3 +95,26 @@ ChromaDB `PersistentClient` 内部持有 sqlite3 连接，Windows 上若不显�
 
 ### 注意
 可重试异常**必须在 `APIError` 之前捕获**，因为 `APIConnectionError`/`RateLimitError` 都是 `APIError` 子类，否则会被兜底走"不重试"路径。pyright 还要求 `self.client` 用局部变量 + `assert is not None` 缩窄类型（`client` 属性返回 `OpenAI | None`）。
+
+---
+
+## 2026-07-05: JSON 围栏剥离统一用 strip_json_fences
+
+### 决策
+所有剥除 ```` ```json ```` 围栏的地方统一用 `harness.agent.tools.llm_utils.strip_json_fences`，不要手写 `removeprefix("```json").removesuffix("```")`。
+
+### 原因
+`react_loop.py` 和 `reflection.py` 原各手写一份，逻辑重复且易漏处理（如 ` ```json ` 带空格、多行围栏）。`strip_json_fences` 用正则 `^```(?:json)?\s*|\s*```$` 处理更全。
+
+---
+
+## 2026-07-05: Web 异常捕获必须包含 HarnessError
+
+### 决策
+`web/app.py` 的 `review_submit` 等 endpoint 捕获异常时必须包含 `HarnessError`（`AgentError`/`EvalError`/`ReplayError` 等的基类）。
+
+### 原因
+原来只捕获 `OSError/ValueError/RuntimeError`，`AgentError`（LLM 密钥缺失、API 调用失败等）是 `HarnessError` 子类未被捕获，导致审查失败时 FastAPI 返回 500 而非显示用户友好的错误页。
+
+### 行为准则
+新增任何调用 Agent/LLM 的 Web endpoint，异常捕获列表都要含 `HarnessError`。
