@@ -8,6 +8,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from openai import APIError
+
 from harness.agent.llm import LLMClient, LLMResponse
 from harness.core.config import HarnessConfig, LLMConfig
 from harness.core.exceptions import ChunkingError
@@ -26,11 +28,7 @@ from harness.rag.chunking import (
 from harness.rag.chunking import (
     chunk_with_ai as _chunk_with_ai,
 )
-from harness.rag.constants import (
-    EXPANSION_SYSTEM_PROMPT,
-    QUERY_EXPANSION_PROMPT,
-    RRF_K,
-)
+from harness.rag.constants import RRF_K
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.parsing import enable_docling
 from harness.rag.parsing import extract_zip_texts as _extract_zip_texts
@@ -40,6 +38,24 @@ from harness.rag.sparse import SparseRetriever, rrf_fuse
 from harness.rag.vector_store import Chunk, Document, VectorStore, create_vector_store
 from harness.utils.io import normalize_text as _util_normalize
 from harness.utils.log import logger
+
+EXPANSION_SYSTEM_PROMPT = "你是法律合同检索专家，输出每行一个搜索查询。"
+
+QUERY_EXPANSION_PROMPT = (
+    "你是一个法律合同检索专家。用户的原始查询可能措辞不准确，导致语义检索效果不佳。\n"
+    "请根据原始查询，生成 {num_variants} 个同义但措辞不同的搜索查询，"
+    "用于从法律知识库中检索相关条款。\n"
+    "要求：\n"
+    "- 保持法律含义不变\n"
+    "- 使用专业法律术语\n"
+    "- 每个查询独立成行，不要编号\n"
+    "- 直接输出查询文本，每行一个，不要额外解释\n"
+    "\n"
+    "原始查询：{query}"
+)
+
+_DEFAULT_CHUNK_SIZE = 512
+_DEFAULT_CHUNK_OVERLAP = 64
 
 
 class KnowledgeBase:
@@ -151,8 +167,8 @@ class KnowledgeBase:
         content: str,
         source: str = "",
         metadata: dict[str, Any] | None = None,
-        chunk_size: int = 512,
-        chunk_overlap: int = 64,
+        chunk_size: int = _DEFAULT_CHUNK_SIZE,
+        chunk_overlap: int = _DEFAULT_CHUNK_OVERLAP,
         use_ai_chunking: bool = True,
     ) -> str:
         """将文本添加到知识库。"""
@@ -209,15 +225,14 @@ class KnowledgeBase:
                 return legal
             logger.debug("使用通用文本分块")
             return _chunk_text(content, doc_id, chunk_size, chunk_overlap)
-        except Exception as exc:
-            # 将各分块策略的异常统一为 ChunkingError
+        except (ValueError, RuntimeError, OSError, KeyError, json.JSONDecodeError) as exc:
             raise ChunkingError(f"所有分块策略均失败: {exc}") from exc
 
     def add_file(
         self,
         file_path: str | Path,
-        chunk_size: int = 512,
-        chunk_overlap: int = 64,
+        chunk_size: int = _DEFAULT_CHUNK_SIZE,
+        chunk_overlap: int = _DEFAULT_CHUNK_OVERLAP,
         use_ai_chunking: bool = True,
     ) -> str:
         """添加文件到知识库。"""
@@ -239,8 +254,8 @@ class KnowledgeBase:
     def add_zip(
         self,
         path: Path,
-        chunk_size: int = 512,
-        chunk_overlap: int = 64,
+        chunk_size: int = _DEFAULT_CHUNK_SIZE,
+        chunk_overlap: int = _DEFAULT_CHUNK_OVERLAP,
         use_ai_chunking: bool = True,
         work_dir: str | None = None,
     ) -> list[str]:
@@ -337,8 +352,7 @@ class KnowledgeBase:
             result = [query] + variants[:num_variants]
             logger.debug("扩展检索词: {}", result)
             return result
-        except Exception:
-            # LLM 调用可能抛多种 openai 异常，全部降级为原始查询
+        except (APIError, ValueError, json.JSONDecodeError, KeyError):
             logger.warning("AI 扩展检索词失败，使用原始查询", exc_info=True)
             return [query]
 
@@ -357,9 +371,6 @@ class KnowledgeBase:
                 seen[chunk.id] = chunk
         merged = sorted(seen.values(), key=lambda c: c.score, reverse=True)
         return merged[:top_k]
-
-    def clear_cache(self) -> None:
-        """清除知识库内部缓存（当前无缓存，预留接口）。"""
 
     def list_chunks(self) -> list[Chunk]:
         """列出知识库中所有分块。"""

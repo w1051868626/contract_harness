@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import chromadb
 from chromadb.config import Settings
@@ -43,11 +43,7 @@ class VectorStore(ABC):
     def add_document(self, document: Document) -> str: ...
 
     @abstractmethod
-    def add_chunk(self, chunk: Chunk) -> None: ...
-
-    def add_chunks(self, chunks: list[Chunk]) -> None:
-        for chunk in chunks:
-            self.add_chunk(chunk)
+    def add_chunks(self, chunks: list[Chunk]) -> None: ...
 
     @abstractmethod
     def search(self, query_embedding: list[float], top_k: int = 5) -> list[Chunk]: ...
@@ -96,20 +92,6 @@ class ChromaVectorStore(VectorStore):
         )
         return document.id
 
-    def add_chunk(self, chunk: Chunk) -> None:
-        """添加单个 Chunk（已废弃，请使用 add_chunks 批量添加）。"""
-        if not chunk.embedding:
-            return
-        metadata = dict(chunk.metadata)
-        metadata["document_id"] = chunk.document_id
-        metadata["chunk_index"] = chunk.chunk_index
-        self._collection.add(
-            ids=[chunk.id],
-            embeddings=[chunk.embedding],  # type: ignore[arg-type]
-            metadatas=[metadata],  # type: ignore[arg-type]
-            documents=[chunk.content],
-        )
-
     def add_chunks(self, chunks: list[Chunk]) -> None:
         ids: list[str] = []
         embeddings: list[list[float]] = []
@@ -128,8 +110,8 @@ class ChromaVectorStore(VectorStore):
         if ids:
             self._collection.add(
                 ids=ids,
-                embeddings=embeddings,  # type: ignore[arg-type]
-                metadatas=metadatas,  # type: ignore[arg-type]
+                embeddings=cast(Any, embeddings),
+                metadatas=cast(Any, metadatas),
                 documents=documents,
             )
 

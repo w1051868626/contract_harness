@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from json_repair import repair_json
+from langchain_core.exceptions import OutputParserException
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
@@ -40,8 +41,9 @@ def _parse_llm_output(content: str, queries_per_chunk: int) -> list[str]:
         try:
             parsed = _parser.parse(text)
             return parsed.questions[:queries_per_chunk]
-        except Exception:
+        except OutputParserException:
             continue
+    logger.warning("LLM 输出解析失败，降级为逐行文本: {}...", content[:80])
     return [q.strip() for q in content.strip().split("\n") if q.strip()][:queries_per_chunk]
 
 

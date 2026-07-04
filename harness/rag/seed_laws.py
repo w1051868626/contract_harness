@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from harness.rag.constants import _ARTICLE_RE, _BOUNDARY_RE
+from harness.rag.constants import ARTICLE_RE, BOUNDARY_RE
 
 
 @dataclass
@@ -54,7 +54,7 @@ class SeedLaw:
 
 def _parse_articles(text: str) -> list[Article]:
     """将法律全文解析为 Article 列表。"""
-    parts = _BOUNDARY_RE.split(text.strip())
+    parts = BOUNDARY_RE.split(text.strip())
     parts = [p.strip() for p in parts if p.strip()]
 
     articles: list[Article] = []
@@ -71,7 +71,7 @@ def _parse_articles(text: str) -> list[Article]:
             current_chapter = first
             continue
 
-        art_match = _ARTICLE_RE.match(part)
+        art_match = ARTICLE_RE.match(part)
         if art_match:
             articles.append(
                 Article(

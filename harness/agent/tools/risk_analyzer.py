@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from harness.agent.llm import LLMClient
 from harness.agent.prompts import RISK_ANALYSIS_PROMPT
+from harness.agent.tools.base import BaseTool
 from harness.agent.tools.llm_utils import extract_json_object
 from harness.core.types import Clause, RiskAssessment, RiskLevel
 from harness.utils.log import logger
@@ -15,12 +15,8 @@ _BATCH_RISK_PROMPT = """请对以下合同条款批量进行风险分析，返�
 {clause_sections}"""
 
 
-class RiskAnalyzer:
+class RiskAnalyzer(BaseTool):
     """风险分析器，调用 LLM 评估条款风险等级及给出修改建议。"""
-
-    def __init__(self, llm: LLMClient):
-        """注入 LLM 客户端。"""
-        self._llm = llm
 
     def analyze(self, clause: Clause) -> RiskAssessment:
         """对单一条款进行风险分析。"""

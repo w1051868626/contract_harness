@@ -14,9 +14,9 @@ from openai import APIError, AuthenticationError, BadRequestError, InternalServe
 
 from harness.core.exceptions import EmbeddingError
 from harness.rag.constants import (
-    DEFAULT_EMBED_API_BASE,
     DEFAULT_EMBED_MODEL,
     DEFAULT_LOCAL_EMBED_MODEL,
+    DEFAULT_OPENAI_API_BASE,
     EMBED_MAX_CHARS,
 )
 from harness.utils.log import logger
@@ -118,7 +118,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
     def __init__(
         self,
         api_key: str = "",
-        api_base: str = DEFAULT_EMBED_API_BASE,
+        api_base: str = DEFAULT_OPENAI_API_BASE,
         model: str = DEFAULT_EMBED_MODEL,
         proxy: str | None = None,
         max_rpm: int = 0,
@@ -161,7 +161,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             raise EmbeddingError(f"Embedding API 请求参数错误: {exc}") from exc
         except (APIError, InternalServerError) as exc:
             raise EmbeddingError(f"Embedding API 服务端错误: {exc}") from exc
-        except Exception as exc:
+        except (httpx.RequestError, OSError, RuntimeError) as exc:
             raise EmbeddingError(f"Embedding API 调用失败: {exc}") from exc
 
 
@@ -215,7 +215,7 @@ def create_embedding_provider(
     if provider == "openai":
         return OpenAIEmbeddingProvider(
             api_key=api_key,
-            api_base=api_base or DEFAULT_EMBED_API_BASE,
+            api_base=api_base or DEFAULT_OPENAI_API_BASE,
             model=model or DEFAULT_EMBED_MODEL,
             proxy=proxy,
             max_rpm=max_rpm,

@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-from harness.agent.llm import LLMClient
 from harness.agent.prompts import CLAUSE_EXTRACT_PROMPT
+from harness.agent.tools.base import BaseTool
 from harness.agent.tools.llm_utils import extract_json_array
 from harness.core.types import Clause, ContractDocument, RiskLevel
 from harness.utils.log import logger
 
 
-class ClauseExtractor:
+class ClauseExtractor(BaseTool):
     """条款提取器，调用 LLM 从合同中提取并分类关键条款。"""
-
-    def __init__(self, llm: LLMClient):
-        """注入 LLM 客户端。"""
-        self._llm = llm
 
     def extract(self, document: ContractDocument) -> list[Clause]:
         """提取合同中的结构化条款列表。"""

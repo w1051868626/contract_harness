@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from harness.agent.llm import LLMClient
 from harness.agent.memory import MemoryStore
@@ -315,7 +315,9 @@ class ContractAgent:
         if not report:
             return "该会话没有审查报告，无法继续对话"
 
-        conversation: list[dict[str, str]] = data.get("metadata", {}).get("conversation", [])  # type: ignore[arg-type]
+        conversation = cast(
+            "list[dict[str, str]]", data.get("metadata", {}).get("conversation", [])
+        )
         messages = self._build_converse_messages(report, query, conversation)
         resp = self._llm.chat(messages)
         answer = resp.content
@@ -323,7 +325,7 @@ class ContractAgent:
         conversation.append({"role": "user", "content": query})
         conversation.append({"role": "assistant", "content": answer})
         data.setdefault("metadata", {})["conversation"] = conversation
-        storage.save(session_id, data)  # type: ignore[arg-type]
+        storage.save(session_id, cast(dict[str, Any], data))
 
         logger.info("Converse updated: session_id={}, turns={}", session_id, len(conversation) // 2)
         return answer

@@ -15,6 +15,7 @@ from harness.core.types import (
     AgentStep,
     ContractDocument,
     ReviewReport,
+    RiskLevel,
     ToolCall,
     WorkerOutput,
 )
@@ -151,7 +152,7 @@ class MultiAgentCoordinator:
             clauses=[],
             risks=[],
             compliance_checks=[],
-            overall_risk=None,  # type: ignore[arg-type]
+            overall_risk=RiskLevel.INFO,
         )
         session.report = report
         session.finished_at = datetime.now(timezone.utc).isoformat()

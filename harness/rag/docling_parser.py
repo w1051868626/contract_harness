@@ -59,7 +59,7 @@ class DoclingParser:
         except ImportError:
             logger.info("Docling 未安装，回退到传统解析器")
             self._available = False
-        except Exception as exc:
+        except (RuntimeError, OSError, ValueError) as exc:
             logger.warning("Docling 初始化失败: {}", exc)
             self._available = False
 

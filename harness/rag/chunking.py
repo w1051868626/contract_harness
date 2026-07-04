@@ -9,32 +9,67 @@ from typing import Any
 
 from harness.agent.llm import LLMClient, LLMResponse
 from harness.rag.constants import (
-    _ART_PAT_RE,
-    _ART_SEARCH_RE,
-    _ARTICLE_LAW_RE,
-    _CHAPTER_DIVISION_RE,
-    _CHAPTER_LAW_RE,
-    _CN_DIGIT,
-    _CN_NUM,
-    _DATE_RE,
-    _DECIMAL_RANGE_RE,
-    _DECIMAL_RE,
-    _MD_HEADING_RE,
-    _MD_SPLIT_RE,
-    _NUM_LIST_RE,
-    _PAREN_NUM_RE,
-    _SECTION_HEAD_RE,
-    _SECTION_LAW_RE,
-    _TITLE_RE,
+    ART_PAT_RE,
     CHUNK_MAX_CHARS,
-    CHUNK_PROMPT,
-    CHUNK_SYSTEM_PROMPT,
     DocType,
     MetaKey,
 )
 from harness.rag.vector_store import Chunk
 from harness.utils.io import make_id
 from harness.utils.log import logger
+
+# ===== 分块提示词 =====
+
+CHUNK_SYSTEM_PROMPT = "你是文档分块专家，严格按 JSON 格式输出。"
+
+CHUNK_PROMPT = """你是一个文档分块专家。请将以下文档按逻辑结构拆分成有意义的片段。
+每个片段应该是一个完整的主题、章节或逻辑段落，不要切割句子。
+直接输出 JSON 数组，每个元素的格式为 {{"content": "..."}}。
+
+文档：
+{text}"""
+
+# ===== 预编译正则 =====
+
+_MD_HEADING_RE = re.compile(r"^(?:#{1,6})(?:\s|$|(?=[^\s]))", re.MULTILINE)
+_MD_SPLIT_RE = re.compile(r"(?=^(?:#{1,6})(?:\s|$|(?=[^\s])))", re.MULTILINE)
+
+_CN_DIGIT = r"[一二三四五六七八九十百千零\d]"
+_CN_CHAPTER = r"[一二三四五六七八九十百千]"
+_CN_ARTICLE = r"[一二三四五六七八九十百千零〇\d]"
+
+_CN_NUM: dict[str, int] = {
+    "零": 0,
+    "〇": 0,
+    "一": 1,
+    "二": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
+    "百": 100,
+    "千": 1000,
+}
+
+_TITLE_RE = re.compile(r"^中华人民共和国.*")
+_DATE_RE = re.compile(r"（(\d{4})年(\d+)月(\d+)日.*?通过")
+
+_CHAPTER_LAW_RE = re.compile(r"^(第" + _CN_CHAPTER + r"+章.*)")
+_SECTION_LAW_RE = re.compile(r"^(第" + _CN_CHAPTER + r"+节.*)")
+_ARTICLE_LAW_RE = re.compile(r"^(第(" + _CN_ARTICLE + r"+)条)")
+
+_CHAPTER_DIVISION_RE = re.compile(r"第" + _CN_DIGIT + r"+[章编]")
+_SECTION_HEAD_RE = re.compile(r"第" + _CN_DIGIT + r"+节")
+_NUM_LIST_RE = re.compile(_CN_DIGIT + r"+[、．]")
+_PAREN_NUM_RE = re.compile(r"[（(]" + _CN_DIGIT + r"+[）)]")
+_ART_SEARCH_RE = re.compile(r"第" + _CN_DIGIT + r"+条")
+
+_DECIMAL_RE = re.compile(r"\d+\.(?!\d)")
+_DECIMAL_RANGE_RE = re.compile(r"\d+\.\d+")
 
 _LAW_NAME_SCAN_CHARS = 500
 _DATE_SCAN_CHARS = 2000
@@ -514,7 +549,7 @@ def _md_article_range(segments: list[str]) -> str:
     """从 Markdown 段列表中提取条文范围。"""
     arts = []
     for s in segments:
-        for m in _ART_PAT_RE.finditer(s):
+        for m in ART_PAT_RE.finditer(s):
             arts.append(int(m.group(1)) if m.group(1).isdigit() else m.group(1))
     if not arts:
         return ""
@@ -590,7 +625,7 @@ def _scan_chunk_meta(
     if cur_section:
         meta[MetaKey.SECTION] = cur_section
 
-    arts = _ART_PAT_RE.findall(part)
+    arts = ART_PAT_RE.findall(part)
     if arts:
         meta[MetaKey.ARTICLES] = (
             f"第{arts[0]}条" if len(arts) == 1 else f"第{arts[0]}条—第{arts[-1]}条"

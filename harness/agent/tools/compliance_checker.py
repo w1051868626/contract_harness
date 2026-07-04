@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from harness.agent.llm import LLMClient
+from harness.agent.tools.base import BaseTool
 from harness.core.types import Clause, ComplianceCheck
 from harness.utils.log import logger
 
@@ -17,7 +17,7 @@ _BATCH_COMPLIANCE_PROMPT = """请对照以下法律法规，批量检查合同�
 {regulations}"""
 
 
-class ComplianceChecker:
+class ComplianceChecker(BaseTool):
     """合规检查器，逐条对照法规库对条款进行合规审查。"""
 
     REGULATIONS = [
@@ -27,10 +27,6 @@ class ComplianceChecker:
         "中华人民共和国个人信息保护法",
         "中华人民共和国反垄断法",
     ]
-
-    def __init__(self, llm: LLMClient):
-        """注入 LLM 客户端。"""
-        self._llm = llm
 
     def check(self, clause: Clause) -> list[ComplianceCheck]:
         """对单一条款执行多法规合规检查。"""

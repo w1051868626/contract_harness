@@ -8,8 +8,8 @@ from typing import Any
 import httpx
 
 from harness.rag.constants import (
-    DEFAULT_EMBED_API_BASE,
     DEFAULT_LOCAL_RERANK_MODEL,
+    DEFAULT_OPENAI_API_BASE,
     DEFAULT_RERANK_MODEL,
 )
 from harness.rag.vector_store import Chunk
@@ -127,7 +127,7 @@ def create_reranker(
     if provider == "openai":
         return OpenAIReranker(
             api_key=api_key,
-            api_base=api_base or DEFAULT_EMBED_API_BASE,
+            api_base=api_base or DEFAULT_OPENAI_API_BASE,
             model=model or DEFAULT_RERANK_MODEL,
             proxy=proxy,
         )
