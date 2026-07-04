@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,6 +13,9 @@ from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLi
 from harness.core.config import LLMConfig
 from harness.core.exceptions import AgentError
 from harness.utils.log import logger
+
+# 网络层错误重试基线退避秒数，实际等待 = base * 2^attempt
+_RETRY_BASE_DELAY: float = 1.0
 
 
 @dataclass
@@ -50,15 +54,16 @@ class LLMClient:
     def client(self) -> OpenAI | None:
         """懒加载 OpenAI 客户端实例。
 
-        mock 模式下返回 None（不创建真实连接），调用方应在 ``chat`` 入口
+        mock 模式下直接返回 None（不创建真实连接），调用方应在 ``chat`` 入口
         通过 ``self._mock`` 判断，不应直接访问此属性发起请求。
         """
+        # mock 模式短路：避免每次访问都重跑密钥检查
+        if self._mock:
+            return None
         if self._client is None:
             if not self.config.api_key:
-                # 显式 mock 模式下允许无密钥；否则密钥缺失是配置错误，
-                # 必须抛 AgentError 而非静默回退，避免产出假审查报告。
-                if self._mock:
-                    return None
+                # 密钥缺失是配置错误，必须抛 AgentError 而非静默回退，
+                # 避免产出假审查报告。测试场景应用 LLMClient(mock=True)。
                 raise AgentError(
                     "未设置 API 密钥。请通过环境变量 OPENAI_API_KEY 或 LLMConfig.api_key 配置；"
                     "测试场景可显式传入 LLMClient(mock=True) 启用模拟响应。"
@@ -131,9 +136,18 @@ class LLMClient:
         self,
         messages: list[dict[str, str]],
         tools: list[dict[str, Any]] | None = None,
+        *,
+        max_retries: int = 3,
         **kwargs,
     ) -> LLMResponse:
-        """发送聊天请求并返回 LLM 响应。"""
+        """发送聊天请求并返回 LLM 响应。
+
+        Args:
+            messages: OpenAI 消息列表。
+            tools: 可选工具定义。
+            max_retries: 网络/限流错误的最大重试次数（指数退避）。
+                鉴权/请求格式等非瞬时错误不重试，直接抛 ``AgentError``。
+        """
         params = {
             "model": kwargs.get("model", self.config.model),
             "messages": messages,
@@ -148,31 +162,61 @@ class LLMClient:
         if self._mock:
             return self._mock_chat(messages)
 
-        try:
-            resp = self.client.chat.completions.create(**params)
-            choice = resp.choices[0]
-            logger.debug(
-                "LLM 调用成功: model={}, input_tokens={}",
-                resp.model,
-                resp.usage.total_tokens if resp.usage else "N/A",
-            )
-        except (APIConnectionError, APITimeoutError) as e:
-            # 网络层错误：可重试，向上抛出由调用方决定重试策略
-            logger.error("LLM API 网络错误: {}", str(e))
-            raise AgentError(f"LLM API 网络错误: {e}") from e
-        except RateLimitError as e:
-            logger.warning("LLM API 触发限流: {}", str(e))
-            raise AgentError(f"LLM API 触发限流，请稍后重试: {e}") from e
-        except APIError as e:
-            # 兜底所有 OpenAI API 错误（含鉴权失败、请求格式错误等）
-            logger.error("LLM API 调用失败: {}", str(e))
-            raise AgentError(f"LLM API 调用失败: {e}") from e
-        except httpx.HTTPError as e:
-            logger.error("LLM HTTP 传输错误: {}", str(e))
-            raise AgentError(f"LLM HTTP 传输错误: {e}") from e
+        # 仅对瞬时错误（网络/限流）重试，鉴权/请求格式错误直接抛出
+        last_error: Exception | None = None
+        last_error_msg: str = ""
+        for attempt in range(max(max_retries, 1)):
+            try:
+                resp = self.client.chat.completions.create(**params)
+                choice = resp.choices[0]
+                logger.debug(
+                    "LLM 调用成功: model={}, input_tokens={}",
+                    resp.model,
+                    resp.usage.total_tokens if resp.usage else "N/A",
+                )
+                return LLMResponse(
+                    content=choice.message.content or "",
+                    model=resp.model,
+                    usage=resp.usage.model_dump() if resp.usage else None,
+                )
+            except (APIConnectionError, APITimeoutError) as e:
+                # 网络层错误：可重试（必须在 APIError 之前捕获，
+                # 因为 APIConnectionError 是 APIError 子类）
+                last_error = e
+                last_error_msg = f"LLM API 网络错误: {e}"
+            except RateLimitError as e:
+                # 限流：可重试（同样是 APIError 子类，需在 APIError 之前）
+                last_error = e
+                last_error_msg = f"LLM API 触发限流，请稍后重试: {e}"
+            except httpx.HTTPError as e:
+                last_error = e
+                last_error_msg = f"LLM HTTP 传输错误: {e}"
+            except APIError as e:
+                # 兜底剩余 OpenAI API 错误（含鉴权失败、请求格式错误等）：
+                # 非瞬时错误，不重试直接抛出。
+                logger.error("LLM API 调用失败: {}", str(e))
+                raise AgentError(f"LLM API 调用失败: {e}") from e
 
-        return LLMResponse(
-            content=choice.message.content or "",
-            model=resp.model,
-            usage=resp.usage.model_dump() if resp.usage else None,
-        )
+            # max_retries<=1：不重试，直接抛原始包装错误（保留具体错误类别字样）
+            if max_retries <= 1:
+                logger.error(last_error_msg)
+                raise AgentError(last_error_msg) from last_error
+
+            # 可重试错误：指数退避后进入下一轮（限流等待时间加倍）
+            if isinstance(last_error, RateLimitError):
+                delay = _RETRY_BASE_DELAY * (2 ** (attempt + 1))
+            else:
+                delay = _RETRY_BASE_DELAY * (2**attempt)
+            logger.warning(
+                "{}（第 {} 次），{:.0f}s 后重试",
+                last_error_msg,
+                attempt + 1,
+                delay,
+            )
+            time.sleep(delay)
+
+        # 重试耗尽：抛出聚合错误
+        logger.error("LLM API 重试 {} 次后仍失败: {}", max_retries, str(last_error))
+        raise AgentError(
+            f"LLM API 重试 {max_retries} 次后仍失败: {last_error}"
+        ) from last_error

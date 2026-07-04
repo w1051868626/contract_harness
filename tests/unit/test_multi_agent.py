@@ -509,3 +509,36 @@ class TestSynthesizeReportAlignment:
         assert report.risks[0].risk_level.value == "high"
         assert report.risks[1].clause.content == "保密A"
         assert report.risks[1].risk_level.value == "low"
+
+    def test_risk_same_type_multiple_clauses_rotates(self, sample_document):
+        """同 type 多个条款、RiskExpert 未提供 clause_index 时应轮转消费，
+        而非全部对齐到第一个（R4 回归，对齐 scorer 行为）。
+        """
+        from harness.agent.multi_agent.supervisor import SupervisorAgent
+
+        clauses = [
+            {"type": "保密", "content": "保密A"},
+            {"type": "保密", "content": "保密B"},
+        ]
+        # 两条 risk 都用 clause_type="保密" 回退，应分别落到 A 和 B
+        risk_struct = [
+            {"clause_type": "保密", "risk_level": "high", "reason": "A 风险高"},
+            {"clause_type": "保密", "risk_level": "critical", "reason": "B 风险极高"},
+        ]
+        outputs = {
+            "ClauseExpert": WorkerOutput(
+                worker_role="ClauseExpert", content="", structured=clauses
+            ),
+            "RiskExpert": WorkerOutput(
+                worker_role="RiskExpert", content="", structured=risk_struct
+            ),
+            "ComplianceExpert": WorkerOutput(
+                worker_role="ComplianceExpert", content="", structured=[]
+            ),
+        }
+        report = SupervisorAgent().synthesize_report(sample_document, outputs, [])
+        assert len(report.risks) == 2
+        assert report.risks[0].clause.content == "保密A"
+        assert report.risks[0].risk_level.value == "high"
+        assert report.risks[1].clause.content == "保密B"
+        assert report.risks[1].risk_level.value == "critical"

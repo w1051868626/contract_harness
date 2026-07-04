@@ -130,9 +130,11 @@ class SupervisorAgent:
             # 优先用 clause_index 显式对齐；缺 index 时按 clause_type 匹配
             # clauses，避免下标强行对齐导致 Agent 提取顺序/数量与
             # ClauseExpert 不一致时 risk 挂错条款。
-            clauses_by_type: dict[str, Clause] = {}
+            # 同 type 多个条款时用队列轮转消费，避免全部对齐到第一个。
+            type_to_clauses: dict[str, list[Clause]] = {}
             for c in clauses:
-                clauses_by_type.setdefault(c.clause_type, c)
+                type_to_clauses.setdefault(c.clause_type, []).append(c)
+            type_cursor: dict[str, int] = {}
             for r in risk_out.structured:
                 if not isinstance(r, dict):
                     continue
@@ -140,8 +142,16 @@ class SupervisorAgent:
                 if isinstance(ci, int) and 0 <= ci < len(clauses):
                     clause = clauses[ci]
                 else:
-                    key = r.get("clause_type") or r.get("type")
-                    clause = clauses_by_type.get(key or "", Clause(clause_type="未知", content=""))
+                    key = r.get("clause_type") or r.get("type") or ""
+                    candidates = type_to_clauses.get(key)
+                    if candidates:
+                        pos = type_cursor.get(key, 0)
+                        if pos >= len(candidates):
+                            pos = 0
+                        type_cursor[key] = pos + 1
+                        clause = candidates[pos]
+                    else:
+                        clause = Clause(clause_type="未知", content="")
                 risks.append(
                     RiskAssessment(
                         clause=clause,

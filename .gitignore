@@ -32,7 +32,8 @@ coverage.xml
 !example.envdebug/test_chunking/chinese-laws/
 *.zip
 *.docx
-*test*
+# 仅忽略根目录下 *test* 临时产物，避免误伤 tests/ 下 test_*.py 源文件
+/*test*
 !tests/**
 *.json
 # AtomCode local-scope configs (machine-specific)

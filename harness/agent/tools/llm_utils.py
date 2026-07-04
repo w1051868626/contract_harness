@@ -8,11 +8,6 @@ from typing import Any
 
 from harness.utils.log import logger
 
-# 贪婪匹配最外层 [ ... ] / { ... }，配合括号配平校验而非依赖非贪婪。
-# 非贪婪 \[.*?\] 会被 JSON 字符串内的 "]" 截断（如 {"reason":"a]b"}），
-# 导致解析失败并静默回退到逐条 LLM 调用。
-_JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
-_JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
 _JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
 
