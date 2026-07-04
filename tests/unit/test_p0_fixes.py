@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -297,19 +297,25 @@ class TestWorkerStructuredOutput:
 
 
 class TestLLMClientErrorHandling:
-    """P0-4: LLMClient 密钥缺失抛 AgentError、显式 mock 可用、API 错误被捕获。"""
+    """P0-4: LLMClient 密钥缺失抛 AgentError、显式 mock 可用、API 错误被捕获。
+
+    这类测试需要测真实错误路径（密钥缺失、API 异常、重试），必须关闭
+    conftest 的全局 ``LLM_MOCK=1`` 隔离。通过类级 fixture 覆盖，并用
+    ``mock=False`` + ``MagicMock`` 注入 ``_client`` 避免真实 API 调用。
+    """
+
+    @pytest.fixture(autouse=True)
+    def _disable_global_mock(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """关闭 conftest 的全局 LLM_MOCK 隔离，便于测真实错误路径。"""
+        monkeypatch.setenv("LLM_MOCK", "")
 
     def test_missing_api_key_raises_agent_error(self):
         """无 mock 模式 + 无密钥 → 抛 AgentError，不再静默回退。"""
-        # 临时清空环境变量，确保不受 .env 影响
-        import os
-
         from harness.core.config import LLMConfig
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "", "LLM_API_KEY": ""}, clear=False):
-            client = LLMClient(LLMConfig(api_key="", api_base="https://example.com/v1"))
-            with pytest.raises(AgentError, match="API 密钥"):
-                client.chat([{"role": "user", "content": "hi"}])
+        client = LLMClient(LLMConfig(api_key="", api_base="https://example.com/v1"), mock=False)
+        with pytest.raises(AgentError, match="API 密钥"):
+            client.chat([{"role": "user", "content": "hi"}])
 
     def test_explicit_mock_mode_returns_mock_response(self):
         """显式 mock=True 时无密钥也应返回模拟响应。"""
@@ -318,27 +324,25 @@ class TestLLMClientErrorHandling:
         assert resp.model == "mock"
         assert resp.content  # 非空
 
-    def test_env_llm_mock_enables_mock_mode(self):
+    def test_env_llm_mock_enables_mock_mode(self, monkeypatch: pytest.MonkeyPatch):
         """环境变量 LLM_MOCK=1 时自动启用 mock 模式，便于 CI 无 secret 跑通。"""
-        import os
-
         from harness.core.config import LLMConfig
 
-        with patch.dict(os.environ, {"LLM_MOCK": "1"}, clear=False):
-            client = LLMClient(LLMConfig(api_key="", api_base="https://example.com/v1"))
-            assert client._mock is True
-            resp = client.chat([{"role": "user", "content": "合同条款提取：保密义务"}])
-            assert resp.model == "mock"
+        monkeypatch.setenv("LLM_MOCK", "1")
+        client = LLMClient(LLMConfig(api_key="", api_base="https://example.com/v1"))
+        assert client._mock is True
+        resp = client.chat([{"role": "user", "content": "合同条款提取：保密义务"}])
+        assert resp.model == "mock"
 
-    def test_env_llm_mock_disabled_by_default(self):
+    def test_env_llm_mock_disabled_by_default(self, monkeypatch: pytest.MonkeyPatch):
         """未设置 LLM_MOCK 时不受影响，保持显式 mock 参数控制。"""
-        import os
-
         from harness.core.config import LLMConfig
 
-        with patch.dict(os.environ, {"LLM_MOCK": ""}, clear=False):
-            client = LLMClient(LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"))
-            assert client._mock is False
+        monkeypatch.setenv("LLM_MOCK", "")
+        client = LLMClient(
+            LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"), mock=False
+        )
+        assert client._mock is False
 
     def test_api_error_wrapped_as_agent_error(self):
         """openai.APIError 应被包装为 AgentError 向上抛出。"""
@@ -346,7 +350,9 @@ class TestLLMClientErrorHandling:
 
         from harness.core.config import LLMConfig
 
-        client = LLMClient(LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"))
+        client = LLMClient(
+            LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"), mock=False
+        )
         # 模拟 client 属性返回一个会抛 APIError 的 mock
         mock_openai = MagicMock()
         mock_openai.chat.completions.create.side_effect = APIError(
@@ -368,7 +374,9 @@ class TestLLMClientErrorHandling:
 
         from harness.core.config import LLMConfig
 
-        client = LLMClient(LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"))
+        client = LLMClient(
+            LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"), mock=False
+        )
         mock_openai = MagicMock()
         mock_openai.chat.completions.create.side_effect = RateLimitError(
             message="rate limited",
@@ -385,7 +393,9 @@ class TestLLMClientErrorHandling:
 
         from harness.core.config import LLMConfig
 
-        client = LLMClient(LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"))
+        client = LLMClient(
+            LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"), mock=False
+        )
         mock_openai = MagicMock()
         # 前 2 次抛网络错误，第 3 次成功
         mock_resp = MagicMock()
@@ -417,7 +427,9 @@ class TestLLMClientErrorHandling:
 
         from harness.core.config import LLMConfig
 
-        client = LLMClient(LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"))
+        client = LLMClient(
+            LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"), mock=False
+        )
         mock_openai = MagicMock()
         mock_openai.chat.completions.create.side_effect = APIConnectionError(request=MagicMock())
         client._client = mock_openai

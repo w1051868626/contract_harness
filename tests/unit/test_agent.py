@@ -158,7 +158,8 @@ class TestContractAgent:
 
     def test_converse_nonexistent_session(self):
         """对不存在的会话追问应返回错误信息。"""
-        agent = ContractAgent()
+        # 用 MockLLMClient 显式隔离，避免默认 LLMClient 误打真实 API
+        agent = ContractAgent(MockLLMClient([]))
         answer = agent.converse("nonexistent", "这个合同有什么风险？")
         assert "未找到会话" in answer
 

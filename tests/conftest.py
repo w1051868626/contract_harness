@@ -17,6 +17,31 @@ from harness.core.types import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """全局隔离 LLM 环境变量，防止测试误读 .env 真实 API 密钥烧钱。
+
+    - 强制 ``LLM_MOCK=1``：默认 ``LLMClient()`` 走 mock，不打真实 API。
+    - 清空所有 provider 密钥环境变量：避免 ``LLMConfig.__post_init__``
+      从 ``os.environ`` 读到 ``.env`` 注入的真实 key。
+
+    需要打真实 API 的测试可显式构造 ``LLMClient(mock=False)`` 绕过。
+    """
+    monkeypatch.setenv("LLM_MOCK", "1")
+    # 清空所有可能的 provider key 环境变量
+    for key in (
+        "OPENAI_API_KEY",
+        "LLM_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "DEEPSEEK_API_BASE",
+        "LLM_PROVIDER",
+        "LLM_MODEL",
+        "LLM_PROXY",
+        "HTTP_PROXY",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+
 class MockLLMClient:
     """模拟 LLM 客户端，返回预设响应列表。"""
 
