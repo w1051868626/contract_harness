@@ -243,6 +243,7 @@ class TestKnowledgeBase:
             chunks = kb.query("保密义务", top_k=3, expansion_threshold=0.5)
             assert len(chunks) >= 1
             assert mock_llm.call_count > 0
+            store.close()
 
     def test_query_expansion_skipped_on_high_score(self):
         """分数高于阈值时不进行扩展。"""
@@ -259,6 +260,7 @@ class TestKnowledgeBase:
             chunks = kb.query("双方应对合同内容严格保密", top_k=3, expansion_threshold=0.6)
             assert len(chunks) >= 1
             assert mock_llm.call_count == 0
+            store.close()
 
     def test_query_expansion_disabled_with_zero_threshold(self):
         """threshold=0 时不进行扩展。"""
@@ -275,6 +277,7 @@ class TestKnowledgeBase:
             chunks = kb.query("保密义务", top_k=3, expansion_threshold=0.0)
             assert len(chunks) >= 1
             assert mock_llm.call_count == 0
+            store.close()
 
     def test_query_expansion_no_llm(self):
         """无 LLM 时不进行扩展。"""
@@ -285,6 +288,7 @@ class TestKnowledgeBase:
             kb.add_text("保密法规", "双方应对合同内容严格保密")
             chunks = kb.query("保密义务", top_k=3, expansion_threshold=0.9)
             assert len(chunks) >= 1
+            store.close()
 
     def test_merge_results_dedup(self):
         """_merge_results 应对相同 id 去重并保留最高分。"""

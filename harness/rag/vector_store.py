@@ -198,7 +198,25 @@ class ChromaVectorStore(VectorStore):
         return chunks
 
     def close(self) -> None:
-        pass
+        """释放 ChromaDB 客户端资源。
+
+        ChromaDB 的 ``PersistentClient`` 内部持有 sqlite3 连接，Windows 上
+        若不显式释放，``TemporaryDirectory`` 清理时 ``chroma.sqlite3``
+        仍被占用导致 ``PermissionError [WinError 32]``。这里调用 ChromaDB
+        的 ``client.close()`` 关闭底层 sqlite3 连接。
+
+        注意：不把 ``self._client`` 置 None，否则 pyright 推断其为
+        ``ClientAPI | None`` 导致所有方法访问报 ``reportOptionalMemberAccess``；
+        close 后再访问属于调用方误用，不在类型层面防御。
+        """
+        # ChromaDB 1.5+ 的 PersistentClient 运行时有 close() 释放底层 sqlite3
+        # 连接，但类型存根未声明，用 hasattr 防御性调用
+        client = self._client
+        try:
+            if client is not None and hasattr(client, "close"):
+                client.close()  # pyright: ignore[reportAttributeAccessIssue]
+        except Exception as e:  # noqa: BLE001
+            logger.debug("ChromaDB client.close 失败（可忽略）: {}", e)
 
 
 def create_vector_store(

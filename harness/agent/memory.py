@@ -150,6 +150,11 @@ class MemoryStore:
     def enabled(self) -> bool:
         return self._enabled
 
+    def close(self) -> None:
+        """释放底层 ChromaDB 资源（Windows 上避免临时目录清理时文件锁定）。"""
+        if self._store is not None:
+            self._store.close()
+
     def remember_session(
         self,
         clauses: list[Clause],

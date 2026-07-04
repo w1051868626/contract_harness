@@ -103,12 +103,14 @@ class TestMemoryStore:
             results = store.recall("保密", top_k=5)
             assert len(results) >= 1
             assert results[0].clause_type == "保密"
+            store.close()
 
     def test_recall_no_memory(self):
         """空记忆库应返回空列表。"""
         with tempfile.TemporaryDirectory(prefix="memory_test_") as tmpdir:
             store = MemoryStore(tmpdir, embedding=_FixedEmbedding())
             assert store.recall("anything") == []
+            store.close()
 
     def test_disabled_store(self):
         """禁用时应跳过所有操作。"""
@@ -127,6 +129,7 @@ class TestMemoryStore:
             results = store.recall("保密", top_k=5)
             assert len(results) == 1
             assert results[0].is_correction
+            store.close()
 
     def test_format_memory_context_empty(self):
         """空记忆列表应返回空字符串。"""
