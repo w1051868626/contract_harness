@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from harness.agent.prompts import RISK_ANALYSIS_PROMPT
 from harness.agent.tools.base import BaseTool
-from harness.agent.tools.llm_utils import extract_json_object
+from harness.agent.tools.llm_utils import extract_json_array, extract_json_object
 from harness.core.types import Clause, RiskAssessment, RiskLevel
 from harness.utils.log import logger
 
@@ -68,13 +68,18 @@ class RiskAnalyzer(BaseTool):
         return results
 
     def _parse_batch_response(self, content: str, clauses: list[Clause]) -> list[RiskAssessment]:
-        """解析批量风险分析的 LLM 响应。"""
-        import json as _json
+        """解析批量风险分析的 LLM 响应。
 
-        raw = content.strip()
-        raw = _json.loads(f"[{raw}]" if not raw.startswith("[") else raw) if raw else []
-        if not isinstance(raw, list):
-            raw = []
+        复用 ``extract_json_array`` 统一处理 `````json`` 围栏、多对象逗号分隔等
+        LLM 输出形态；当 LLM 返回单个 JSON 对象（非数组）时，回退到
+        ``extract_json_object`` 解析并包成单元素列表，避免下标错位与静默回退。
+        """
+        raw = extract_json_array(content)
+        if not raw:
+            # 兼容 LLM 返回单个 JSON 对象而非数组的情况
+            single = extract_json_object(content)
+            if single:
+                raw = [single]
         items = {item.get("index"): item for item in raw if isinstance(item, dict)}
 
         results: list[RiskAssessment] = []

@@ -71,39 +71,92 @@ class EvalScorer:
         return results
 
     def _feed_corrections(self, report: Any, item: Any) -> None:
-        """根据评测期望结果，将修正信号注入记忆。"""
+        """根据评测期望结果，将修正信号注入记忆。
+
+        匹配策略：expected_risks / expected_compliance 优先用 ``clause_index``
+        对齐到 ``report.clauses``；未提供 index 时回退到按 ``clause_type``
+        模糊匹配。避免用 ``enumerate(report.clauses)`` 下标强行对齐导致
+        Agent 提取顺序/数量与期望不一致时修正信号错位注入。
+        """
         if not self._memory:
             return
         expected_risks = item.expected_risks or []
         expected_compliance = item.expected_compliance or []
-        for i, clause in enumerate(report.clauses):
-            if i < len(expected_risks):
-                er = expected_risks[i]
-                actual_risk = report.risks[i].risk_level.value if i < len(report.risks) else ""
-                expected_risk = er.get("risk_level", "")
-                if actual_risk != expected_risk:
+        clauses = report.clauses or []
+
+        # clause_type -> [该 type 下所有 clause index]
+        # 多个同 type 条款时轮转消费，避免全部对齐到第一个导致修正信号错位。
+        # 注意：risks 和 compliance 各自维护独立的消费游标，否则 risks 循环
+        # pop 掉的 index 会让 compliance 循环对齐失败（同 type 多条款场景）。
+        type_to_indices: dict[str, list[int]] = {}
+        for idx, clause in enumerate(clauses):
+            type_to_indices.setdefault(clause.clause_type, []).append(idx)
+        # 每个 field 维护独立的"已消费计数"，按 type 轮转取 index
+        consumed: dict[str, dict[str, int]] = {"risk": {}, "compliance": {}}
+
+        def _resolve_clause_index(er: dict, field: str) -> int | None:
+            """从 expected 项解析对应的 clause index，找不到返回 None。
+
+            优先用显式 ``clause_index``；缺失时按 ``clause_type``/``type``
+            从同 type 队列里按 ``field`` 独立游标轮转取 index，保证多个同
+            type 条款不会全部对齐到同一个，且 risks/compliance 互不抢占。
+            """
+            ci = er.get("clause_index")
+            if isinstance(ci, int) and 0 <= ci < len(clauses):
+                return ci
+            key = er.get("clause_type") or er.get("type")
+            if not key:
+                return None
+            indices = type_to_indices.get(key)
+            if not indices:
+                return None
+            pos = consumed[field].get(key, 0)
+            if pos >= len(indices):
+                return None
+            consumed[field][key] = pos + 1
+            return indices[pos]
+
+        for er in expected_risks:
+            idx = _resolve_clause_index(er, "risk")
+            if idx is None:
+                continue
+            clause = clauses[idx]
+            actual_risk = (
+                report.risks[idx].risk_level.value
+                if idx < len(report.risks) and report.risks[idx]
+                else ""
+            )
+            expected_risk = er.get("risk_level", "")
+            if expected_risk and actual_risk != expected_risk:
+                self._memory.correct(
+                    clause_type=clause.clause_type,
+                    clause_content=clause.content,
+                    field="risk_level",
+                    correct_value=expected_risk,
+                )
+
+        for ec_group in expected_compliance:
+            # expected_compliance 每项是一个条款对应的多条合规检查
+            if not isinstance(ec_group, list):
+                continue
+            for check in ec_group:
+                idx = _resolve_clause_index(check, "compliance")
+                if idx is None:
+                    continue
+                clause = clauses[idx]
+                regulation = check.get("regulation", "")
+                expected_status = check.get("status", True)
+                actual = next(
+                    (c for c in report.compliance_checks if c.regulation == regulation),
+                    None,
+                )
+                if actual and actual.status != expected_status:
                     self._memory.correct(
                         clause_type=clause.clause_type,
                         clause_content=clause.content,
-                        field="risk_level",
-                        correct_value=expected_risk,
+                        field=f"compliance:{regulation}",
+                        correct_value="合规" if expected_status else "不合规",
                     )
-            if i < len(expected_compliance):
-                ec = expected_compliance[i]
-                for check in ec:
-                    regulation = check.get("regulation", "")
-                    expected_status = check.get("status", True)
-                    actual = next(
-                        (c for c in report.compliance_checks if c.regulation == regulation),
-                        None,
-                    )
-                    if actual and actual.status != expected_status:
-                        self._memory.correct(
-                            clause_type=clause.clause_type,
-                            clause_content=clause.content,
-                            field=f"compliance:{regulation}",
-                            correct_value="合规" if expected_status else "不合规",
-                        )
 
     def score(self, dataset: EvalDataset) -> dict[str, Any]:
         """运行评测并返回聚合后的评分结果。"""

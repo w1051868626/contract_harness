@@ -100,3 +100,207 @@ class TestEvalReporter:
         assert "<html" in content
         assert "<table>" in content
         assert "条款覆盖率" in content
+
+
+class _MockMemoryStore:
+    """捕获 ``correct`` 调用的 mock，用于验证 _feed_corrections 对齐正确性。"""
+
+    enabled = True
+
+    def __init__(self):
+        self.corrections: list[dict] = []
+
+    def correct(self, clause_type, clause_content, field, correct_value):
+        self.corrections.append(
+            {
+                "clause_type": clause_type,
+                "clause_content": clause_content,
+                "field": field,
+                "correct_value": correct_value,
+            }
+        )
+
+
+class TestFeedCorrectionsAlignment:
+    """``EvalScorer._feed_corrections`` 条款对齐回归测试（R4）。"""
+
+    def _make_scorer(self):
+        from harness.eval.scorer import EvalScorer
+
+        memory = _MockMemoryStore()
+        scorer = EvalScorer(memory_store=memory)
+        return scorer, memory
+
+    def test_same_clause_type_multiple_clauses_rotates_index(self):
+        """多个同 type 条款应轮转消费 type_to_indices 队列，
+        而非全部对齐到第一个（R4 回归）。
+        """
+        scorer, memory = self._make_scorer()
+        from harness.core.types import (
+            Clause,
+            ReviewReport,
+            RiskAssessment,
+        )
+
+        clauses = [
+            Clause(clause_type="保密", content="保密A"),
+            Clause(clause_type="保密", content="保密B"),
+        ]
+        report = ReviewReport(
+            document_id="d",
+            document_title="t",
+            reviewed_at="now",
+            summary="s",
+            clauses=clauses,
+            risks=[
+                RiskAssessment(clause=clauses[0], risk_level=RiskLevel.LOW, reason=""),
+                RiskAssessment(clause=clauses[1], risk_level=RiskLevel.LOW, reason=""),
+            ],
+            compliance_checks=[],
+        )
+        item = type(
+            "Item",
+            (),
+            {
+                "expected_risks": [
+                    {"clause_type": "保密", "risk_level": "high"},
+                    {"clause_type": "保密", "risk_level": "critical"},
+                ],
+                "expected_compliance": [],
+            },
+        )()
+        scorer._feed_corrections(report, item)
+        # 两条修正应分别落到保密A 和 保密B，而非都落到 A
+        assert len(memory.corrections) == 2
+        assert memory.corrections[0]["clause_content"] == "保密A"
+        assert memory.corrections[0]["correct_value"] == "high"
+        assert memory.corrections[1]["clause_content"] == "保密B"
+        assert memory.corrections[1]["correct_value"] == "critical"
+
+    def test_explicit_clause_index_takes_priority(self):
+        """expected 提供 clause_index 时优先用 index，忽略 type 回退。"""
+        scorer, memory = self._make_scorer()
+        from harness.core.types import (
+            Clause,
+            ReviewReport,
+            RiskAssessment,
+        )
+
+        clauses = [
+            Clause(clause_type="保密", content="保密A"),
+            Clause(clause_type="保密", content="保密B"),
+        ]
+        report = ReviewReport(
+            document_id="d",
+            document_title="t",
+            reviewed_at="now",
+            summary="s",
+            clauses=clauses,
+            risks=[
+                RiskAssessment(clause=clauses[0], risk_level=RiskLevel.LOW, reason=""),
+                RiskAssessment(clause=clauses[1], risk_level=RiskLevel.LOW, reason=""),
+            ],
+            compliance_checks=[],
+        )
+        # clause_index=1 应精准对齐到保密B，即便 clause_type 也是"保密"
+        item = type(
+            "Item",
+            (),
+            {
+                "expected_risks": [
+                    {"clause_index": 1, "clause_type": "保密", "risk_level": "high"},
+                ],
+                "expected_compliance": [],
+            },
+        )()
+        scorer._feed_corrections(report, item)
+        assert len(memory.corrections) == 1
+        assert memory.corrections[0]["clause_content"] == "保密B"
+
+    def test_no_match_skips_correction(self):
+        """expected 的 clause_type 在 report 中不存在时跳过，不抛错。"""
+        scorer, memory = self._make_scorer()
+        from harness.core.types import Clause, ReviewReport
+
+        report = ReviewReport(
+            document_id="d",
+            document_title="t",
+            reviewed_at="now",
+            summary="s",
+            clauses=[Clause(clause_type="保密", content="x")],
+            risks=[],
+            compliance_checks=[],
+        )
+        item = type(
+            "Item",
+            (),
+            {
+                "expected_risks": [{"clause_type": "不存在", "risk_level": "high"}],
+                "expected_compliance": [],
+            },
+        )()
+        scorer._feed_corrections(report, item)
+        assert memory.corrections == []
+
+    def test_risks_and_compliance_share_type_queue_independently(self):
+        """同 type 多条款场景下，expected_risks 消费的 index 不应影响
+        expected_compliance 的对齐（R1 回归）。
+
+        旧实现 type_to_indices 队列被 risks/compliance 共用 pop，risks 循环
+        消费完后 compliance 循环因队列已空而对齐失败返回 None，修正信号丢失。
+        新实现每个 field 维护独立游标，互不抢占。
+        """
+        scorer, memory = self._make_scorer()
+        from harness.core.types import (
+            Clause,
+            ComplianceCheck,
+            ReviewReport,
+            RiskAssessment,
+        )
+
+        clauses = [
+            Clause(clause_type="保密", content="保密A"),
+            Clause(clause_type="保密", content="保密B"),
+        ]
+        report = ReviewReport(
+            document_id="d",
+            document_title="t",
+            reviewed_at="now",
+            summary="s",
+            clauses=clauses,
+            risks=[
+                RiskAssessment(clause=clauses[0], risk_level=RiskLevel.LOW, reason=""),
+                RiskAssessment(clause=clauses[1], risk_level=RiskLevel.LOW, reason=""),
+            ],
+            compliance_checks=[
+                ComplianceCheck(regulation="数据安全法", status=True, detail=""),
+            ],
+        )
+        # risks 消费掉两个保密 index；compliance 也应能对齐到保密A/B
+        item = type(
+            "Item",
+            (),
+            {
+                "expected_risks": [
+                    {"clause_type": "保密", "risk_level": "high"},
+                    {"clause_type": "保密", "risk_level": "critical"},
+                ],
+                "expected_compliance": [
+                    [
+                        {"clause_type": "保密", "regulation": "数据安全法", "status": False},
+                    ],
+                ],
+            },
+        )()
+        scorer._feed_corrections(report, item)
+        # 2 条 risk 修正 + 1 条 compliance 修正，共 3 条
+        assert len(memory.corrections) == 3
+        risk_corrections = [c for c in memory.corrections if c["field"] == "risk_level"]
+        comp_corrections = [
+            c for c in memory.corrections if c["field"].startswith("compliance:")
+        ]
+        assert len(risk_corrections) == 2
+        assert len(comp_corrections) == 1
+        # compliance 应对齐到保密A（独立游标从 0 开始）
+        assert comp_corrections[0]["clause_content"] == "保密A"
+        assert comp_corrections[0]["correct_value"] == "不合规"

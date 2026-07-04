@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from harness.agent.llm import LLMClient
+from harness.agent.tools.llm_utils import extract_json_array
 from harness.core.types import WorkerOutput
+from harness.utils.log import logger
 
 WORKER_PROMPTS: dict[str, str] = {
     "ClauseExpert": (
@@ -54,7 +56,30 @@ class WorkerAgent:
         messages.append({"role": "user", "content": content})
 
         resp = self._llm.chat(messages)
+        structured: Any = None
+        # 仅在首次执行（无 peer_results）时解析结构化输出，
+        # 交叉验证场景下 LLM 输出是审阅意见而非结构化数据，不应解析。
+        if not peer_results:
+            structured = self._parse_structured(resp.content)
         return WorkerOutput(
             worker_role=self.role,
             content=resp.content,
+            structured=structured,
         )
+
+    def _parse_structured(self, content: str) -> list[dict[str, Any]] | None:
+        """按 role 解析 LLM 输出为结构化数据，供 Supervisor 合成报告。
+
+        三个专业 Worker 的 prompt 均要求输出 JSON 数组，统一用
+        ``extract_json_array`` 解析；解析失败返回 None 并记录警告，
+        Supervisor 会回退到空列表，避免字段错位。
+        """
+        data = extract_json_array(content)
+        if not data:
+            logger.warning(
+                "{} 结构化输出解析失败，回退到空列表: content[:100]={}",
+                self.role,
+                content[:100],
+            )
+            return None
+        return data

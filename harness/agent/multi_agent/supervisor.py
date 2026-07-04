@@ -36,45 +36,69 @@ class SupervisorAgent:
         }
 
     def validate_consensus(self, outputs: dict[str, WorkerOutput]) -> list[Disagreement]:
-        """比对各 Worker 输出，找出分歧项。"""
+        """比对各 Worker 输出，找出分歧项。
+
+        对齐策略与 ``synthesize_report`` 一致：优先用 ``clause_index`` 显式
+        对齐，缺失时按 ``clause_type`` 匹配。避免下标强行对齐导致
+        RiskExpert / ComplianceExpert 输出顺序或数量不一致时拿错位的
+        风险等级比较，产出假分歧或漏掉真分歧。
+        """
         disagreements: list[Disagreement] = []
 
-        clause_results: list[dict[str, Any]] = []
+        # 收集每个 role 的 {clause_key -> risk_level}，clause_key 优先用
+        # clause_index，回退到 clause_type；同一 key 多次出现取最后一次。
+        role_risks: dict[str, dict[str, str]] = {}
         for role, out in outputs.items():
-            if out.structured and isinstance(out.structured, list):
-                clause_results.append({"role": role, "data": out.structured})
+            if not (out.structured and isinstance(out.structured, list)):
+                continue
+            key_to_level: dict[str, str] = {}
+            for item in out.structured:
+                if not isinstance(item, dict):
+                    continue
+                rl = item.get("risk_level") or item.get("risk_level_note")
+                if not rl:
+                    continue
+                ci = item.get("clause_index")
+                if isinstance(ci, int):
+                    key = f"idx:{ci}"
+                else:
+                    key = f"type:{item.get('clause_type') or item.get('type') or ''}"
+                key_to_level[key] = rl
+            if key_to_level:
+                role_risks[role] = key_to_level
 
-        if len(clause_results) < 2:
+        if len(role_risks) < 2:
             return disagreements
 
-        # 按条款位置对比风险等级
-        for i in range(max(len(r["data"]) for r in clause_results)):
-            values: dict[str, Any] = {}
-            for r in clause_results:
-                if i < len(r["data"]):
-                    item = r["data"][i]
-                    if isinstance(item, dict):
-                        rl = item.get("risk_level") or item.get("risk_level_note")
-                        if rl:
-                            values[r["role"]] = rl
+        # 取所有 key 的并集，逐 key 比对各 role 的 risk_level
+        all_keys: set[str] = set()
+        for levels in role_risks.values():
+            all_keys.update(levels.keys())
 
-            if len(values) >= 2:
-                unique = set(values.values())
-                if len(unique) > 1:
-                    items = list(values.items())
-                    for j in range(len(items)):
-                        for k in range(j + 1, len(items)):
-                            if items[j][1] != items[k][1]:
-                                disagreements.append(
-                                    Disagreement(
-                                        item_id=f"clause-{i}",
-                                        field="risk_level",
-                                        value_a=items[j][1],
-                                        value_b=items[k][1],
-                                        worker_a=items[j][0],
-                                        worker_b=items[k][0],
-                                    )
-                                )
+        for key in all_keys:
+            values: dict[str, str] = {}
+            for role, levels in role_risks.items():
+                if key in levels:
+                    values[role] = levels[key]
+            if len(values) < 2:
+                continue
+            unique = set(values.values())
+            if len(unique) <= 1:
+                continue
+            items = list(values.items())
+            for j in range(len(items)):
+                for k in range(j + 1, len(items)):
+                    if items[j][1] != items[k][1]:
+                        disagreements.append(
+                            Disagreement(
+                                item_id=key,
+                                field="risk_level",
+                                value_a=items[j][1],
+                                value_b=items[k][1],
+                                worker_a=items[j][0],
+                                worker_b=items[k][0],
+                            )
+                        )
 
         logger.info("Supervisor found {} disagreements", len(disagreements))
         return disagreements
@@ -103,19 +127,29 @@ class SupervisorAgent:
 
         risk_out = outputs.get("RiskExpert")
         if risk_out and risk_out.structured:
-            for i, r in enumerate(risk_out.structured):
-                if isinstance(r, dict):
-                    clause = (
-                        clauses[i] if i < len(clauses) else Clause(clause_type="未知", content="")
+            # 优先用 clause_index 显式对齐；缺 index 时按 clause_type 匹配
+            # clauses，避免下标强行对齐导致 Agent 提取顺序/数量与
+            # ClauseExpert 不一致时 risk 挂错条款。
+            clauses_by_type: dict[str, Clause] = {}
+            for c in clauses:
+                clauses_by_type.setdefault(c.clause_type, c)
+            for r in risk_out.structured:
+                if not isinstance(r, dict):
+                    continue
+                ci = r.get("clause_index")
+                if isinstance(ci, int) and 0 <= ci < len(clauses):
+                    clause = clauses[ci]
+                else:
+                    key = r.get("clause_type") or r.get("type")
+                    clause = clauses_by_type.get(key or "", Clause(clause_type="未知", content=""))
+                risks.append(
+                    RiskAssessment(
+                        clause=clause,
+                        risk_level=RiskLevel(r.get("risk_level", "info")),
+                        reason=r.get("reason", ""),
+                        suggestion=r.get("suggestion", ""),
                     )
-                    risks.append(
-                        RiskAssessment(
-                            clause=clause,
-                            risk_level=RiskLevel(r.get("risk_level", "info")),
-                            reason=r.get("reason", ""),
-                            suggestion=r.get("suggestion", ""),
-                        )
-                    )
+                )
 
         compliance_out = outputs.get("ComplianceExpert")
         if compliance_out and compliance_out.structured:

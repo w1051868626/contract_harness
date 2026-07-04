@@ -35,3 +35,5 @@ coverage.xml
 *test*
 !tests/**
 *.json
+# AtomCode local-scope configs (machine-specific)
+.atomcode/local/

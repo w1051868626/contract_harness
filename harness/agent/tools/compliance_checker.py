@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from harness.agent.tools.base import BaseTool
+from harness.agent.tools.llm_utils import extract_json_array, extract_json_object
 from harness.core.types import Clause, ComplianceCheck
 from harness.utils.log import logger
 
@@ -69,16 +70,17 @@ class ComplianceChecker(BaseTool):
     def _parse_batch_response(
         self, content: str, clauses: list[Clause]
     ) -> list[list[ComplianceCheck]]:
-        """解析批量合规检查的 LLM 响应，按 clause_index 分组。"""
-        import json as _json
+        """解析批量合规检查的 LLM 响应，按 clause_index 分组。
 
-        raw = content.strip()
-        try:
-            parsed = _json.loads(raw) if raw.startswith("[") else _json.loads(f"[{raw}]")
-        except (_json.JSONDecodeError, ValueError):
-            parsed = []
-        if not isinstance(parsed, list):
-            parsed = []
+        复用 ``extract_json_array`` 统一处理 `````json`` 围栏、多对象逗号分隔等
+        LLM 输出形态；当 LLM 返回单个 JSON 对象时回退到 ``extract_json_object``
+        解析并包成单元素列表，避免解析失败后用占位 ``ComplianceCheck`` 污染结果。
+        """
+        parsed = extract_json_array(content)
+        if not parsed:
+            single = extract_json_object(content)
+            if single:
+                parsed = [single]
 
         grouped: dict[int, list[ComplianceCheck]] = {}
         for item in parsed:

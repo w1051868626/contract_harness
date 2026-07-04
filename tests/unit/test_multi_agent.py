@@ -221,6 +221,37 @@ class TestSupervisorAgent:
     def test_validate_consensus_finds_disagreement(self):
         from harness.agent.multi_agent.supervisor import SupervisorAgent
 
+        # 两个 Worker 用同一 clause_index 对齐到同一条款，风险等级不同 → 分歧
+        outputs = {
+            "RiskExpert": WorkerOutput(
+                worker_role="RiskExpert",
+                content="风险分析完成",
+                structured=[
+                    {"clause_index": 0, "clause_type": "保密", "risk_level": "low"},
+                ],
+            ),
+            "ComplianceExpert": WorkerOutput(
+                worker_role="ComplianceExpert",
+                content="合规检查完成",
+                structured=[
+                    {"clause_index": 0, "status": True, "risk_level_note": "high"},
+                ],
+            ),
+        }
+        supervisor = SupervisorAgent()
+        disagreements = supervisor.validate_consensus(outputs)
+        assert len(disagreements) > 0
+
+    def test_validate_consensus_no_false_disagreement_on_misaligned_index(self):
+        """RiskExpert 与 ComplianceExpert 输出顺序/数量不一致时，
+        不应按下标强行对齐产出假分歧（R5 回归）。
+
+        旧实现用 range(max(len)) 下标对齐：RiskExpert[0]=type:保密/low
+        与 ComplianceExpert[0]=idx:0/high 会被错位比较判为分歧。
+        新实现按 key 分组，type:保密 与 idx:0 是不同 key 不比较 → 无分歧。
+        """
+        from harness.agent.multi_agent.supervisor import SupervisorAgent
+
         outputs = {
             "RiskExpert": WorkerOutput(
                 worker_role="RiskExpert",
@@ -239,7 +270,7 @@ class TestSupervisorAgent:
         }
         supervisor = SupervisorAgent()
         disagreements = supervisor.validate_consensus(outputs)
-        assert len(disagreements) > 0
+        assert disagreements == []
 
     def test_synthesize_report_returns_report(self, sample_document):
         from harness.agent.multi_agent.supervisor import SupervisorAgent
@@ -405,3 +436,76 @@ class TestContractAgentMultiAgent:
         report, session = agent.review(sample_document)
         assert report.document_id == sample_document.id
         assert session.session_id
+
+
+class TestSynthesizeReportAlignment:
+    """``synthesize_report`` 条款对齐回归测试（R3）。"""
+
+    def test_risk_aligned_by_clause_type_not_index(self, sample_document):
+        """RiskExpert.structured 与 ClauseExpert 数量/顺序不一致时，
+        应按 clause_type 匹配而非下标强行对齐，避免 risk 挂错条款。
+        """
+        from harness.agent.multi_agent.supervisor import SupervisorAgent
+
+        # ClauseExpert 提取 3 个条款，RiskExpert 只评估 2 个且顺序打乱
+        clauses = [
+            {"type": "保密", "content": "保密条款"},
+            {"type": "违约责任", "content": "违约条款"},
+            {"type": "管辖", "content": "管辖条款"},
+        ]
+        risk_struct = [
+            # 故意把"违约责任"放在第 0 位，若按下标对齐会错误挂到"保密"
+            {"clause_type": "违约责任", "risk_level": "high", "reason": "赔偿过高"},
+            {"clause_type": "保密", "risk_level": "low", "reason": "标准条款"},
+        ]
+        outputs = {
+            "ClauseExpert": WorkerOutput(
+                worker_role="ClauseExpert", content="", structured=clauses
+            ),
+            "RiskExpert": WorkerOutput(
+                worker_role="RiskExpert", content="", structured=risk_struct
+            ),
+            "ComplianceExpert": WorkerOutput(
+                worker_role="ComplianceExpert", content="", structured=[]
+            ),
+        }
+        report = SupervisorAgent().synthesize_report(sample_document, outputs, [])
+        # 按 clause_type 找到对应 risk
+        risk_by_type = {r.clause.clause_type: r for r in report.risks}
+        assert "违约责任" in risk_by_type
+        assert risk_by_type["违约责任"].risk_level.value == "high"
+        assert risk_by_type["违约责任"].clause.content == "违约条款"
+        assert "保密" in risk_by_type
+        assert risk_by_type["保密"].risk_level.value == "low"
+        assert risk_by_type["保密"].clause.content == "保密条款"
+
+    def test_risk_aligned_by_explicit_clause_index(self, sample_document):
+        """RiskExpert.structured 提供 clause_index 时优先用 index 对齐。"""
+        from harness.agent.multi_agent.supervisor import SupervisorAgent
+
+        clauses = [
+            {"type": "保密", "content": "保密A"},
+            {"type": "保密", "content": "保密B"},
+        ]
+        # 两个同 type 条款，必须靠 clause_index 区分
+        risk_struct = [
+            {"clause_index": 1, "clause_type": "保密", "risk_level": "high", "reason": "B 风险高"},
+            {"clause_index": 0, "clause_type": "保密", "risk_level": "low", "reason": "A 标准"},
+        ]
+        outputs = {
+            "ClauseExpert": WorkerOutput(
+                worker_role="ClauseExpert", content="", structured=clauses
+            ),
+            "RiskExpert": WorkerOutput(
+                worker_role="RiskExpert", content="", structured=risk_struct
+            ),
+            "ComplianceExpert": WorkerOutput(
+                worker_role="ComplianceExpert", content="", structured=[]
+            ),
+        }
+        report = SupervisorAgent().synthesize_report(sample_document, outputs, [])
+        assert len(report.risks) == 2
+        assert report.risks[0].clause.content == "保密B"
+        assert report.risks[0].risk_level.value == "high"
+        assert report.risks[1].clause.content == "保密A"
+        assert report.risks[1].risk_level.value == "low"

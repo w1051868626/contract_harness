@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
-from openai import OpenAI
+from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLimitError
 
 from harness.core.config import LLMConfig
+from harness.core.exceptions import AgentError
 from harness.utils.log import logger
 
 
@@ -25,9 +26,17 @@ class LLMResponse:
 class LLMClient:
     """LLM 客户端封装，管理 API 连接与请求参数。"""
 
-    def __init__(self, config: LLMConfig | None = None):
-        """初始化客户端配置，延迟创建 OpenAI 连接。"""
+    def __init__(self, config: LLMConfig | None = None, mock: bool = False):
+        """初始化客户端配置，延迟创建 OpenAI 连接。
+
+        Args:
+            config: LLM 配置，为 None 时使用默认配置。
+            mock: 显式启用 mock 模式，返回预设模拟响应。
+                仅用于测试或本地无 API 场景，避免生产环境密钥缺失时
+                静默产出假报告。
+        """
         self.config = config or LLMConfig()
+        self._mock = mock
         self._client: OpenAI | None = None
 
     def _build_http_client(self) -> httpx.Client:
@@ -38,12 +47,21 @@ class LLMClient:
         return httpx.Client(**kwargs)
 
     @property
-    def client(self) -> OpenAI:
-        """懒加载 OpenAI 客户端实例。"""
+    def client(self) -> OpenAI | None:
+        """懒加载 OpenAI 客户端实例。
+
+        mock 模式下返回 None（不创建真实连接），调用方应在 ``chat`` 入口
+        通过 ``self._mock`` 判断，不应直接访问此属性发起请求。
+        """
         if self._client is None:
             if not self.config.api_key:
-                raise ValueError(
-                    "未设置 API 密钥。请通过环境变量 OPENAI_API_KEY 或 LLMConfig.api_key 配置。"
+                # 显式 mock 模式下允许无密钥；否则密钥缺失是配置错误，
+                # 必须抛 AgentError 而非静默回退，避免产出假审查报告。
+                if self._mock:
+                    return None
+                raise AgentError(
+                    "未设置 API 密钥。请通过环境变量 OPENAI_API_KEY 或 LLMConfig.api_key 配置；"
+                    "测试场景可显式传入 LLMClient(mock=True) 启用模拟响应。"
                 )
             self._client = OpenAI(
                 api_key=self.config.api_key,
@@ -126,6 +144,10 @@ class LLMClient:
             params["tools"] = tools
             params["tool_choice"] = kwargs.get("tool_choice", "auto")
 
+        # 显式 mock 模式：跳过真实 API，返回模拟响应
+        if self._mock:
+            return self._mock_chat(messages)
+
         try:
             resp = self.client.chat.completions.create(**params)
             choice = resp.choices[0]
@@ -134,9 +156,20 @@ class LLMClient:
                 resp.model,
                 resp.usage.total_tokens if resp.usage else "N/A",
             )
-        except ValueError:
-            logger.warning("LLM API 密钥缺失，回退到模拟响应")
-            return self._mock_chat(messages)
+        except (APIConnectionError, APITimeoutError) as e:
+            # 网络层错误：可重试，向上抛出由调用方决定重试策略
+            logger.error("LLM API 网络错误: {}", str(e))
+            raise AgentError(f"LLM API 网络错误: {e}") from e
+        except RateLimitError as e:
+            logger.warning("LLM API 触发限流: {}", str(e))
+            raise AgentError(f"LLM API 触发限流，请稍后重试: {e}") from e
+        except APIError as e:
+            # 兜底所有 OpenAI API 错误（含鉴权失败、请求格式错误等）
+            logger.error("LLM API 调用失败: {}", str(e))
+            raise AgentError(f"LLM API 调用失败: {e}") from e
+        except httpx.HTTPError as e:
+            logger.error("LLM HTTP 传输错误: {}", str(e))
+            raise AgentError(f"LLM HTTP 传输错误: {e}") from e
 
         return LLMResponse(
             content=choice.message.content or "",
