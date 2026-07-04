@@ -104,6 +104,26 @@ class TestRiskAnalyzer:
         result = analyzer.analyze(clause)
         assert result.risk_level == RiskLevel.INFO
 
+    def test_batch_analyze_duplicate_index_keeps_first(self):
+        """同 index 多条 item 应保留首个，而非 dict comprehension 静默覆盖。"""
+        import json as _json
+
+        # 两条 item 都 index=0，应保留第一个（medium），而非被 high 覆盖
+        raw = _json.dumps(
+            [
+                {"index": 0, "risk_level": "medium", "reason": "首个"},
+                {"index": 0, "risk_level": "high", "reason": "重复"},
+            ],
+            ensure_ascii=False,
+        )
+        llm = MockLLMClient([LLMResponse(content=raw, model="mock")])
+        analyzer = RiskAnalyzer(llm)
+        clauses = [Clause(clause_type="保密", content="内容")]
+        results = analyzer.batch_analyze(clauses)
+        assert len(results) == 1
+        assert results[0].risk_level == RiskLevel.MEDIUM
+        assert results[0].reason == "首个"
+
 
 class TestComplianceChecker:
     """合规检查器测试。"""

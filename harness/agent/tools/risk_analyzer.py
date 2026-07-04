@@ -80,11 +80,19 @@ class RiskAnalyzer(BaseTool):
             single = extract_json_object(content)
             if single:
                 raw = [single]
-        items = {item.get("index"): item for item in raw if isinstance(item, dict)}
+        # 用 list 收集而非 dict（dict 同 index 会静默覆盖丢失）；
+        # 解析时按 index 升序取首个匹配，未匹配的回退到单条款 analyze
+        items_by_index: dict[int, dict] = {}
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            idx = item.get("index")
+            if isinstance(idx, int) and idx not in items_by_index:
+                items_by_index[idx] = item
 
         results: list[RiskAssessment] = []
         for i, clause in enumerate(clauses):
-            item = items.get(i)
+            item = items_by_index.get(i)
             if item:
                 results.append(
                     RiskAssessment(

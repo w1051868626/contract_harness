@@ -31,7 +31,9 @@ class ComplianceChecker(BaseTool):
 
     def check(self, clause: Clause) -> list[ComplianceCheck]:
         """对单一条款执行多法规合规检查。"""
-        return self.batch_check([clause])[0] if clause else []
+        # batch_check 对空 clauses 返回 []，这里 clause 一定非空，
+        # [0] 安全；去掉 `if clause` 死分支（Clause 对象恒 truthy）
+        return self.batch_check([clause])[0]
 
     def batch_check(
         self, clauses: list[Clause], memory_context: str = ""

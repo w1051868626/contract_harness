@@ -141,17 +141,12 @@ class ContractAgent:
         )
         session.steps.append(step3)
 
-        overall_risk, summary = self._step_report_generation(
+        overall_risk, summary, step4 = self._step_report_generation(
             clauses,
             risks,
             all_compliance,
             kb_context,
         )
-        step4 = AgentStep(
-            step_index=4,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-        )
-        step4.agent_message = "正在生成审查报告..."
         session.steps.append(step4)
 
         report = ReviewReport(
@@ -271,13 +266,13 @@ class ContractAgent:
         risks: list[RiskAssessment],
         compliance: list[ComplianceCheck],
         kb_context: str,
-    ) -> tuple[RiskLevel, str]:
-        """Step 4: 生成报告摘要。"""
+    ) -> tuple[RiskLevel, str, AgentStep]:
+        """Step 4: 生成报告摘要。返回 (整体风险, 摘要, step)。"""
         step = AgentStep(step_index=4, timestamp=datetime.now(timezone.utc).isoformat())
         step.agent_message = "正在生成审查报告..."
         overall_risk = compute_overall_risk(risks)
         summary = self._generate_summary(clauses, risks, compliance, kb_context)
-        return overall_risk, summary
+        return overall_risk, summary, step
 
     def _step_save_memory(
         self,
