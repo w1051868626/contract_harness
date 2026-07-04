@@ -49,35 +49,44 @@ class MultiAgentCoordinator:
         )
         logger.info("Starting multi-agent review for document_id={}", document.id)
 
-        # Phase 1: 分配任务
         tasks = self._supervisor.assign_tasks(document)
+        outputs = self._execute_workers(session, tasks, document)
 
-        # Phase 2-3: 串行执行（ClauseExpert → RiskExpert → ComplianceExpert）
+        if not any(out for out in outputs.values()):
+            logger.warning("All workers failed, synthesizing partial report")
+            return self._build_partial_report(document, session)
+
+        self._cross_validate(session, outputs)
+        disagreements = self._supervisor.validate_consensus({k: v for k, v in outputs.items() if v})
+        arbitration = self._validator.arbitrate(disagreements)
+        report = self._supervisor.synthesize_report(document, outputs, arbitration)
+        report.reviewed_at = datetime.now(timezone.utc).isoformat()
+
+        session.report = report
+        session.finished_at = datetime.now(timezone.utc).isoformat()
+        if disagreements:
+            logger.info("Multi-agent review found {} disagreements", len(disagreements))
+        logger.info("Multi-agent review completed for document_id={}", document.id)
+        return report, session
+
+    def _execute_workers(
+        self, session: AgentSession, tasks: dict[str, str], document: ContractDocument
+    ) -> dict[str, WorkerOutput]:
+        """Phase 2-3: 串行执行 ClauseExpert → RiskExpert → ComplianceExpert。"""
         outputs: dict[str, WorkerOutput] = {}
-        phase_order = ["ClauseExpert", "RiskExpert", "ComplianceExpert"]
-
-        for phase_idx, role in enumerate(phase_order):
+        for phase_idx, role in enumerate(["ClauseExpert", "RiskExpert", "ComplianceExpert"]):
             step = AgentStep(
                 step_index=phase_idx,
                 timestamp=datetime.now(timezone.utc).isoformat(),
+                agent_message=f"正在执行 {role}...",
             )
-            step.agent_message = f"正在执行 {role}..."
             tc = ToolCall(
                 tool_name=role,
                 input={"document_id": document.id},
                 started_at=datetime.now(timezone.utc).isoformat(),
             )
-
             try:
-                if role == "ClauseExpert":
-                    content = tasks.get(role, document.content)
-                else:
-                    clause_out = outputs.get("ClauseExpert")
-                    if clause_out and clause_out.structured:
-                        content = f"合同条款：\n{clause_out.content}"
-                    else:
-                        content = document.content
-
+                content = self._build_worker_input(role, tasks, outputs, document)
                 worker_out = self._workers[role].execute(content)
                 outputs[role] = worker_out
                 tc.output = f"{role} 执行完成"
@@ -89,23 +98,36 @@ class MultiAgentCoordinator:
                 tc.finished_at = datetime.now(timezone.utc).isoformat()
                 step.tool_calls.append(tc)
                 session.steps.append(step)
+        return outputs
 
-        if not any(out for out in outputs.values()):
-            logger.warning("All workers failed, synthesizing partial report")
-            return self._build_partial_report(document, session)
+    @staticmethod
+    def _build_worker_input(
+        role: str,
+        tasks: dict[str, str],
+        outputs: dict[str, WorkerOutput],
+        document: ContractDocument,
+    ) -> str:
+        """为 Worker 构造输入内容。"""
+        if role == "ClauseExpert":
+            return tasks.get(role, document.content)
+        clause_out = outputs.get("ClauseExpert")
+        if clause_out and clause_out.structured:
+            return f"合同条款：\n{clause_out.content}"
+        return document.content
 
-        # Phase 4: 交叉验证
+    def _cross_validate(self, session: AgentSession, outputs: dict[str, WorkerOutput]) -> None:
+        """Phase 4: 交叉验证，结果存入 session.metadata。"""
         step = AgentStep(
             step_index=len(session.steps),
             timestamp=datetime.now(timezone.utc).isoformat(),
+            agent_message="正在交叉验证...",
         )
-        step.agent_message = "正在交叉验证..."
         tc = ToolCall(
             tool_name="cross_validation",
             input={},
             started_at=datetime.now(timezone.utc).isoformat(),
         )
-        cross_validation_outputs: dict[str, str] = {}
+        cv_outputs: dict[str, str] = {}
         for role, worker in self._workers.items():
             if role not in outputs:
                 continue
@@ -113,32 +135,14 @@ class MultiAgentCoordinator:
                 peer = {k: v.content for k, v in outputs.items() if k != role}
                 if peer:
                     cv_out = worker.execute("确认审查结果", peer_results=peer)
-                    cross_validation_outputs[role] = cv_out.content[:500]
+                    cv_outputs[role] = cv_out.content[:500]
             except (ValueError, RuntimeError, json.JSONDecodeError) as e:
                 logger.warning("Cross-validation for {} failed: {}", role, e)
         tc.output = "交叉验证完成"
         tc.finished_at = datetime.now(timezone.utc).isoformat()
         step.tool_calls.append(tc)
         session.steps.append(step)
-        session.metadata["cross_validation"] = cross_validation_outputs
-
-        # Phase 5: 分歧检测
-        disagreements = self._supervisor.validate_consensus({k: v for k, v in outputs.items() if v})
-
-        # Phase 6: 仲裁
-        arbitration = self._validator.arbitrate(disagreements)
-
-        # Phase 7: 合成报告
-        report = self._supervisor.synthesize_report(document, outputs, arbitration)
-        report.reviewed_at = datetime.now(timezone.utc).isoformat()
-        session.report = report
-        session.finished_at = datetime.now(timezone.utc).isoformat()
-
-        if disagreements:
-            logger.info("Multi-agent review found {} disagreements", len(disagreements))
-
-        logger.info("Multi-agent review completed for document_id={}", document.id)
-        return report, session
+        session.metadata["cross_validation"] = cv_outputs
 
     def _build_partial_report(
         self, document: ContractDocument, session: AgentSession
