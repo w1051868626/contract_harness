@@ -261,7 +261,13 @@ class TestRagEvalCLI:
         assert result.exit_code == 0
         assert "generate" in result.output or "运行" in result.output
 
-    def test_kb_eval_generate_no_kb(self):
+    def test_kb_eval_generate_no_kb(self, tmp_path, monkeypatch):
+        """无 KB 时 generate 应报 Missing 错误，而非静默成功或读残留数据。
+
+        用临时空数据目录隔离，避免读到全局 ``.harness/`` 残留 KB/JSONL
+        导致 ``UnicodeDecodeError``（Windows 预存 bug）。
+        """
+        monkeypatch.setenv("HARNESS_DATA_DIR", str(tmp_path))
         runner = CliRunner()
         result = runner.invoke(cli, ["kb", "eval", "generate"])
         assert result.exit_code != 0

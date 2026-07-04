@@ -13,6 +13,7 @@ from openai import APIError, APITimeoutError, RateLimitError
 from pydantic import BaseModel, Field
 
 from harness.agent.llm import LLMClient
+from harness.core.exceptions import EvalError
 from harness.eval_rag.dataset import EvalRagItem
 from harness.utils.log import logger
 
@@ -110,6 +111,11 @@ class RagDatasetGenerator:
                 同时每处理完一个 chunk 都增量写入，避免中断时数据丢失。
         """
         chunks = kb.list_chunks()
+        if not chunks:
+            raise EvalError(
+                "Missing knowledge base chunks: 知识库为空，请先运行 "
+                "`harness kb seed` 或 `harness kb import-file` 导入文档"
+            )
         logger.info("Generating eval dataset from {} chunks", len(chunks))
 
         processed: set[str] = set()
