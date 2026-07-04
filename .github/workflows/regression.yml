@@ -28,7 +28,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           if [ -z "$OPENAI_API_KEY" ]; then
-            echo "OPENAI_API_KEY 未配置，使用 Mock LLM 运行"
+            echo "OPENAI_API_KEY 未配置，启用 LLM_MOCK=1 跑通回归测试"
+            export LLM_MOCK=1
           fi
           harness regression run examples/contracts/ --version "ci-$(date +'%Y%m%d')-${GITHUB_SHA::7}"
       - name: 上传回归报告

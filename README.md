@@ -263,6 +263,7 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `OPENAI_API_KEY` | LLM API 密钥（必填） | - |
 | `OPENAI_API_BASE` | LLM API 地址 | `https://api.openai.com/v1` |
 | `LLM_PROVIDER` | LLM 供应商 | `openai` |
+| `LLM_MOCK` | 启用 mock LLM 响应（`1`/`true`/`yes`），CI 无 secret 时跑通回归测试 | - |
 | `LLM_PROXY` | LLM 代理地址 | 同 `HTTP_PROXY` |
 | `CHUNK_MODEL` | AI 分块模型 | `gpt-4o-mini` |
 | `CHUNK_API_KEY` | AI 分块 API 密钥 | 同 `OPENAI_API_KEY` |

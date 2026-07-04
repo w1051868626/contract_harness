@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -37,9 +38,14 @@ class LLMClient:
             config: LLM 配置，为 None 时使用默认配置。
             mock: 显式启用 mock 模式，返回预设模拟响应。
                 仅用于测试或本地无 API 场景，避免生产环境密钥缺失时
-                静默产出假报告。
+                静默产出假报告。也可通过环境变量 ``LLM_MOCK=1`` 启用，
+                便于 CI 在无 API secret 时跑通回归测试。
         """
         self.config = config or LLMConfig()
+        # 环境变量 LLM_MOCK=1 自动启用 mock，无需改调用方代码
+        # （CI 无 OPENAI_API_KEY secret 时靠此跑通回归测试）
+        if not mock and os.getenv("LLM_MOCK", "").lower() in ("1", "true", "yes"):
+            mock = True
         self._mock = mock
         self._client: OpenAI | None = None
 

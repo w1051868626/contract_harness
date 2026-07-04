@@ -318,6 +318,28 @@ class TestLLMClientErrorHandling:
         assert resp.model == "mock"
         assert resp.content  # 非空
 
+    def test_env_llm_mock_enables_mock_mode(self):
+        """环境变量 LLM_MOCK=1 时自动启用 mock 模式，便于 CI 无 secret 跑通。"""
+        import os
+
+        from harness.core.config import LLMConfig
+
+        with patch.dict(os.environ, {"LLM_MOCK": "1"}, clear=False):
+            client = LLMClient(LLMConfig(api_key="", api_base="https://example.com/v1"))
+            assert client._mock is True
+            resp = client.chat([{"role": "user", "content": "合同条款提取：保密义务"}])
+            assert resp.model == "mock"
+
+    def test_env_llm_mock_disabled_by_default(self):
+        """未设置 LLM_MOCK 时不受影响，保持显式 mock 参数控制。"""
+        import os
+
+        from harness.core.config import LLMConfig
+
+        with patch.dict(os.environ, {"LLM_MOCK": ""}, clear=False):
+            client = LLMClient(LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"))
+            assert client._mock is False
+
     def test_api_error_wrapped_as_agent_error(self):
         """openai.APIError 应被包装为 AgentError 向上抛出。"""
         from openai import APIError
