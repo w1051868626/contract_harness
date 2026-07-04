@@ -397,9 +397,7 @@ class TestLLMClientErrorHandling:
 
         client = LLMClient(LLMConfig(api_key="sk-fake", api_base="https://example.com/v1"))
         mock_openai = MagicMock()
-        mock_openai.chat.completions.create.side_effect = APIConnectionError(
-            request=MagicMock()
-        )
+        mock_openai.chat.completions.create.side_effect = APIConnectionError(request=MagicMock())
         client._client = mock_openai
         import harness.agent.llm as llm_mod
 

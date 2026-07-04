@@ -296,9 +296,7 @@ class TestFeedCorrectionsAlignment:
         # 2 条 risk 修正 + 1 条 compliance 修正，共 3 条
         assert len(memory.corrections) == 3
         risk_corrections = [c for c in memory.corrections if c["field"] == "risk_level"]
-        comp_corrections = [
-            c for c in memory.corrections if c["field"].startswith("compliance:")
-        ]
+        comp_corrections = [c for c in memory.corrections if c["field"].startswith("compliance:")]
         assert len(risk_corrections) == 2
         assert len(comp_corrections) == 1
         # compliance 应对齐到保密A（独立游标从 0 开始）

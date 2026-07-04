@@ -163,11 +163,14 @@ class LLMClient:
             return self._mock_chat(messages)
 
         # 仅对瞬时错误（网络/限流）重试，鉴权/请求格式错误直接抛出
+        # mock 模式已在上面短路返回，此处 client 一定非 None
+        client = self.client
+        assert client is not None
         last_error: Exception | None = None
         last_error_msg: str = ""
         for attempt in range(max(max_retries, 1)):
             try:
-                resp = self.client.chat.completions.create(**params)
+                resp = client.chat.completions.create(**params)
                 choice = resp.choices[0]
                 logger.debug(
                     "LLM 调用成功: model={}, input_tokens={}",
@@ -217,6 +220,4 @@ class LLMClient:
 
         # 重试耗尽：抛出聚合错误
         logger.error("LLM API 重试 {} 次后仍失败: {}", max_retries, str(last_error))
-        raise AgentError(
-            f"LLM API 重试 {max_retries} 次后仍失败: {last_error}"
-        ) from last_error
+        raise AgentError(f"LLM API 重试 {max_retries} 次后仍失败: {last_error}") from last_error
