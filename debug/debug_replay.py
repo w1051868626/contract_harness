@@ -1,6 +1,6 @@
 """调试：harness replay — 回放指定审查会话"""
+
 import argparse
-import json
 
 from harness.cli.main import load_dotenv
 from harness.core.config import HarnessConfig

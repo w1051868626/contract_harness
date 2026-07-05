@@ -1,4 +1,5 @@
 """调试：harness kb list — 列出知识库中所有文档"""
+
 from harness.cli.main import load_dotenv
 from harness.core.config import HarnessConfig
 from harness.rag.knowledge_base import KnowledgeBase

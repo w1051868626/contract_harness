@@ -1,4 +1,5 @@
 """调试：harness converse — 对已有会话继续追问"""
+
 import argparse
 
 from harness.agent.contract_agent import ContractAgent

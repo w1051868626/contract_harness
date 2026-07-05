@@ -91,7 +91,7 @@ def process_file(file_path: Path, chunk_size: int, overlap: int):
 
     else:
         print(f"不支持的文件类型: {ext}")
-        print(f"支持: .zip, .docx, .txt, .md, .json, .pdf")
+        print("支持: .zip, .docx, .txt, .md, .json, .pdf")
 
 
 def main():

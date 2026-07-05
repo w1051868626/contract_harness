@@ -1,4 +1,5 @@
 """调试：harness kb seed — 导入内置法律条文种子数据"""
+
 from harness.cli.main import load_dotenv
 from harness.core.config import HarnessConfig
 from harness.rag.knowledge_base import KnowledgeBase

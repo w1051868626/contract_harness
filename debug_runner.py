@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""调试入口 — 在 PyCharm 中以此文件作为 Script path 运行，Parameters 填入 CLI 参数即可下断点调试。"""
+"""调试入口 — 在 PyCharm 中以此文件作为 Script path 运行。
+
+Parameters 填入 CLI 参数即可下断点调试。
+"""
 
 import sys
 from pathlib import Path

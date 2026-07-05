@@ -1,4 +1,5 @@
 """调试：harness regression diff — 对比两个会话"""
+
 import argparse
 
 from harness.cli.main import load_dotenv

@@ -9,7 +9,6 @@
 """
 
 import subprocess
-import sys
 import zipfile
 from pathlib import Path
 
@@ -26,8 +25,6 @@ def download_dataset():
     """从 ModelScope 下载 Chinese-Laws 数据集（仅首次需要）。"""
     if DATASET_DIR.exists():
         return DATASET_DIR / "chinese_laws.txt"
-
-    import subprocess
 
     print("正在下载 Chinese-Laws 数据集...")
     subprocess.run(
@@ -134,7 +131,7 @@ def _report_chunks(chunks, label: str):
     print(f"  可能开头截断: {start_cut}")
 
     # 展示前 3 个切片
-    print(f"\n  前 3 个切片预览:")
+    print("\n  前 3 个切片预览:")
     for i, c in enumerate(chunks[:3]):
         preview = c.content[:100].replace("\n", " ")
         print(f"    [{i}] ({len(c.content)} chars) {preview}...")

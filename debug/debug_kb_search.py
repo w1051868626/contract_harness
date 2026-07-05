@@ -1,4 +1,5 @@
 """调试：harness kb search — 检索知识库"""
+
 import argparse
 
 from harness.cli.main import load_dotenv
