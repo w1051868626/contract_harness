@@ -13,7 +13,7 @@ from openai import APIError, APITimeoutError, RateLimitError
 from pydantic import BaseModel, Field
 
 from harness.agent.llm import LLMClient
-from harness.core.exceptions import EvalError
+from harness.core.exceptions import AgentError, EvalError
 from harness.eval_rag.dataset import EvalRagItem
 from harness.utils.log import logger
 
@@ -183,6 +183,11 @@ class RagDatasetGenerator:
                     ]
                 )
                 return _parse_llm_output(resp.content, queries_per_chunk)
+            except AgentError as e:
+                # AgentError 为非瞬时错误（密钥缺失/鉴权失败/重试耗尽等），
+                # 不重试直接降级返回 None，避免向上抛打断整个生成流程。
+                logger.error("LLM 调用失败（不可重试）: {}", e)
+                return None
             except (APIError, APITimeoutError, RateLimitError, httpx.HTTPError) as e:
                 last_error = e
                 if attempt < _MAX_RETRIES - 1:
