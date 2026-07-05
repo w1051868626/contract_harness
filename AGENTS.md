@@ -179,3 +179,4 @@ conda activate contract-harness
 - 2026-07-05: `eval_rag/generator.py` `_call_llm_with_retry` 漏捕获 `AgentError` 修复——`LLMClient.chat` 现会抛 `AgentError`（密钥缺失/鉴权失败/重试耗尽等非瞬时错误），原 `except (APIError, APITimeoutError, RateLimitError, httpx.HTTPError)` 未覆盖导致向上抛打断整个生成流程；新增 `except AgentError` 分支不重试直接降级返回 None，与「失败时返回 None」契约一致。
 - 2026-07-05: `eval_rag/generator.py` `RagDatasetGenerator.generate` 的 `kb: Any` 参数补全类型注解——改为 `kb: KnowledgeBase` 并导入 `harness.rag.knowledge_base.KnowledgeBase`，清理未使用的 `from typing import Any`。
 - 2026-07-05: `eval_rag/generator.py` `generate` 内补 4 行中文注释（断点恢复/组 prompt/每条 query 对应一个 EvalRagItem/增量写入），无功能改动。
+- 2026-07-05: `eval_rag/generator.py` LLM token 用量日志——`_call_llm_with_retry` 返回值改为 `(queries, usage)` 元组携带单次调用 usage（prompt/completion/total），`generate` 累计本轮成功调用 token 并在末尾汇总日志输出，便于成本核算；无测试用例变化，累计 229 个。

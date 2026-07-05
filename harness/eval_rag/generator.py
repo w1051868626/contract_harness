@@ -126,6 +126,11 @@ class RagDatasetGenerator:
                 logger.info("断点恢复：检测到 {} 个已处理 chunk", len(processed))
 
         items: list[EvalRagItem] = []
+        # 累计 token 用量（仅本轮新增 chunk，不含断点恢复的旧条目）
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
+        total_tokens = 0
+        usage_count = 0
         for chunk in chunks:
             if chunk.id in processed:
                 continue
@@ -139,10 +144,15 @@ class RagDatasetGenerator:
                 format_instructions=_parser.get_format_instructions(),
             )
 
-            queries = self._call_llm_with_retry(llm, prompt, queries_per_chunk)
+            queries, usage = self._call_llm_with_retry(llm, prompt, queries_per_chunk)
             if queries is None:
                 logger.error("跳过 chunk {}（LLM 调用全部失败）", chunk.id)
                 continue
+            if usage:
+                total_prompt_tokens += usage.get("prompt_tokens", 0)
+                total_completion_tokens += usage.get("completion_tokens", 0)
+                total_tokens += usage.get("total_tokens", 0)
+                usage_count += 1
 
             # 每条 query 对应一个 EvalRagItem，expected_chunk_ids 指向来源 chunk
             chunk_items: list[EvalRagItem] = []
@@ -168,6 +178,14 @@ class RagDatasetGenerator:
             len(processed),
             len(chunks),
         )
+        if usage_count:
+            logger.info(
+                "本轮 token 用量（{} 次成功调用）：prompt={} completion={} total={}",
+                usage_count,
+                total_prompt_tokens,
+                total_completion_tokens,
+                total_tokens,
+            )
         return items
 
     @staticmethod
@@ -175,8 +193,13 @@ class RagDatasetGenerator:
         llm: LLMClient,
         prompt: str,
         queries_per_chunk: int,
-    ) -> list[str] | None:
-        """调用 LLM 并自动重试，失败时返回 None。"""
+    ) -> tuple[list[str] | None, dict[str, int] | None]:
+        """调用 LLM 并自动重试，失败时返回 (None, None)。
+
+        Returns:
+            (queries, usage)：usage 为本次调用的 token 用量（prompt/completion/total），
+            失败时 usage=None。usage 用于上层累计整批 token 成本。
+        """
         last_error: Exception | None = None
         for attempt in range(_MAX_RETRIES):
             try:
@@ -186,12 +209,23 @@ class RagDatasetGenerator:
                         {"role": "user", "content": prompt},
                     ]
                 )
-                return _parse_llm_output(resp.content, queries_per_chunk)
+                usage = resp.usage
+                if usage:
+                    logger.info(
+                        "chunk LLM 用量：prompt={} completion={} total={}（model={}）",
+                        usage.get("prompt_tokens", 0),
+                        usage.get("completion_tokens", 0),
+                        usage.get("total_tokens", 0),
+                        resp.model,
+                    )
+                else:
+                    logger.debug("chunk LLM 响应未携带 usage 字段（model={}）", resp.model)
+                return _parse_llm_output(resp.content, queries_per_chunk), usage
             except AgentError as e:
                 # AgentError 为非瞬时错误（密钥缺失/鉴权失败/重试耗尽等），
                 # 不重试直接降级返回 None，避免向上抛打断整个生成流程。
                 logger.error("LLM 调用失败（不可重试）: {}", e)
-                return None
+                return None, None
             except (APIError, APITimeoutError, RateLimitError, httpx.HTTPError) as e:
                 last_error = e
                 if attempt < _MAX_RETRIES - 1:
@@ -204,4 +238,4 @@ class RagDatasetGenerator:
                     )
                     time.sleep(delay)
         logger.error("LLM 重试 {} 次后仍失败: {}", _MAX_RETRIES, last_error)
-        return None
+        return None, None
