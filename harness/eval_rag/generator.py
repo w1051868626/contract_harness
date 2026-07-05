@@ -131,10 +131,14 @@ class RagDatasetGenerator:
         total_completion_tokens = 0
         total_tokens = 0
         usage_count = 0
+        # 进度：已处理（含断点恢复）chunk 数 / 总 chunk 数，按占总数的百分比输出
+        done = len(processed)
+        total_chunks = len(chunks)
         for chunk in chunks:
             if chunk.id in processed:
                 continue
             if not chunk.content.strip():
+                done += 1
                 continue
 
             # 组装 prompt，截断 chunk 内容避免超出 LLM 上下文
@@ -145,8 +149,15 @@ class RagDatasetGenerator:
             )
 
             queries, usage = self._call_llm_with_retry(llm, prompt, queries_per_chunk)
+            done += 1
             if queries is None:
-                logger.error("跳过 chunk {}（LLM 调用全部失败）", chunk.id)
+                logger.error(
+                    "跳过 chunk {}（LLM 调用全部失败）——进度 {}/{} ({:.0f}%)",
+                    chunk.id,
+                    done,
+                    total_chunks,
+                    done / total_chunks * 100 if total_chunks else 0,
+                )
                 continue
             if usage:
                 total_prompt_tokens += usage.get("prompt_tokens", 0)
@@ -169,6 +180,15 @@ class RagDatasetGenerator:
             # 增量写入 JSONL，避免中断时数据丢失
             if output_path and chunk_items:
                 _append_jsonl(output_path, chunk_items)
+
+            logger.info(
+                "进度 {}/{} ({:.0f}%) — chunk {} 产出 {} 条",
+                done,
+                total_chunks,
+                done / total_chunks * 100 if total_chunks else 0,
+                chunk.id,
+                len(chunk_items),
+            )
 
         total = len(processed) + len(items)
         logger.info(
