@@ -181,11 +181,16 @@ class LLMClient:
             try:
                 resp = client.chat.completions.create(**params)
                 choice = resp.choices[0]
-                logger.debug(
-                    "LLM 调用成功: model={}, input_tokens={}",
-                    resp.model,
-                    resp.usage.total_tokens if resp.usage else "N/A",
-                )
+                if resp.usage:
+                    logger.info(
+                        "LLM 用量：prompt={} completion={} total={}（model={}）",
+                        resp.usage.prompt_tokens,
+                        resp.usage.completion_tokens,
+                        resp.usage.total_tokens,
+                        resp.model,
+                    )
+                else:
+                    logger.debug("LLM 响应未携带 usage 字段（model={}）", resp.model)
                 return LLMResponse(
                     content=choice.message.content or "",
                     model=resp.model,
