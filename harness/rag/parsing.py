@@ -15,6 +15,10 @@ from pypdf.errors import PdfReadError
 from harness.rag.docling_parser import DoclingParser
 from harness.utils.log import logger
 
+# 模块级 Docling 解析器单例。
+# 仅在 CLI 启动时通过 ``enable_docling()`` 写入一次，此后运行期只读，
+# FastAPI 单进程多线程下 ``parse_file`` 并发读取无需加锁；若未来改为
+# 运行期动态启停需改 ``threading.local`` 或加 ``threading.Lock``。
 _docling_parser: DoclingParser | None = None
 
 

@@ -207,7 +207,10 @@ class MemoryStore:
                     chunk.embedding = emb
                 self._store.add_chunks(chunks)
                 logger.debug("记忆存储完成: entries={}", len(chunks))
-            except (ValueError, RuntimeError):
+            except Exception:
+                # ChromaDB/Embedding 真实异常类型多样（sqlite3.Error、
+                # openai.APIError、ImportError 等），显式列举易漏导致主流程
+                # 被打断；记忆是辅助功能，任何异常都应降级而非影响主审查。
                 logger.warning("记忆存储失败", exc_info=True)
 
     def recall(self, clause_content: str, top_k: int = 3) -> list[MemoryEntry]:
@@ -222,7 +225,8 @@ class MemoryStore:
             ]
             entries.sort(key=lambda e: 0 if e.is_correction else 1, reverse=False)
             return entries[:top_k]
-        except (ValueError, RuntimeError):
+        except Exception:
+            # 检索失败不应影响主审查流程，降级返回空列表（见 remember_session 注释）。
             logger.warning("记忆检索失败", exc_info=True)
             return []
 
@@ -249,7 +253,8 @@ class MemoryStore:
                 chunk.embedding = self._embedding.embed(clause_content)
             self._store.add_chunks([chunk])
             logger.info("记忆修正已存储: field={}, value={}", field, correct_value)
-        except (ValueError, RuntimeError):
+        except Exception:
+            # 修正信号存储失败不应影响评测流程（见 remember_session 注释）。
             logger.warning("记忆修正存储失败", exc_info=True)
 
     def format_memory_context(self, memories: list[MemoryEntry]) -> str:

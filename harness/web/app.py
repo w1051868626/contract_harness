@@ -35,6 +35,10 @@ _SECONDS_MONTH = 2592000
 
 HERE = Path(__file__).parent
 
+# 模块导入即创建 FastAPI 应用并初始化全局配置/日志（FastAPI 应用必需的
+# 单例模式）。``config`` ``app`` ``templates`` ``PKG_VERSION`` 为模块级单例，
+# ``TestClient`` 测试时共享同一实例；如需隔离测试应通过 ``HARNESS_DATA_DIR``
+# 环境变量指向临时目录，而非重建应用。
 config = HarnessConfig()
 config.ensure_dirs()
 

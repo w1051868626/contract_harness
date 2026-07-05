@@ -250,9 +250,13 @@ class ReActLoop:
         """从状态构建 ReviewReport。"""
         all_risks = state.get("risks", [])
         all_compliance: list[ComplianceCheck] = []
-        for checks in state.get("compliance", []):
-            if isinstance(checks, list):
-                all_compliance.extend(checks)
+        # state["compliance"] 来自 ComplianceChecker.batch_check，恒为
+        # list[list[ComplianceCheck]]；用 assert 表达此契约，避免 isinstance
+        # 防御性检查把「异常状态污染」静默跳过。
+        nested_compliance = state.get("compliance", [])
+        assert all(isinstance(checks, list) for checks in nested_compliance)
+        for checks in nested_compliance:
+            all_compliance.extend(checks)
 
         overall_risk = compute_overall_risk(all_risks)
 
