@@ -209,18 +209,8 @@ class RagDatasetGenerator:
                         {"role": "user", "content": prompt},
                     ]
                 )
-                usage = resp.usage
-                if usage:
-                    logger.info(
-                        "chunk LLM 用量：prompt={} completion={} total={}（model={}）",
-                        usage.get("prompt_tokens", 0),
-                        usage.get("completion_tokens", 0),
-                        usage.get("total_tokens", 0),
-                        resp.model,
-                    )
-                else:
-                    logger.debug("chunk LLM 响应未携带 usage 字段（model={}）", resp.model)
-                return _parse_llm_output(resp.content, queries_per_chunk), usage
+                # 单次 token 用量由 LLMClient.chat 内统一输出，此处不重复打日志
+                return _parse_llm_output(resp.content, queries_per_chunk), resp.usage
             except AgentError as e:
                 # AgentError 为非瞬时错误（密钥缺失/鉴权失败/重试耗尽等），
                 # 不重试直接降级返回 None，避免向上抛打断整个生成流程。

@@ -127,3 +127,4 @@ harness serve                              # 启动 Web 界面
 - 2026-07-05: `eval_rag/generator.py` `generate` 内补 4 行中文注释（断点恢复/组 prompt/每条 query 对应一个 EvalRagItem/增量写入），无功能改动。
 - 2026-07-05: `eval_rag/generator.py` LLM token 用量日志——`_call_llm_with_retry` 返回值改为 `(queries, usage)` 元组携带单次调用 usage（prompt/completion/total），`generate` 累计本轮成功调用 token 并在末尾汇总日志输出，便于成本核算；无测试用例变化，累计 229 个。
 - 2026-07-05: `agent/llm.py` `chat` 内 LLM token 用量日志统一升级——原 `logger.debug` 仅输出 total_tokens，改为 `logger.info` 输出 prompt/completion/total 三项 + 模型名，所有调用方（12 处）自动受益无需逐处改；usage 字段缺失时降级 `logger.debug`。
+- 2026-07-06: `eval_rag/generator.py` `_call_llm_with_retry` 内 token 日志去重——`LLMClient.chat` 已统一输出每次用量，generator 内重复打的「chunk LLM 用量…」删掉，仅保留 `generate` 末尾本轮累计汇总（chat 内不知「本轮」语义）。
