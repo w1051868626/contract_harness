@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from harness.agent.llm import LLMClient
+from harness.core.config import EmbeddingConfig
 from harness.core.types import Clause, ComplianceCheck, RiskAssessment
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.vector_store import ChromaVectorStore, Chunk
@@ -131,18 +132,23 @@ class MemoryStore:
         llm: LLMClient | None = None,
         enabled: bool = True,
         recall_min_score: float = 0.3,
+        embedding_config: EmbeddingConfig | None = None,
     ):
         """初始化记忆存储。
 
         Args:
             store_dir: ChromaDB 持久化目录。
-            embedding: Embedding 提供者，缺省时用空密钥 openai provider。
+            embedding: Embedding 提供者，显式传入时优先。缺省时按
+                ``embedding_config`` 或空密钥 openai provider 创建。
             llm: LLM 客户端（当前未使用，保留扩展）。
             enabled: 是否启用记忆功能。
             recall_min_score: ``recall`` 时过滤相似度的下限阈值。
                 不同 embedding 模型分数尺度差异大（OpenAI cosine vs 本地
                 sentence-transformers），硬编码 0.3 在换模型后会全过或全被
                 滤掉；改为可配置，调用方按所用模型校准。
+            embedding_config: Embedding 配置，缺省时用空密钥 openai
+                ``text-embedding-3-small``。传入时与主 RAG embedding 模型
+                对齐，避免记忆检索用错模型查询导致分数尺度不一致。
         """
         self._enabled = enabled
         self._llm = llm
@@ -152,12 +158,27 @@ class MemoryStore:
             self._embedding = None
             return
         self._store = ChromaVectorStore(store_dir, collection_name=_MEMORY_COLLECTION)
-        self._embedding = embedding or create_embedding_provider(
-            provider="openai",
-            api_key="",
-            api_base="",
-            model="text-embedding-3-small",
-        )
+        if embedding:
+            self._embedding = embedding
+        elif embedding_config:
+            self._embedding = create_embedding_provider(
+                provider=embedding_config.provider,
+                api_key=embedding_config.api_key,
+                api_base=embedding_config.api_base,
+                model=embedding_config.model,
+                proxy=embedding_config.proxy,
+                max_rpm=embedding_config.max_rpm,
+                max_tpm=embedding_config.max_tpm,
+            )
+        else:
+            # 向后兼容缺省：空密钥 openai provider，调用方未传 embedding
+            # 时记忆功能仍可启用（retrieval 会因密钥缺失抛错被 except 降级）。
+            self._embedding = create_embedding_provider(
+                provider="openai",
+                api_key="",
+                api_base="",
+                model="text-embedding-3-small",
+            )
 
     @property
     def enabled(self) -> bool:

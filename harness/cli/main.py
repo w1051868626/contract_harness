@@ -440,4 +440,4 @@ def eval_run(ctx: click.Context, dataset: str, top_ks: str) -> None:
     runner = RagEvalRunner()
     result = runner.run(kb_instance, items, top_ks=top_ks_list, dataset_name=Path(dataset).stem)
     reporter = RagEvalReporter()
-    print(reporter.to_markdown(result))
+    logger.info("RAG 评测结果:\n{}", reporter.to_markdown(result))

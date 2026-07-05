@@ -17,7 +17,13 @@ def _default_data_root() -> Path:
 
 @dataclass
 class LLMConfig:
-    """LLM 客户端配置（模型、密钥、代理等）。"""
+    """LLM 客户端配置（模型、密钥、代理等）。
+
+    所有 ``api_key``/``api_base`` 默认空串，空串语义为「未设置」：
+    ``__post_init__`` 触发环境变量回退（``<PROVIDER>_API_KEY`` 等），
+    若环境变量也缺则保持空串，``LLMClient`` 在调用时抛 ``AgentError``。
+    显式传空串可禁用环境变量回退。
+    """
 
     provider: str = "openai"
     model: str = "gpt-4o"
@@ -74,7 +80,10 @@ class LLMConfig:
 
 @dataclass
 class EmbeddingConfig:
-    """嵌入模型配置（模型、密钥、代理等）。"""
+    """嵌入模型配置（模型、密钥、代理等）。
+
+    ``api_key``/``api_base`` 空串语义同 ``LLMConfig``：触发环境变量回退。
+    """
 
     provider: str = "openai"
     model: str = "text-embedding-3-small"

@@ -169,9 +169,12 @@ class LLMClient:
             return self._mock_chat(messages)
 
         # 仅对瞬时错误（网络/限流）重试，鉴权/请求格式错误直接抛出
-        # mock 模式已在上面短路返回，此处 client 一定非 None
+        # mock 模式已在上面短路返回，此处 client 一定非 None；用显式
+        # 检查替代 assert，避免 python -O 剥离后 client 为 None 时抛
+        # 无意义的 AttributeError 而非有意义的 AgentError。
         client = self.client
-        assert client is not None
+        if client is None:
+            raise AgentError("LLM client 未初始化（mock 模式应在上面短路返回）")
         last_error: Exception | None = None
         last_error_msg: str = ""
         for attempt in range(max(max_retries, 1)):
