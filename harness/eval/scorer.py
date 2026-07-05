@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from importlib.metadata import version as _pkg_version
 from typing import Any
 
@@ -11,6 +10,7 @@ from harness.agent.memory import MemoryStore
 from harness.core.types import EvalResult, ExpectedMetrics
 from harness.eval.dataset import EvalDataset
 from harness.eval.metrics import MetricsCalculator
+from harness.utils.io import now_iso
 from harness.utils.log import logger
 
 
@@ -63,7 +63,7 @@ class EvalScorer:
                             "metrics": {m.name: m.value for m in metrics},
                         }
                     ],
-                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    timestamp=now_iso(),
                 )
             )
 
@@ -121,11 +121,7 @@ class EvalScorer:
             if idx is None:
                 continue
             clause = clauses[idx]
-            actual_risk = (
-                report.risks[idx].risk_level.value
-                if idx < len(report.risks) and report.risks[idx]
-                else ""
-            )
+            actual_risk = report.risks[idx].risk_level.value if idx < len(report.risks) else ""
             expected_risk = er.get("risk_level", "")
             if expected_risk and actual_risk != expected_risk:
                 self._memory.correct(
@@ -165,7 +161,7 @@ class EvalScorer:
         aggregated = self._metrics.aggregate(results)
 
         result = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_iso(),
             "total_items": len(dataset.items),
             "aggregated_metrics": aggregated,
             "per_item_results": [

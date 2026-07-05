@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 
 from harness.agent.llm import LLMClient
 from harness.agent.memory import MemoryStore
@@ -19,7 +18,7 @@ from harness.core.types import (
     ToolCall,
     WorkerOutput,
 )
-from harness.utils.io import make_id
+from harness.utils.io import make_id, now_iso
 from harness.utils.log import logger
 
 
@@ -45,7 +44,7 @@ class MultiAgentCoordinator:
         session = AgentSession(
             session_id=make_id(),
             document=document,
-            started_at=datetime.now(timezone.utc).isoformat(),
+            started_at=now_iso(),
         )
         logger.info("Starting multi-agent review for document_id={}", document.id)
 
@@ -60,10 +59,10 @@ class MultiAgentCoordinator:
         disagreements = self._supervisor.validate_consensus({k: v for k, v in outputs.items() if v})
         arbitration = self._validator.arbitrate(disagreements)
         report = self._supervisor.synthesize_report(document, outputs, arbitration)
-        report.reviewed_at = datetime.now(timezone.utc).isoformat()
+        report.reviewed_at = now_iso()
 
         session.report = report
-        session.finished_at = datetime.now(timezone.utc).isoformat()
+        session.finished_at = now_iso()
         if disagreements:
             logger.info("Multi-agent review found {} disagreements", len(disagreements))
         logger.info("Multi-agent review completed for document_id={}", document.id)
@@ -77,13 +76,13 @@ class MultiAgentCoordinator:
         for phase_idx, role in enumerate(["ClauseExpert", "RiskExpert", "ComplianceExpert"]):
             step = AgentStep(
                 step_index=phase_idx,
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=now_iso(),
                 agent_message=f"正在执行 {role}...",
             )
             tc = ToolCall(
                 tool_name=role,
                 input={"document_id": document.id},
-                started_at=datetime.now(timezone.utc).isoformat(),
+                started_at=now_iso(),
             )
             try:
                 content = self._build_worker_input(role, tasks, outputs, document)
@@ -95,7 +94,7 @@ class MultiAgentCoordinator:
                 logger.warning("{} failed: {}", role, e)
                 tc.output = str(e)
             finally:
-                tc.finished_at = datetime.now(timezone.utc).isoformat()
+                tc.finished_at = now_iso()
                 step.tool_calls.append(tc)
                 session.steps.append(step)
         return outputs
@@ -119,13 +118,13 @@ class MultiAgentCoordinator:
         """Phase 4: 交叉验证，结果存入 session.metadata。"""
         step = AgentStep(
             step_index=len(session.steps),
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=now_iso(),
             agent_message="正在交叉验证...",
         )
         tc = ToolCall(
             tool_name="cross_validation",
             input={},
-            started_at=datetime.now(timezone.utc).isoformat(),
+            started_at=now_iso(),
         )
         cv_outputs: dict[str, str] = {}
         for role, worker in self._workers.items():
@@ -139,7 +138,7 @@ class MultiAgentCoordinator:
             except (ValueError, RuntimeError, json.JSONDecodeError) as e:
                 logger.warning("Cross-validation for {} failed: {}", role, e)
         tc.output = "交叉验证完成"
-        tc.finished_at = datetime.now(timezone.utc).isoformat()
+        tc.finished_at = now_iso()
         step.tool_calls.append(tc)
         session.steps.append(step)
         session.metadata["cross_validation"] = cv_outputs
@@ -151,7 +150,7 @@ class MultiAgentCoordinator:
         report = ReviewReport(
             document_id=document.id,
             document_title=document.title,
-            reviewed_at=datetime.now(timezone.utc).isoformat(),
+            reviewed_at=now_iso(),
             summary="多 Agent 审查全部失败，请重试或切换为 Pipeline 模式",
             clauses=[],
             risks=[],
@@ -159,5 +158,5 @@ class MultiAgentCoordinator:
             overall_risk=RiskLevel.INFO,
         )
         session.report = report
-        session.finished_at = datetime.now(timezone.utc).isoformat()
+        session.finished_at = now_iso()
         return report, session

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 
 from harness.agent.llm import LLMClient
 from harness.agent.tools.llm_utils import strip_json_fences
@@ -11,6 +10,7 @@ from harness.core.types import (
     ReviewReport,
     RiskLevel,
 )
+from harness.utils.io import now_iso
 from harness.utils.log import logger
 
 REFLECTION_PROMPT = """你是一位法律合同审查质量审核专家。请对以下审查报告进行复核，
@@ -124,7 +124,7 @@ def reflect_on_report(
     return ReviewReport(
         document_id=report.document_id,
         document_title=report.document_title,
-        reviewed_at=datetime.now(timezone.utc).isoformat(),
+        reviewed_at=now_iso(),
         summary=revised_summary,
         clauses=report.clauses,
         risks=report.risks,

@@ -9,7 +9,7 @@ from typing import Any
 from harness.core.types import EvalResult, RegressionResult
 from harness.eval.dataset import EvalDataset
 from harness.eval.scorer import EvalScorer
-from harness.utils.io import read_json, write_json
+from harness.utils.io import now_iso, read_json, write_json
 from harness.utils.log import logger
 
 _REGRESSION_THRESHOLD = 0.05
@@ -99,7 +99,7 @@ class RegressionSuite:
         """将指标与版本写入基线文件。"""
         data = {
             "version": version,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_iso(),
             "metrics": metrics,
         }
         filepath = self._baseline_dir / "baseline.json"

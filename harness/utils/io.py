@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,11 @@ from pydantic import BaseModel
 def make_id() -> str:
     """生成 12 字符短 ID。"""
     return uuid.uuid4().hex[:12]
+
+
+def now_iso() -> str:
+    """返回当前 UTC 时间的 ISO 格式字符串。"""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def normalize_text(text: str) -> str:

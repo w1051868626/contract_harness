@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from typing import Any
 
 from harness.agent.llm import LLMClient, LLMResponse
@@ -25,7 +24,7 @@ from harness.core.types import (
     ToolCall,
 )
 from harness.utils.agent import compute_overall_risk
-from harness.utils.io import make_id
+from harness.utils.io import make_id, now_iso
 from harness.utils.log import logger
 
 REACT_SYSTEM_PROMPT = """你是一位资深法律合同审查专家。你有以下工具可用：
@@ -67,7 +66,7 @@ class ReActLoop:
         session = AgentSession(
             session_id=make_id(),
             document=document,
-            started_at=datetime.now(timezone.utc).isoformat(),
+            started_at=now_iso(),
         )
         logger.info("Starting ReAct review for document_id={}", document.id)
 
@@ -98,7 +97,7 @@ class ReActLoop:
 
         report = self._build_report(document, state)
         session.report = report
-        session.finished_at = datetime.now(timezone.utc).isoformat()
+        session.finished_at = now_iso()
 
         if self._memory and self._memory.enabled:
             self._memory.remember_session(
@@ -167,12 +166,12 @@ class ReActLoop:
         tool = action.get("tool", "")
         step = AgentStep(
             step_index=len(session.steps),
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=now_iso(),
         )
         tc = ToolCall(
             tool_name=tool,
             input=action.get("input", {}),
-            started_at=datetime.now(timezone.utc).isoformat(),
+            started_at=now_iso(),
         )
 
         try:
@@ -185,9 +184,10 @@ class ReActLoop:
             elif tool == "clause_extractor":
                 clauses = self._clause_extractor.extract(state["document"])
                 state["clauses"] = clauses
-                observation = f"提取到 {len(clauses)} 个条款:\n"
+                parts = [f"提取到 {len(clauses)} 个条款:"]
                 for i, c in enumerate(clauses):
-                    observation += f"  [{i}] {c.clause_type}: {c.content[:200]}\n"
+                    parts.append(f"  [{i}] {c.clause_type}: {c.content[:200]}")
+                observation = "\n".join(parts)
             elif tool == "risk_analyzer":
                 if not state["clauses"]:
                     observation = "错误: 尚未提取条款，请先调用 clause_extractor"
@@ -197,12 +197,12 @@ class ReActLoop:
                         state["clauses"], memory_context=mem_ctx
                     )
                     state["risks"] = risks
-                    observation = "风险分析完成:\n"
+                    parts = ["风险分析完成:"]
                     for r in risks:
-                        obs_line = (
-                            f"  [{r.clause.clause_type}] {r.risk_level.value}: {r.reason[:200]}\n"
+                        parts.append(
+                            f"  [{r.clause.clause_type}] {r.risk_level.value}: {r.reason[:200]}"
                         )
-                        observation += obs_line
+                    observation = "\n".join(parts)
             elif tool == "compliance_checker":
                 if not state["clauses"]:
                     observation = "错误: 尚未提取条款，请先调用 clause_extractor"
@@ -213,11 +213,12 @@ class ReActLoop:
                     )
                     state["compliance"] = results
                     total = sum(len(r) for r in results)
-                    observation = f"合规检查完成，共 {total} 项检查:\n"
+                    parts = [f"合规检查完成，共 {total} 项检查:"]
                     for i, checks in enumerate(results):
                         for c in checks:
                             status = "✅" if c.status else "❌"
-                            observation += f"  [{i}] {c.regulation}: {status} {c.detail[:100]}\n"
+                            parts.append(f"  [{i}] {c.regulation}: {status} {c.detail[:100]}")
+                    observation = "\n".join(parts)
             else:
                 known = "knowledge_retriever, clause_extractor, risk_analyzer, compliance_checker"
                 observation = f"未知工具: {tool}，可用: {known}"
@@ -227,7 +228,7 @@ class ReActLoop:
             observation = f"工具执行出错: {e}"
             tc.output = str(e)
 
-        tc.finished_at = datetime.now(timezone.utc).isoformat()
+        tc.finished_at = now_iso()
         step.tool_calls.append(tc)
         step.agent_message = f"调用工具: {tool}"
         return step, observation
@@ -280,7 +281,7 @@ class ReActLoop:
         return ReviewReport(
             document_id=document.id,
             document_title=document.title,
-            reviewed_at=datetime.now(timezone.utc).isoformat(),
+            reviewed_at=now_iso(),
             summary=summary,
             clauses=state.get("clauses", []),
             risks=all_risks,

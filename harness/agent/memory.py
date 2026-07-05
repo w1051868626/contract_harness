@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from typing import Any
 
 from harness.agent.llm import LLMClient
 from harness.core.types import Clause, ComplianceCheck, RiskAssessment
 from harness.rag.embedding import EmbeddingProvider, create_embedding_provider
 from harness.rag.vector_store import ChromaVectorStore, Chunk
-from harness.utils.io import make_id
+from harness.utils.io import make_id, now_iso
 from harness.utils.log import logger
 
 _MEMORY_COLLECTION = "agent_memory"
@@ -43,7 +42,7 @@ class MemoryEntry:
         self.is_correction = is_correction
         self.correction_field = correction_field
         self.correction_value = correction_value
-        self.timestamp = timestamp or datetime.now(timezone.utc).isoformat()
+        self.timestamp = timestamp or now_iso()
 
     def to_chunk(self) -> Chunk:
         """转为 Chroma 可存储的 Chunk。"""

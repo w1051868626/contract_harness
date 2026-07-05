@@ -80,15 +80,15 @@ def _format_session(s: dict[str, Any]) -> dict[str, Any]:
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             now = datetime.now(timezone.utc)
-            delta = now - dt
-            if delta.total_seconds() < _SECONDS_MINUTE:
+            secs = (now - dt).total_seconds()
+            if secs < _SECONDS_MINUTE:
                 s["time_ago"] = "刚刚"
-            elif delta.total_seconds() < _SECONDS_HOUR:
-                s["time_ago"] = f"{int(delta.total_seconds() // _SECONDS_MINUTE)} 分钟前"
-            elif delta.total_seconds() < _SECONDS_DAY:
-                s["time_ago"] = f"{int(delta.total_seconds() // _SECONDS_HOUR)} 小时前"
-            elif delta.total_seconds() < _SECONDS_MONTH:
-                s["time_ago"] = f"{int(delta.total_seconds() // _SECONDS_DAY)} 天前"
+            elif secs < _SECONDS_HOUR:
+                s["time_ago"] = f"{int(secs // _SECONDS_MINUTE)} 分钟前"
+            elif secs < _SECONDS_DAY:
+                s["time_ago"] = f"{int(secs // _SECONDS_HOUR)} 小时前"
+            elif secs < _SECONDS_MONTH:
+                s["time_ago"] = f"{int(secs // _SECONDS_DAY)} 天前"
             else:
                 s["time_ago"] = dt.strftime("%Y-%m-%d")
         except (ValueError, TypeError):
@@ -177,22 +177,21 @@ async def session_detail(request: Request, session_id: str):
 
 @app.post("/sessions/{session_id}/converse", response_class=HTMLResponse)
 async def session_converse(request: Request, session_id: str, query: str = Form("")):
+    player = _player()
+    session = player.load(session_id)
     if not query.strip():
-        player = _player()
-        session = player.load(session_id)
         return _render("session_detail.html", request, session=session, error="请输入问题")
     try:
         agent = _agent()
         answer = await asyncio.to_thread(agent.converse, session_id, query)
-    except (ValueError, RuntimeError, FileNotFoundError) as e:
-        player = _player()
-        session = player.load(session_id)
-        return _render("session_detail.html", request, session=session, error=str(e))
-    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as e:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        FileNotFoundError,
+        json.JSONDecodeError,
+        HarnessError,
+    ) as e:
         logger.error("追问失败: {}", str(e))
-        player = _player()
-        session = player.load(session_id)
         return _render("session_detail.html", request, session=session, error=f"追问失败: {e}")
-    player = _player()
-    session = player.load(session_id)
     return _render("session_detail.html", request, session=session, answer=answer)
