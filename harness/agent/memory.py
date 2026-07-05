@@ -130,9 +130,23 @@ class MemoryStore:
         embedding: EmbeddingProvider | None = None,
         llm: LLMClient | None = None,
         enabled: bool = True,
+        recall_min_score: float = 0.3,
     ):
+        """初始化记忆存储。
+
+        Args:
+            store_dir: ChromaDB 持久化目录。
+            embedding: Embedding 提供者，缺省时用空密钥 openai provider。
+            llm: LLM 客户端（当前未使用，保留扩展）。
+            enabled: 是否启用记忆功能。
+            recall_min_score: ``recall`` 时过滤相似度的下限阈值。
+                不同 embedding 模型分数尺度差异大（OpenAI cosine vs 本地
+                sentence-transformers），硬编码 0.3 在换模型后会全过或全被
+                滤掉；改为可配置，调用方按所用模型校准。
+        """
         self._enabled = enabled
         self._llm = llm
+        self._recall_min_score = recall_min_score
         if not enabled:
             self._store = None
             self._embedding = None
@@ -203,7 +217,9 @@ class MemoryStore:
         try:
             query_emb = self._embedding.embed(clause_content)
             raw_chunks = self._store.search(query_emb, top_k=top_k + 2)
-            entries = [MemoryEntry.from_chunk(c) for c in raw_chunks if c.score > 0.3]
+            entries = [
+                MemoryEntry.from_chunk(c) for c in raw_chunks if c.score > self._recall_min_score
+            ]
             entries.sort(key=lambda e: 0 if e.is_correction else 1, reverse=False)
             return entries[:top_k]
         except (ValueError, RuntimeError):

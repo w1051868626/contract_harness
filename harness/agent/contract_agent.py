@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 from harness.agent.llm import LLMClient
-from harness.agent.memory import MemoryStore
+from harness.agent.memory import MemoryEntry, MemoryStore
 from harness.agent.multi_agent.coordinator import MultiAgentCoordinator
 from harness.agent.prompts import SYSTEM_PROMPT
 from harness.agent.react_loop import ReActLoop
@@ -203,7 +203,7 @@ class ContractAgent:
         """从记忆中检索相似案例作为参考上下文。"""
         if not (self._memory and self._memory.enabled):
             return ""
-        memories: list = []
+        memories: list[MemoryEntry] = []
         seen: set[str] = set()
         for c in clauses:
             for m in self._memory.recall(c.content, top_k=2):

@@ -286,9 +286,7 @@ class TestFeedCorrectionsAlignment:
                     {"clause_type": "保密", "risk_level": "critical"},
                 ],
                 "expected_compliance": [
-                    [
-                        {"clause_type": "保密", "regulation": "数据安全法", "status": False},
-                    ],
+                    {"clause_type": "保密", "regulation": "数据安全法", "status": False},
                 ],
             },
         )()
@@ -302,3 +300,60 @@ class TestFeedCorrectionsAlignment:
         # compliance 应对齐到保密A（独立游标从 0 开始）
         assert comp_corrections[0]["clause_content"] == "保密A"
         assert comp_corrections[0]["correct_value"] == "不合规"
+
+    def test_same_clause_multiple_compliance_checks_align_correctly(self):
+        """同条款多条合规 check 应都对齐到该条款，而非嵌套遍历导致第二条
+        check 错位挂到下一个同 type 条款（R5 回归）。
+
+        旧实现按 ``list[list[dict]]`` 嵌套遍历 ``expected_compliance``，
+        与 ``EvalItem.expected_compliance: list[dict]`` 类型注解及
+        ``metrics._compliance_accuracy`` 的扁平消费方式不一致；同条款
+        多条 check 时第二条会轮转到下一个同 type 条款，修正信号错位。
+        """
+        scorer, memory = self._make_scorer()
+        from harness.core.types import (
+            Clause,
+            ComplianceCheck,
+            ReviewReport,
+            RiskAssessment,
+        )
+
+        clauses = [
+            Clause(clause_type="保密", content="保密A"),
+            Clause(clause_type="保密", content="保密B"),
+        ]
+        report = ReviewReport(
+            document_id="d",
+            document_title="t",
+            reviewed_at="now",
+            summary="s",
+            clauses=clauses,
+            risks=[
+                RiskAssessment(clause=clauses[0], risk_level=RiskLevel.LOW, reason=""),
+                RiskAssessment(clause=clauses[1], risk_level=RiskLevel.LOW, reason=""),
+            ],
+            compliance_checks=[
+                ComplianceCheck(regulation="数据安全法", status=True, detail=""),
+                ComplianceCheck(regulation="个人信息法", status=True, detail=""),
+            ],
+        )
+        # 同条款（保密A，clause_index=0）两条 check 都应对齐到保密A，
+        # 而非嵌套遍历下第二条轮转挂到保密B
+        item = type(
+            "Item",
+            (),
+            {
+                "expected_risks": [],
+                "expected_compliance": [
+                    {"clause_index": 0, "regulation": "数据安全法", "status": False},
+                    {"clause_index": 0, "regulation": "个人信息法", "status": False},
+                ],
+            },
+        )()
+        scorer._feed_corrections(report, item)
+        comp_corrections = [c for c in memory.corrections if c["field"].startswith("compliance:")]
+        assert len(comp_corrections) == 2
+        # 两条都应挂到保密A，而非一条挂 A 一条挂 B
+        assert all(c["clause_content"] == "保密A" for c in comp_corrections)
+        regulations = sorted(c["field"].split(":", 1)[1] for c in comp_corrections)
+        assert regulations == ["个人信息法", "数据安全法"]

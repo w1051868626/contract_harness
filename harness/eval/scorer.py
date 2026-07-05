@@ -131,28 +131,31 @@ class EvalScorer:
                     correct_value=expected_risk,
                 )
 
-        for ec_group in expected_compliance:
-            # expected_compliance 每项是一个条款对应的多条合规检查
-            if not isinstance(ec_group, list):
+        # expected_compliance 为扁平 list[dict]，每条 check 独立对齐到条款
+        # （与 EvalItem.expected_compliance 类型注解及 metrics._compliance_accuracy
+        # 消费方式一致；同条款多条 check 各自用 clause_index 显式对齐或按
+        # clause_type 轮转，避免嵌套分组遍历导致同条款第二条 check 错位
+        # 挂到下一个同 type 条款）。
+        for check in expected_compliance:
+            if not isinstance(check, dict):
                 continue
-            for check in ec_group:
-                idx = _resolve_clause_index(check, "compliance")
-                if idx is None:
-                    continue
-                clause = clauses[idx]
-                regulation = check.get("regulation", "")
-                expected_status = check.get("status", True)
-                actual = next(
-                    (c for c in report.compliance_checks if c.regulation == regulation),
-                    None,
+            idx = _resolve_clause_index(check, "compliance")
+            if idx is None:
+                continue
+            clause = clauses[idx]
+            regulation = check.get("regulation", "")
+            expected_status = check.get("status", True)
+            actual = next(
+                (c for c in report.compliance_checks if c.regulation == regulation),
+                None,
+            )
+            if actual and actual.status != expected_status:
+                self._memory.correct(
+                    clause_type=clause.clause_type,
+                    clause_content=clause.content,
+                    field=f"compliance:{regulation}",
+                    correct_value="合规" if expected_status else "不合规",
                 )
-                if actual and actual.status != expected_status:
-                    self._memory.correct(
-                        clause_type=clause.clause_type,
-                        clause_content=clause.content,
-                        field=f"compliance:{regulation}",
-                        correct_value="合规" if expected_status else "不合规",
-                    )
 
     def score(self, dataset: EvalDataset) -> dict[str, Any]:
         """运行评测并返回聚合后的评分结果。"""
