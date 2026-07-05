@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any
 
 import httpx
 from json_repair import repair_json
@@ -15,6 +14,7 @@ from pydantic import BaseModel, Field
 from harness.agent.llm import LLMClient
 from harness.core.exceptions import AgentError, EvalError
 from harness.eval_rag.dataset import EvalRagItem
+from harness.rag.knowledge_base import KnowledgeBase
 from harness.utils.log import logger
 
 
@@ -95,7 +95,7 @@ def _append_jsonl(path: str, items: list[EvalRagItem]) -> None:
 class RagDatasetGenerator:
     def generate(
         self,
-        kb: Any,
+        kb: KnowledgeBase,
         llm: LLMClient,
         queries_per_chunk: int = 2,
         output_path: str | None = None,
