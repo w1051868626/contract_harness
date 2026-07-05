@@ -129,3 +129,4 @@ harness serve                              # 启动 Web 界面
 - 2026-07-05: `agent/llm.py` `chat` 内 LLM token 用量日志统一升级——原 `logger.debug` 仅输出 total_tokens，改为 `logger.info` 输出 prompt/completion/total 三项 + 模型名，所有调用方（12 处）自动受益无需逐处改；usage 字段缺失时降级 `logger.debug`。
 - 2026-07-06: `eval_rag/generator.py` `_call_llm_with_retry` 内 token 日志去重——`LLMClient.chat` 已统一输出每次用量，generator 内重复打的「chunk LLM 用量…」删掉，仅保留 `generate` 末尾本轮累计汇总（chat 内不知「本轮」语义）。
 - 2026-07-06: `eval_rag/generator.py` `generate` 循环内加进度百分比日志——每个 chunk 处理完输出「进度 {done}/{total} ({pct}%) — chunk {id} 产出 {n} 条」，跳过/空 chunk 也计入分母保证百分比稳定到 100%，无需进度条。
+- 2026-07-06: `eval_rag/generator.py` 删除本轮 token 累计汇总日志——`LLMClient.chat` 内已统一输出每次用量，累计汇总多余删掉；`_call_llm_with_retry` 签名回滚为只返 `list[str] | None`（不再带 usage 元组），循环里累计变量一并清掉。
