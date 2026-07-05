@@ -118,6 +118,7 @@ class RagDatasetGenerator:
             )
         logger.info("Generating eval dataset from {} chunks", len(chunks))
 
+        # 断点恢复：加载已有输出中的 chunk ID，已处理则跳过
         processed: set[str] = set()
         if output_path:
             processed = _load_existing_chunk_ids(output_path)
@@ -131,6 +132,7 @@ class RagDatasetGenerator:
             if not chunk.content.strip():
                 continue
 
+            # 组装 prompt，截断 chunk 内容避免超出 LLM 上下文
             prompt = GENERATOR_PROMPT.format(
                 count=queries_per_chunk,
                 text=chunk.content[:1000],
@@ -142,6 +144,7 @@ class RagDatasetGenerator:
                 logger.error("跳过 chunk {}（LLM 调用全部失败）", chunk.id)
                 continue
 
+            # 每条 query 对应一个 EvalRagItem，expected_chunk_ids 指向来源 chunk
             chunk_items: list[EvalRagItem] = []
             for q in queries:
                 item = EvalRagItem(
@@ -153,6 +156,7 @@ class RagDatasetGenerator:
                 items.append(item)
                 chunk_items.append(item)
 
+            # 增量写入 JSONL，避免中断时数据丢失
             if output_path and chunk_items:
                 _append_jsonl(output_path, chunk_items)
 
