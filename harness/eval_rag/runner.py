@@ -4,6 +4,7 @@ from typing import Any
 
 from harness.eval_rag.dataset import EvalRagItem, EvalRagResult
 from harness.eval_rag.metrics import RagMetricsCalculator
+from harness.rag.knowledge_base import KnowledgeBase
 from harness.utils.log import logger
 
 
@@ -13,7 +14,7 @@ class RagEvalRunner:
 
     def run(
         self,
-        kb: Any,
+        kb: KnowledgeBase,
         items: list[EvalRagItem],
         top_ks: list[int] | None = None,
         dataset_name: str = "default",
