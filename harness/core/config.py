@@ -259,7 +259,7 @@ class HarnessConfig:
             if k in cls.__dataclass_fields__:
                 # agent_mode 支持字符串 -> enum 转换
                 if k == "agent_mode" and isinstance(v, str):
-                    kwargs[k] = AgentMode(v.upper())
+                    kwargs[k] = AgentMode(v.lower())
                 else:
                     kwargs[k] = v
 
