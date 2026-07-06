@@ -5,36 +5,67 @@ __pycache__/
 dist/
 build/
 *.egg
+*.whl
+*.manifest
 .venv/
 venv/
 env/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Project
+# Project — 运行时数据与日志
 *.log
 .output/
-*.local.yaml
 .harness/
 .coverage
 coverage.xml
+htmlcov/
 
-*.env
-!example.envdebug/test_chunking/chinese-laws/
-*.zip
-*.docx
-# 仅忽略根目录下 *test* 临时产物，避免误伤 tests/ 下 test_*.py 源文件
+# 测试临时产物（根目录下 test* 目录/文件，不误伤 tests/ 源码）
 /*test*
 !tests/**
-*.json
-# AtomCode local-scope configs (machine-specific)
+
+# 配置文件 — 本地覆盖与环境密钥
+*.local.yaml
+*.env
+!example.env
+
+# Debug / 分块测试临时产物
+debug/
+!debug/**/__init__.py
+
+# 文档解析缓存（Docling / pypdf）
+*.zip
+*.docx
+*.pdf
+
+# 数据库与向量存储（ChromaDB sqlite 等）
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+
+# 评测数据集生成产物（JSONL），跟踪示例/测试数据但忽略运行时生成
+.harness/**/*.jsonl
+.harness/**/*.json
+laws_*.json
+
+# 回归基线缓存
+.regression_baseline/
+
+# AtomCode — 仅忽略本地机器特定配置
 .atomcode/local/
