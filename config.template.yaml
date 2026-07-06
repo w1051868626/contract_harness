@@ -13,8 +13,35 @@
 # 自动执行命令（可选）
 # 设置后，运行 "harness -c config.yaml"（不带子命令）将自动执行此命令。
 # 参数会转为 CLI 的 --key=value 形式。
+#
+# 常用命令示例（去掉注释即可使用）：
 # ---------------------------------------------------------------------------
 run:
+  # --- 审查合同 ---
+  # command: "review contract.docx"
+  # arguments:
+  #   save: true
+  #   model: gpt-4o
+  #   docling: false
+
+  # --- 生成 RAG 评估数据集 ---
+  # command: "kb eval generate"
+  # arguments:
+  #   sample: 30
+  #   queries_per_chunk: 2
+  #   output: data/rag_eval.jsonl
+
+  # --- 执行 RAG 评估 ---
+  # command: "kb eval run data/rag_eval.jsonl"
+  # arguments:
+  #   top_ks: "1,3,5"
+
+  # --- 启动 Web 界面 ---
+  # command: "serve"
+  # arguments:
+  #   host: "0.0.0.0"
+  #   port: 8000
+  #   reload: false
   command: "kb eval generate"
   arguments:
     sample: 30
