@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
+import sys
 from pathlib import Path
 
 import click
@@ -45,7 +48,18 @@ def _get_player(ctx: click.Context) -> SessionPlayer:
     return SessionPlayer(ReplayStorage(config.replay_dir))
 
 
-@click.group()
+def _load_yaml_run(path: str) -> dict | None:
+    """从 YAML 配置文件中提取 ``run`` 字段（不触发完整配置加载）。"""
+    try:
+        from harness.core.config import load_config_yaml
+
+        data = load_config_yaml(path)
+        return data.get("run")
+    except Exception:
+        return None
+
+
+@click.group(invoke_without_command=True)
 @click.option("--verbose", "-v", is_flag=True, help="启用详细输出")
 @click.option(
     "--config",
@@ -56,7 +70,10 @@ def _get_player(ctx: click.Context) -> SessionPlayer:
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool, config: str) -> None:
     """合同审查 Agent 系统 CLI。"""
+    yaml_run: dict | None = None
     if config:
+        # 先提取 run 字段（CLI 自动执行用），再加载正式配置
+        yaml_run = _load_yaml_run(config)
         cfg = HarnessConfig.from_yaml(config)
         cfg.verbose = verbose or cfg.verbose
     else:
@@ -68,6 +85,25 @@ def cli(ctx: click.Context, verbose: bool, config: str) -> None:
     ctx.ensure_object(dict)
     ctx.obj["config"] = cfg
     logger.debug("CLI 启动 (verbose={})", cfg.verbose)
+
+    # 无子命令 + YAML 定义了 run → 自动执行
+    if ctx.invoked_subcommand is None and yaml_run and not os.getenv("_HARNESS_RUN_IN_PROGRESS"):
+        cmd_str = yaml_run.get("command", "")
+        if not cmd_str:
+            return
+        os.environ["_HARNESS_RUN_IN_PROGRESS"] = "1"
+        cmd_parts = shlex.split(cmd_str)
+        args_dict = yaml_run.get("arguments", {}) or {}
+        for k, v in args_dict.items():
+            click_key = k.replace("_", "-")
+            if isinstance(v, bool):
+                cmd_parts.append(f"--{click_key}" if v else f"--no-{click_key}")
+            else:
+                cmd_parts.append(f"--{click_key}={v}")
+        try:
+            ctx.exit(cli.main(args=cmd_parts, standalone_mode=False))
+        finally:
+            os.environ.pop("_HARNESS_RUN_IN_PROGRESS", None)
 
 
 @cli.command()

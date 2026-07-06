@@ -1,12 +1,25 @@
 # =============================================================================
 # contract-harness 全局配置模板
 # =============================================================================
-# 用法：harness -c config.template.yaml review contract.docx
-#       harness -c config.template.yaml kb eval generate --sample 30
+# 用法：
+#   harness -c config.yaml review contract.docx
+#   harness -c config.yaml                          # 从 YAML 的 run 字段自动执行
 #
 # 字段优先级：YAML 文件 > 环境变量 > 默认值
 # 值中支持 ${VAR_NAME} 或 ${VAR_NAME:-default} 引用环境变量
 # =============================================================================
+
+# ---------------------------------------------------------------------------
+# 自动执行命令（可选）
+# 设置后，运行 "harness -c config.yaml"（不带子命令）将自动执行此命令。
+# 参数会转为 CLI 的 --key=value 形式。
+# ---------------------------------------------------------------------------
+run:
+  command: "kb eval generate"
+  arguments:
+    sample: 30
+    queries_per_chunk: 2
+    output: data/rag_eval.jsonl
 
 # ---------------------------------------------------------------------------
 # LLM 配置（对应 LLMConfig）
