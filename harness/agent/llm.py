@@ -181,6 +181,20 @@ class LLMClient:
             try:
                 resp = client.chat.completions.create(**params)
                 choice = resp.choices[0]
+                msg = choice.message
+
+                # 推理模型的 thinking / reasoning 文本单独打印（可能较长）
+                reasoning = getattr(msg, "reasoning_content", None) or getattr(
+                    msg, "reasoning", None
+                )
+                if reasoning:
+                    logger.info("LLM 推理过程：{}", reasoning[:2000])
+
+                # 回复内容截断打印，首 500 字用于快速预览
+                content = msg.content or ""
+                preview = content[:500].replace("\n", " ")
+                logger.debug("LLM 回复（前 500 字）：{}", preview)
+
                 if resp.usage:
                     logger.info(
                         "LLM 用量：prompt={} completion={} total={}（model={}）",
@@ -192,7 +206,7 @@ class LLMClient:
                 else:
                     logger.debug("LLM 响应未携带 usage 字段（model={}）", resp.model)
                 return LLMResponse(
-                    content=choice.message.content or "",
+                    content=content,
                     model=resp.model,
                     usage=resp.usage.model_dump() if resp.usage else None,
                 )
