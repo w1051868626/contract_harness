@@ -188,7 +188,10 @@ class LLMClient:
                     msg, "reasoning", None
                 )
                 if reasoning:
-                    logger.info("LLM 推理过程：{}", reasoning[:2000])
+                    logger.info(
+                        "LLM 推理过程：{}",
+                        reasoning[:2000].replace("\n", " ").replace("\r", ""),
+                    )
 
                 # 回复内容截断打印，首 500 字用于快速预览
                 content = msg.content or ""
