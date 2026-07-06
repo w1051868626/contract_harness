@@ -91,7 +91,9 @@ harness kb import-dir <directory>  # 批量导入；--docling 启用结构解析
 harness kb list-docs               # 列出所有文档
 harness kb search <query>          # 检索知识库
 harness kb eval generate           # 从 KB 自动生成评估数据集（LLM 从每个 chunk 生成 query）
+harness kb eval generate --seed 42 --sample 50 --queries-per-chunk 3  # 可复现采样 50% 的 chunk
 harness kb eval run <dataset>      # 执行 RAG 检索质量评估（HitRate/MRR/Precision/Recall）
+harness kb eval run <dataset> --expansion-threshold 0  # 禁用 AI 查询扩展，纯向量检索评估
 ```
 
 ## 架构
@@ -285,6 +287,48 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `VECTOR_STORE_BACKEND` | 向量存储后端（已废弃，仅支持 chroma） | `chroma` |
 | `HTTP_PROXY` | 通用代理（回退） | - |
 | `HARNESS_DATA_DIR` | 数据根目录（知识库、回放、记忆等） | 项目下 `.harness/` |
+
+## YAML 配置文件
+
+支持通过 YAML 配置文件一次性设置全部参数并自动执行。使用 `-c` 指定：
+
+```bash
+harness -c harness.yaml
+```
+
+`harness.yaml` 示例：
+
+```yaml
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  api_key: ${OPENAI_API_KEY}
+  proxy: ${HTTP_PROXY:-}
+
+embedding:
+  provider: openai
+  model: text-embedding-3-small
+  api_key: ${OPENAI_API_KEY}
+  max_rpm: 60
+  max_tpm: 100000
+
+data_dir: ${HARNESS_DATA_DIR:-}
+agent_mode: pipeline
+use_docling: false
+memory_enabled: true
+memory_top_k: 3
+verbose: false
+
+# 自动执行：harness -c harness.yaml 时自动运行（无需子命令）
+run:
+  command: kb eval run
+  arguments:
+    dataset: ".harness/data/rag_eval_dataset.jsonl"
+    top_ks: "1,3,5"
+    expansion_threshold: 0
+```
+
+YAML 中支持 `${VAR_NAME}` 和 `${VAR_NAME:-default}` 环境变量引用语法。`run.arguments` 中 `click.Option` 参数自动转为 `--key=value`，`click.Argument`（如 `dataset`）自动作为位置参数追加。
 
 ## CLI 架构（Click 用法）
 
