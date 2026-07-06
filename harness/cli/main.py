@@ -94,12 +94,32 @@ def cli(ctx: click.Context, verbose: bool, config: str) -> None:
         os.environ["_HARNESS_RUN_IN_PROGRESS"] = "1"
         cmd_parts = shlex.split(cmd_str)
         args_dict = yaml_run.get("arguments", {}) or {}
+
+        # 遍历命令树找到目标命令，区分 Option（--key=value）和 Argument（位置参数）
+        target: click.BaseCommand | None = cli
+        for part in cmd_parts:
+            if isinstance(target, click.Group):
+                target = target.get_command(ctx, part)
+            else:
+                target = None
+                break
+        option_names: set[str] = set()
+        if target and hasattr(target, "params"):
+            for p in target.params:
+                if isinstance(p, click.Option):
+                    for opt in p.opts:
+                        option_names.add(opt.lstrip("-"))
+
         for k, v in args_dict.items():
             click_key = k.replace("_", "-")
-            if isinstance(v, bool):
-                cmd_parts.append(f"--{click_key}" if v else f"--no-{click_key}")
+            if click_key in option_names:
+                if isinstance(v, bool):
+                    cmd_parts.append(f"--{click_key}" if v else f"--no-{click_key}")
+                else:
+                    cmd_parts.append(f"--{click_key}={v}")
             else:
-                cmd_parts.append(f"--{click_key}={v}")
+                # 位置参数（如 dataset），直接追加值
+                cmd_parts.append(str(v))
         try:
             ctx.exit(cli.main(args=cmd_parts, standalone_mode=False))
         finally:
@@ -477,8 +497,9 @@ def generate(ctx: click.Context, queries_per_chunk: int, sample: float, seed: in
 @kb_eval.command(name="run")
 @click.argument("dataset", type=click.Path(exists=True))
 @click.option("--top-ks", default="1,3,5", help="评估的 K 值，逗号分隔")
+@click.option("--expansion-threshold", default=0.6, type=float, help="AI 扩展阈值（低于此值用 LLM 扩展同义查询，设 0 禁用扩展）")
 @click.pass_context
-def eval_run(ctx: click.Context, dataset: str, top_ks: str) -> None:
+def eval_run(ctx: click.Context, dataset: str, top_ks: str, expansion_threshold: float) -> None:
     """执行 RAG 检索质量评估。"""
     kb_instance = _get_kb(ctx)
     from harness.eval_rag.dataset import load_jsonl
@@ -488,6 +509,12 @@ def eval_run(ctx: click.Context, dataset: str, top_ks: str) -> None:
     items = load_jsonl(dataset)
     top_ks_list = [int(k.strip()) for k in top_ks.split(",")]
     runner = RagEvalRunner()
-    result = runner.run(kb_instance, items, top_ks=top_ks_list, dataset_name=Path(dataset).stem)
+    result = runner.run(
+        kb_instance,
+        items,
+        top_ks=top_ks_list,
+        dataset_name=Path(dataset).stem,
+        expansion_threshold=expansion_threshold,
+    )
     reporter = RagEvalReporter()
     logger.info("RAG 评测结果:\n{}", reporter.to_markdown(result))

@@ -185,3 +185,4 @@ conda activate contract-harness
 - 2026-07-06: `eval_rag/generator.py` `generate` 循环内加进度百分比日志——每个 chunk 处理完输出「进度 {done}/{total} ({pct}%) — chunk {id} 产出 {n} 条」，跳过/空 chunk 也计入分母保证百分比稳定到 100%，无需进度条。
 - 2026-07-06: `eval_rag/generator.py` 删除本轮 token 累计汇总日志——`LLMClient.chat` 内已统一输出每次用量，累计汇总多余删掉；`_call_llm_with_retry` 签名回滚为只返 `list[str] | None`（不再带 usage 元组），循环里累计变量一并清掉。
 - 2026-07-06: `eval_rag/generator.py` 重构——统计值修正（进度起点 & 最终汇总改用 `processed_in_sample = processed & current_ids` 交集）；新增 `seed` 参数 + `random.Random(seed).sample()` 实现可复现采样；将 LLM 调用 & Item 创建抽成 `_process_chunk()` 方法缩短 `generate()` 主体；`chunk: object` 改为 `chunk: Chunk` 类型注解；`harness/cli/main.py` 新增 `--seed` CLI 选项。
+- 2026-07-06: YAML 自动执行修复——`run.arguments` 中 `click.Argument`（如 `dataset`）不再强制转 `--key=value`，改为根据目标命令参数类型自动区分 Option（`--key=value`）与位置参数（直接追加值）；`RagEvalRunner.run()` 新增 `expansion_threshold` 参数透传到 `kb.query()`；CLI `kb eval run` 新增 `--expansion-threshold` 选项（设 0 禁用 AI 查询扩展）。

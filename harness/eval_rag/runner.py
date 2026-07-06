@@ -17,6 +17,7 @@ class RagEvalRunner:
         items: list[EvalRagItem],
         top_ks: list[int] | None = None,
         dataset_name: str = "default",
+        expansion_threshold: float = 0.6,
     ) -> EvalRagResult:
         if top_ks is None:
             top_ks = [1, 3, 5]
@@ -25,7 +26,7 @@ class RagEvalRunner:
 
         raw_items: list[dict[str, Any]] = []
         for item in items:
-            results = kb.query(item.query, top_k=max_k)
+            results = kb.query(item.query, top_k=max_k, expansion_threshold=expansion_threshold)
             retrieved = [r.id for r in results]
             raw_items.append(
                 {

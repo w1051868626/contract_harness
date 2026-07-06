@@ -97,7 +97,7 @@ class TestRagEvalRunner:
         ]
 
         class MockKB:
-            def query(self, query, top_k=5):
+            def query(self, query, top_k=5, **kwargs):
                 if query == "q1":
                     return [
                         Chunk(id="c1", document_id="d1", content="test", chunk_index=0, score=0.9)
