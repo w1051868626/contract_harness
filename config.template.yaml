@@ -1,0 +1,127 @@
+# =============================================================================
+# contract-harness 全局配置模板
+# =============================================================================
+# 用法：harness -c config.template.yaml review contract.docx
+#       harness -c config.template.yaml kb eval generate --sample 30
+#
+# 字段优先级：YAML 文件 > 环境变量 > 默认值
+# 值中支持 ${VAR_NAME} 或 ${VAR_NAME:-default} 引用环境变量
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# LLM 配置（对应 LLMConfig）
+# ---------------------------------------------------------------------------
+llm:
+  # 供应商：openai / deepseek / custom（对应环境变量 LLM_PROVIDER）
+  provider: openai
+
+  # 模型名（对应 LLM_MODEL）
+  model: gpt-4o
+
+  # API 密钥，推荐用环境变量引用，避免明文写在配置中
+  api_key: ${OPENAI_API_KEY}
+
+  # API 地址
+  api_base: https://api.openai.com/v1
+
+  # HTTP 代理（对应 LLM_PROXY / HTTP_PROXY）
+  proxy: ""
+
+  # 采样温度 0.0 ~ 2.0
+  temperature: 0.1
+
+  # 最大输出 token 数
+  max_tokens: 4096
+
+  # 请求超时秒数
+  timeout: 120
+
+  # ------ 以下为 AI 分块专用 LLM 配置（缺省时复用主 LLM）------
+  chunk_model: ""
+  chunk_api_key: ""
+  chunk_api_base: ""
+
+  # ------ 以下为查询扩展专用 LLM 配置（缺省时复用主 LLM）------
+  expansion_model: ""
+  expansion_api_key: ""
+  expansion_api_base: ""
+
+# ---------------------------------------------------------------------------
+# Embedding 配置（对应 EmbeddingConfig）
+# ---------------------------------------------------------------------------
+embedding:
+  # 供应商
+  provider: openai
+
+  # 模型名（对应 EMBEDDING_MODEL）
+  model: text-embedding-3-small
+
+  # API 密钥（对应 EMBEDDING_API_KEY）
+  api_key: ${EMBEDDING_API_KEY:-${OPENAI_API_KEY}}
+
+  # API 地址（对应 EMBEDDING_API_BASE）
+  api_base: ""
+
+  # HTTP 代理（对应 EMBEDDING_PROXY / HTTP_PROXY）
+  proxy: ""
+
+  # ------ Reranker 配置 ------
+  rerank_provider: ""
+  rerank_model: ""
+  rerank_api_key: ""
+  rerank_api_base: ""
+
+  # ------ 检索配置 ------
+  # 启用混合检索（稠密 + BM25 稀疏 + RRF 融合）
+  enable_hybrid_search: false
+
+  # RRF 融合参数 k
+  rrf_k: 60
+
+  # Embedding API 速率限制（0 = 不限）
+  max_rpm: 0
+  max_tpm: 0
+
+# ---------------------------------------------------------------------------
+# 全局配置（对应 HarnessConfig 顶层字段）
+# ---------------------------------------------------------------------------
+
+# 数据根目录，所有子目录相对此路径生成（对应 HARNESS_DATA_DIR）
+# 缺省：项目根目录 /.harness
+data_dir: ""
+
+# 日志目录
+log_dir: ""
+
+# 知识库目录
+kb_dir: ""
+
+# 回放记录目录
+replay_dir: ""
+
+# 评测结果目录
+eval_dir: ""
+
+# 回归测试目录
+regression_dir: ""
+
+# 报告输出目录
+report_dir: ""
+
+# 持久化记忆目录
+memory_dir: ""
+
+# 启用持久化记忆（记忆 + 自演进）
+memory_enabled: true
+
+# 记忆召回 top-k
+memory_top_k: 3
+
+# Agent 审查模式：pipeline / react / reflection / multi_agent
+agent_mode: pipeline
+
+# 使用 Docling 解析文档（高精度结构保留，需安装 docling 可选依赖）
+use_docling: false
+
+# 详细日志输出
+verbose: false
