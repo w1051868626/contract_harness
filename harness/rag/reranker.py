@@ -12,8 +12,19 @@ from harness.rag.constants import (
     DEFAULT_OPENAI_API_BASE,
     DEFAULT_RERANK_MODEL,
 )
+from harness.rag.rate_limit import RateLimiter
 from harness.rag.vector_store import Chunk
 from harness.utils.log import logger
+
+
+def _estimate_rerank_tokens(query: str, candidates: list[Chunk]) -> int:
+    """粗略估算 rerank 请求 token 数（query + 各候选文本）。"""
+    total = len(query)
+    for c in candidates:
+        total += len(c.content)
+    # 中文 ~1 token/字符，英文 ~1 token/4 字符，取折中 0.5
+    ascii_count = sum(1 for c in query if ord(c) < 128)
+    return (total - ascii_count) + ascii_count // 4
 
 
 class Reranker(ABC):
@@ -28,6 +39,7 @@ class OpenAIReranker(Reranker):
     """基于 OpenAI 兼容 API 的重排序实现（/rerank 端点）。
 
     /rerank 非标准 OpenAI 端点，使用 httpx 直接调用，通过 openai 库提供 proxy 支持。
+    支持滑动窗口速率限制（RPM + TPM），避免触发供应商 429。
     """
 
     def __init__(
@@ -36,11 +48,14 @@ class OpenAIReranker(Reranker):
         api_base: str = "",
         model: str = "rerank-v1",
         proxy: str | None = None,
+        max_rpm: int = 0,
+        max_tpm: int = 0,
     ):
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
         self.model = model
         self._http_client = httpx.Client(proxy=proxy) if proxy else httpx.Client()
+        self._rate_limiter = RateLimiter(max_rpm=max_rpm, max_tpm=max_tpm)
 
     def rerank(self, query: str, candidates: list[Chunk], top_k: int = 5) -> list[Chunk]:
         logger.debug(
@@ -48,6 +63,7 @@ class OpenAIReranker(Reranker):
         )
         if not candidates:
             return []
+        self._rate_limiter.wait_if_needed(_estimate_rerank_tokens(query, candidates))
         try:
             resp = self._http_client.post(
                 f"{self.api_base}/rerank",
@@ -120,6 +136,8 @@ def create_reranker(
     api_base: str = "",
     model: str = "",
     proxy: str | None = None,
+    max_rpm: int = 0,
+    max_tpm: int = 0,
 ) -> Reranker | None:
     """工厂函数，创建重排序器实例。provider 为空时返回 None。"""
     if not provider:
@@ -130,6 +148,8 @@ def create_reranker(
             api_base=api_base or DEFAULT_OPENAI_API_BASE,
             model=model or DEFAULT_RERANK_MODEL,
             proxy=proxy,
+            max_rpm=max_rpm,
+            max_tpm=max_tpm,
         )
     if provider == "local":
         return LocalReranker(model_name=model or "BAAI/bge-reranker-v2-m3")

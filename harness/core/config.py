@@ -137,6 +137,8 @@ class EmbeddingConfig:
     rerank_model: str = ""
     rerank_api_key: str = ""
     rerank_api_base: str = ""
+    rerank_max_rpm: int = 0
+    rerank_max_tpm: int = 0
 
     enable_hybrid_search: bool = False
     rrf_k: int = 60
@@ -169,6 +171,8 @@ class EmbeddingConfig:
             )
         if not self.rerank_model:
             self.rerank_model = os.getenv("RERANK_MODEL", "rerank-v1")
+        self.rerank_max_rpm = int(os.getenv("RERANK_MAX_RPM", str(self.rerank_max_rpm)))
+        self.rerank_max_tpm = int(os.getenv("RERANK_MAX_TPM", str(self.rerank_max_tpm)))
 
 
 @dataclass

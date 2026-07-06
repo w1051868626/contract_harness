@@ -110,6 +110,8 @@ class KnowledgeBase:
             api_key=cfg.embedding.rerank_api_key,
             api_base=cfg.embedding.rerank_api_base,
             model=cfg.embedding.rerank_model,
+            max_rpm=cfg.embedding.rerank_max_rpm,
+            max_tpm=cfg.embedding.rerank_max_tpm,
         )
         llm = LLMClient(cfg.llm) if cfg.llm.api_key else None
         chunk_cfg = LLMConfig(

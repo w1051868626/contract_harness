@@ -281,6 +281,8 @@ config = LLMConfig(proxy="http://127.0.0.1:7890")
 | `RERANK_API_KEY` | Reranker API 密钥 | 同 `OPENAI_API_KEY` |
 | `RERANK_API_BASE` | Reranker API 地址 | 同 `OPENAI_API_BASE` |
 | `RERANK_MODEL` | Reranker 模型 | `rerank-v1` |
+| `RERANK_MAX_RPM` | Reranker API 每分钟最大请求数（0=不限） | `0` |
+| `RERANK_MAX_TPM` | Reranker API 每分钟最大 Token 数（0=不限） | `0` |
 | `ENABLE_HYBRID_SEARCH` | 启用混合检索（稠密+BM25+RRF） | `false` |
 | `EMBEDDING_MAX_RPM` | Embedding API 每分钟最大请求数（0=不限） | `0` |
 | `EMBEDDING_MAX_TPM` | Embedding API 每分钟最大 Token 数（0=不限） | `0` |

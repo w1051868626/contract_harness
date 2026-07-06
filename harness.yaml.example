@@ -28,6 +28,12 @@ embedding:
   rrf_k: 60                            # RRF 融合参数
   max_rpm: 0                           # 每分钟最大请求数（0=不限）
   max_tpm: 0                           # 每分钟最大 Token 数（0=不限）
+  rerank_provider: ""                  # Reranker 供应商（openai / local），空=禁用
+  rerank_model: "rerank-v1"            # Reranker 模型
+  rerank_api_key: ${RERANK_API_KEY:-}  # 默认同 OPENAI_API_KEY
+  rerank_api_base: ${RERANK_API_BASE:-}# 默认同 OPENAI_API_BASE
+  rerank_max_rpm: 0                    # Reranker 每分钟最大请求数（0=不限，Cohere 默认 2000）
+  rerank_max_tpm: 0                    # Reranker 每分钟最大 Token 数（0=不限，Cohere 默认 500000）
 
 # ============================================================
 # 目录路径（默认基于 HARNESS_DATA_DIR，不设置则用项目下 .harness/）
