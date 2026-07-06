@@ -47,17 +47,27 @@ def _get_player(ctx: click.Context) -> SessionPlayer:
 
 @click.group()
 @click.option("--verbose", "-v", is_flag=True, help="启用详细输出")
+@click.option(
+    "--config",
+    "-c",
+    default="",
+    help="YAML 配置文件路径（支持 ${VAR_NAME} 环境变量引用）",
+)
 @click.pass_context
-def cli(ctx: click.Context, verbose: bool) -> None:
+def cli(ctx: click.Context, verbose: bool, config: str) -> None:
     """合同审查 Agent 系统 CLI。"""
-    config = HarnessConfig()
-    config.verbose = verbose
-    if verbose:
-        config.ensure_dirs()
-    setup_logging(verbose=verbose, log_dir=config.log_dir)
+    if config:
+        cfg = HarnessConfig.from_yaml(config)
+        cfg.verbose = verbose or cfg.verbose
+    else:
+        cfg = HarnessConfig()
+        cfg.verbose = verbose
+    if cfg.verbose:
+        cfg.ensure_dirs()
+    setup_logging(verbose=cfg.verbose, log_dir=cfg.log_dir)
     ctx.ensure_object(dict)
-    ctx.obj["config"] = config
-    logger.debug("CLI 启动 (verbose={})", verbose)
+    ctx.obj["config"] = cfg
+    logger.debug("CLI 启动 (verbose={})", cfg.verbose)
 
 
 @cli.command()
@@ -404,9 +414,10 @@ def kb_eval() -> None:
 
 @kb_eval.command()
 @click.option("--queries-per-chunk", default=2, help="每个 chunk 生成的问题数")
+@click.option("--sample", default=100.0, type=float, help="chunk 采样百分比（0-100），小于 100 则随机采样快速生成小测试集")
 @click.option("--output", default=None, help="输出数据集路径（启用断点续增）")
 @click.pass_context
-def generate(ctx: click.Context, queries_per_chunk: int, output: str | None) -> None:
+def generate(ctx: click.Context, queries_per_chunk: int, sample: float, output: str | None) -> None:
     """从知识库 chunk 自动生成评估数据集。
     支持断点继续：重复执行同一 --output 会自动跳过已处理 chunk。"""
     config = _get_config(ctx)
@@ -420,6 +431,7 @@ def generate(ctx: click.Context, queries_per_chunk: int, output: str | None) -> 
         kb_instance,
         llm,
         queries_per_chunk=queries_per_chunk,
+        sample_percent=sample,
         output_path=path,
     )
 

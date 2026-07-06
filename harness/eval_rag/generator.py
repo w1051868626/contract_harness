@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import time
 from pathlib import Path
 
@@ -98,6 +99,7 @@ class RagDatasetGenerator:
         kb: KnowledgeBase,
         llm: LLMClient,
         queries_per_chunk: int = 2,
+        sample_percent: float = 100.0,
         output_path: str | None = None,
     ) -> list[EvalRagItem]:
         """从知识库 chunk 生成评估数据集。
@@ -106,6 +108,8 @@ class RagDatasetGenerator:
             kb: 知识库实例（需有 list_chunks 方法）。
             llm: LLM 客户端。
             queries_per_chunk: 每个 chunk 生成的问题数。
+            sample_percent: chunk 采样百分比（0-100），默认 100% 全部处理。
+                设为小于 100 的值可快速生成小批量测试集用于迭代验证。
             output_path: JSONL 输出路径。
                 提供时启用断点恢复：检测已有条目中已处理的 chunk_id 并跳过；
                 同时每处理完一个 chunk 都增量写入，避免中断时数据丢失。
@@ -117,6 +121,17 @@ class RagDatasetGenerator:
                 "`harness kb seed` 或 `harness kb import-file` 导入文档"
             )
         logger.info("Generating eval dataset from {} chunks", len(chunks))
+
+        # 按百分比随机采样 chunk
+        if sample_percent < 100.0:
+            sample_size = max(1, round(len(chunks) * sample_percent / 100.0))
+            chunks = random.sample(chunks, sample_size)
+            logger.info(
+                "采样 {:.0f}%（{} / {} 个 chunk）",
+                sample_percent,
+                sample_size,
+                len(chunks),
+            )
 
         # 断点恢复：加载已有输出中的 chunk ID，已处理则跳过
         processed: set[str] = set()

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from harness.core.types import AgentMode
 
@@ -13,6 +15,46 @@ def _default_data_root() -> Path:
     """返回项目根目录下的 .harness 目录。"""
     start = Path(__file__).resolve().parent.parent.parent  # up from core/ to project root
     return start / ".harness"
+
+
+def _resolve_env_refs(value: Any) -> Any:
+    """递归展开 YAML 值中的 ``${VAR_NAME}`` / ``${VAR_NAME:-default}`` 环境变量引用。
+
+    支持的语法：
+        - ``${VAR_NAME}`` → ``os.getenv("VAR_NAME")``，缺则保持原样
+        - ``${VAR_NAME:-default}`` → 缺省时用 ``default``
+    仅对字符串类型展开，非字符串原样返回。
+    """
+    if not isinstance(value, str):
+        return value
+
+    def _replace(m: re.Match) -> str:
+        var = m.group(1)
+        default = m.group(2)
+        val = os.getenv(var)
+        if val is not None:
+            return val
+        if default is not None:
+            return default
+        return m.group(0)  # 未定义且无默认值，保持原样
+
+    return re.sub(r"\$\{(\w+)(?::-([^}]*))?\}", _replace, value)
+
+
+def load_config_yaml(path: str | Path) -> dict[str, Any]:
+    """从 YAML 文件加载配置字典，自动展开环境变量引用。
+
+    Args:
+        path: YAML 文件路径。
+
+    Returns:
+        展开环境变量后的配置字典。
+    """
+    import yaml  # type: ignore[import-untyped]
+
+    with open(path, "r", encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+    return _resolve_env_refs(raw)  # type: ignore[return-value]
 
 
 @dataclass
@@ -186,3 +228,39 @@ class HarnessConfig:
             self.memory_dir,
         ]:
             Path(d).mkdir(parents=True, exist_ok=True)
+
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> HarnessConfig:
+        """从 YAML 配置文件加载 ``HarnessConfig``。
+
+        YAML 中未指定的字段使用默认值（走环境变量回退），
+        支持 ``${VAR_NAME}`` / ``${VAR_NAME:-default}`` 环境变量引用语法。
+
+        Args:
+            path: YAML 文件路径。
+
+        Returns:
+            构造完成的 ``HarnessConfig`` 实例。
+        """
+        data = load_config_yaml(path)
+
+        # 构建子配置前先 pop 顶层字段，避免传入子配置构造器
+        llm_data = data.pop("llm", {})
+        embedding_data = data.pop("embedding", {})
+
+        llm = LLMConfig(**{k: v for k, v in llm_data.items() if k in LLMConfig.__dataclass_fields__})
+        embedding = EmbeddingConfig(
+            **{k: v for k, v in embedding_data.items() if k in EmbeddingConfig.__dataclass_fields__}
+        )
+
+        # 剩余顶层字段直接传给 HarnessConfig 构造函数
+        kwargs: dict[str, Any] = {"llm": llm, "embedding": embedding}
+        for k, v in data.items():
+            if k in cls.__dataclass_fields__:
+                # agent_mode 支持字符串 -> enum 转换
+                if k == "agent_mode" and isinstance(v, str):
+                    kwargs[k] = AgentMode(v.upper())
+                else:
+                    kwargs[k] = v
+
+        return cls(**kwargs)

@@ -31,6 +31,7 @@ dependencies:
     - rank-bm25>=0.2
     - langchain>=0.3
     - json-repair>=0.2
+    - pyyaml>=6.0
     - pyright>=1.1
 
     # === 可选依赖（按需取消注释）===
