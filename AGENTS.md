@@ -184,3 +184,4 @@ conda activate contract-harness
 - 2026-07-06: `eval_rag/generator.py` `_call_llm_with_retry` 内 token 日志去重——`LLMClient.chat` 已统一输出每次用量，generator 内重复打的「chunk LLM 用量…」删掉，仅保留 `generate` 末尾本轮累计汇总（chat 内不知「本轮」语义）。
 - 2026-07-06: `eval_rag/generator.py` `generate` 循环内加进度百分比日志——每个 chunk 处理完输出「进度 {done}/{total} ({pct}%) — chunk {id} 产出 {n} 条」，跳过/空 chunk 也计入分母保证百分比稳定到 100%，无需进度条。
 - 2026-07-06: `eval_rag/generator.py` 删除本轮 token 累计汇总日志——`LLMClient.chat` 内已统一输出每次用量，累计汇总多余删掉；`_call_llm_with_retry` 签名回滚为只返 `list[str] | None`（不再带 usage 元组），循环里累计变量一并清掉。
+- 2026-07-06: `eval_rag/generator.py` 重构——统计值修正（进度起点 & 最终汇总改用 `processed_in_sample = processed & current_ids` 交集）；新增 `seed` 参数 + `random.Random(seed).sample()` 实现可复现采样；将 LLM 调用 & Item 创建抽成 `_process_chunk()` 方法缩短 `generate()` 主体；`chunk: object` 改为 `chunk: Chunk` 类型注解；`harness/cli/main.py` 新增 `--seed` CLI 选项。

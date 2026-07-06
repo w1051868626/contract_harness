@@ -451,9 +451,10 @@ def kb_eval() -> None:
 @kb_eval.command()
 @click.option("--queries-per-chunk", default=2, help="每个 chunk 生成的问题数")
 @click.option("--sample", default=100.0, type=float, help="chunk 采样百分比（0-100），小于 100 则随机采样快速生成小测试集")
+@click.option("--seed", default=None, type=int, help="随机种子，相同 seed 保证采样可复现")
 @click.option("--output", default=None, help="输出数据集路径（启用断点续增）")
 @click.pass_context
-def generate(ctx: click.Context, queries_per_chunk: int, sample: float, output: str | None) -> None:
+def generate(ctx: click.Context, queries_per_chunk: int, sample: float, seed: int | None, output: str | None) -> None:
     """从知识库 chunk 自动生成评估数据集。
     支持断点继续：重复执行同一 --output 会自动跳过已处理 chunk。"""
     config = _get_config(ctx)
@@ -468,6 +469,7 @@ def generate(ctx: click.Context, queries_per_chunk: int, sample: float, output: 
         llm,
         queries_per_chunk=queries_per_chunk,
         sample_percent=sample,
+        seed=seed,
         output_path=path,
     )
 

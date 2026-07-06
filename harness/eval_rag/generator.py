@@ -16,6 +16,7 @@ from harness.agent.llm import LLMClient
 from harness.core.exceptions import AgentError, EvalError
 from harness.eval_rag.dataset import EvalRagItem
 from harness.rag.knowledge_base import KnowledgeBase
+from harness.rag.vector_store import Chunk
 from harness.utils.log import logger
 
 
@@ -101,6 +102,7 @@ class RagDatasetGenerator:
         queries_per_chunk: int = 2,
         sample_percent: float = 100.0,
         output_path: str | None = None,
+        seed: int | None = None,
     ) -> list[EvalRagItem]:
         """从知识库 chunk 生成评估数据集。
 
@@ -113,6 +115,8 @@ class RagDatasetGenerator:
             output_path: JSONL 输出路径。
                 提供时启用断点恢复：检测已有条目中已处理的 chunk_id 并跳过；
                 同时每处理完一个 chunk 都增量写入，避免中断时数据丢失。
+            seed: 随机种子，用于可重现的 chunk 采样。
+                相同 seed + 相同参数保证两次运行选出完全相同的 chunk。
         """
         chunks = kb.list_chunks()
         if not chunks:
@@ -122,10 +126,11 @@ class RagDatasetGenerator:
             )
         logger.info("Generating eval dataset from {} chunks", len(chunks))
 
-        # 按百分比随机采样 chunk
+        # 按百分比随机采样 chunk（可复现）
         if sample_percent < 100.0:
             sample_size = max(1, round(len(chunks) * sample_percent / 100.0))
-            chunks = random.sample(chunks, sample_size)
+            rng = random.Random(seed)
+            chunks = rng.sample(chunks, sample_size)
             logger.info(
                 "采样 {:.0f}%（{} / {} 个 chunk）",
                 sample_percent,
@@ -141,8 +146,10 @@ class RagDatasetGenerator:
                 logger.info("断点恢复：检测到 {} 个已处理 chunk", len(processed))
 
         items: list[EvalRagItem] = []
-        # 进度：已处理（含断点恢复）chunk 数 / 总 chunk 数，按占总数的百分比输出
-        done = len(processed)
+        # 断点恢复：只统计当前采样 chunk 内已处理的 chunk（交集），避免采样后计数溢出
+        current_ids = {c.id for c in chunks}
+        processed_in_sample = processed & current_ids if processed else set()
+        done = len(processed_in_sample)
         total_chunks = len(chunks)
         for chunk in chunks:
             if chunk.id in processed:
@@ -151,16 +158,9 @@ class RagDatasetGenerator:
                 done += 1
                 continue
 
-            # 组装 prompt，截断 chunk 内容避免超出 LLM 上下文
-            prompt = GENERATOR_PROMPT.format(
-                count=queries_per_chunk,
-                text=chunk.content[:1000],
-                format_instructions=_parser.get_format_instructions(),
-            )
-
-            queries = self._call_llm_with_retry(llm, prompt, queries_per_chunk)
+            chunk_items = self._process_chunk(llm, chunk, queries_per_chunk)
             done += 1
-            if queries is None:
+            if chunk_items is None:
                 logger.error(
                     "跳过 chunk {}（LLM 调用全部失败）——进度 {}/{} ({:.0f}%)",
                     chunk.id,
@@ -170,20 +170,10 @@ class RagDatasetGenerator:
                 )
                 continue
 
-            # 每条 query 对应一个 EvalRagItem，expected_chunk_ids 指向来源 chunk
-            chunk_items: list[EvalRagItem] = []
-            for q in queries:
-                item = EvalRagItem(
-                    query=q,
-                    expected_chunk_ids=[chunk.id],
-                    expected_texts=[chunk.content[:200]],
-                    metadata={"source_chunk": chunk.id},
-                )
-                items.append(item)
-                chunk_items.append(item)
+            items.extend(chunk_items)
 
             # 增量写入 JSONL，避免中断时数据丢失
-            if output_path and chunk_items:
+            if output_path:
                 _append_jsonl(output_path, chunk_items)
 
             logger.info(
@@ -195,14 +185,45 @@ class RagDatasetGenerator:
                 len(chunk_items),
             )
 
-        total = len(processed) + len(items)
         logger.info(
-            "生成完成：{} 条（新增 {}，复用 {}）来自 {} 个 chunk",
-            total,
+            "生成完成：新增 {} 条来自 {} 个新 chunk（采样 {} 个 chunk 中有 {} 个已处理跳过）",
             len(items),
-            len(processed),
-            len(chunks),
+            total_chunks - len(processed_in_sample),
+            total_chunks,
+            len(processed_in_sample),
         )
+        return items
+
+    def _process_chunk(
+        self,
+        llm: LLMClient,
+        chunk: Chunk,
+        queries_per_chunk: int,
+    ) -> list[EvalRagItem] | None:
+        """对单个 chunk 调用 LLM 生成问题，构造并返回 EvalRagItem 列表。
+
+        Returns:
+            Item 列表（成功时），或 None（LLM 全部重试失败后）。
+        """
+        prompt = GENERATOR_PROMPT.format(
+            count=queries_per_chunk,
+            text=chunk.content[:1000],
+            format_instructions=_parser.get_format_instructions(),
+        )
+        queries = self._call_llm_with_retry(llm, prompt, queries_per_chunk)
+        if queries is None:
+            return None
+
+        items: list[EvalRagItem] = []
+        for q in queries:
+            items.append(
+                EvalRagItem(
+                    query=q,
+                    expected_chunk_ids=[chunk.id],
+                    expected_texts=[chunk.content[:200]],
+                    metadata={"source_chunk": chunk.id},
+                )
+            )
         return items
 
     @staticmethod
