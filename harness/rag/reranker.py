@@ -13,6 +13,7 @@ from harness.rag.constants import (
     DEFAULT_RERANK_MODEL,
 )
 from harness.rag.rate_limit import RateLimiter
+from harness.rag.retry import retry_with_backoff
 from harness.rag.vector_store import Chunk
 from harness.utils.log import logger
 
@@ -50,12 +51,14 @@ class OpenAIReranker(Reranker):
         proxy: str | None = None,
         max_rpm: int = 0,
         max_tpm: int = 0,
+        max_retries: int = 3,
     ):
         self.api_key = api_key
         self.api_base = api_base.rstrip("/")
         self.model = model
         self._http_client = httpx.Client(proxy=proxy) if proxy else httpx.Client()
         self._rate_limiter = RateLimiter(max_rpm=max_rpm, max_tpm=max_tpm)
+        self._max_retries = max_retries
 
     def rerank(self, query: str, candidates: list[Chunk], top_k: int = 5) -> list[Chunk]:
         logger.debug(
@@ -64,7 +67,8 @@ class OpenAIReranker(Reranker):
         if not candidates:
             return []
         self._rate_limiter.wait_if_needed(_estimate_rerank_tokens(query, candidates))
-        try:
+
+        def _call() -> Any:
             resp = self._http_client.post(
                 f"{self.api_base}/rerank",
                 json={
@@ -75,11 +79,30 @@ class OpenAIReranker(Reranker):
                 },
                 headers={"Authorization": f"Bearer {self.api_key}"},
             )
+            # 4xx 错误直接降级不重试（鉴权/请求格式），5xx 抛 HTTPStatusError 走重试
+            if 400 <= resp.status_code < 500:
+                logger.warning("Rerank API {} 错误，返回原始排序", resp.status_code)
+                return candidates[:top_k]
             resp.raise_for_status()
-            data = resp.json()
-        except (httpx.HTTPStatusError, httpx.RequestError):
-            logger.warning("Rerank API 调用失败，返回原始排序", exc_info=True)
+            return resp.json()
+
+        # 可重试：网络错误 + 5xx 服务端错误
+        try:
+            data = retry_with_backoff(
+                _call,
+                max_retries=self._max_retries,
+                retry_on=(httpx.RequestError, OSError),
+                raises=RuntimeError,
+                raises_msg="Rerank API 调用失败",
+            )
+        except RuntimeError:
+            logger.warning("Rerank API 重试耗尽，返回原始排序", exc_info=True)
             return candidates[:top_k]
+
+        # _call 内 4xx 已降级返回 list[Chunk]，非 dict 路径直接透传
+        if isinstance(data, list):
+            return data
+
         results: list[Chunk] = []
         for item in data.get("results", []):
             idx = item["index"]
@@ -138,6 +161,7 @@ def create_reranker(
     proxy: str | None = None,
     max_rpm: int = 0,
     max_tpm: int = 0,
+    max_retries: int = 3,
 ) -> Reranker | None:
     """工厂函数，创建重排序器实例。provider 为空时返回 None。"""
     if not provider:
@@ -150,6 +174,7 @@ def create_reranker(
             proxy=proxy,
             max_rpm=max_rpm,
             max_tpm=max_tpm,
+            max_retries=max_retries,
         )
     if provider == "local":
         return LocalReranker(model_name=model or "BAAI/bge-reranker-v2-m3")

@@ -7,7 +7,16 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 import httpx
-from openai import APIError, AuthenticationError, BadRequestError, InternalServerError, OpenAI
+from openai import (
+    APIConnectionError,
+    APIError,
+    APITimeoutError,
+    AuthenticationError,
+    BadRequestError,
+    InternalServerError,
+    RateLimitError,
+    OpenAI,
+)
 
 from harness.core.exceptions import EmbeddingError
 from harness.rag.constants import (
@@ -17,6 +26,7 @@ from harness.rag.constants import (
     EMBED_MAX_CHARS,
 )
 from harness.rag.rate_limit import RateLimiter
+from harness.rag.retry import retry_with_backoff
 from harness.utils.log import logger
 
 _SENTENCE_SPLIT = re.compile(r"[。！？；.!?;\n]")
@@ -68,6 +78,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         proxy: str | None = None,
         max_rpm: int = 0,
         max_tpm: int = 0,
+        max_retries: int = 3,
     ):
         self.model = model
         http_client = httpx.Client(proxy=proxy) if proxy else None
@@ -77,30 +88,40 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             http_client=http_client,
         )
         self._rate_limiter = RateLimiter(max_rpm=max_rpm, max_tpm=max_tpm)
+        self._max_retries = max_retries
 
     def embed(self, text: str) -> list[float]:
         """将单段文本转为向量。"""
         return self.embed_batch([text])[0]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """批量通过 openai 库调用嵌入 API，超长文本自动截断，受速率限制保护。"""
+        """批量通过 openai 库调用嵌入 API，超长文本自动截断，受速率限制与重试保护。"""
         logger.debug("Embedding batch of {} texts with model={}", len(texts), self.model)
         truncated = [_truncate_at_boundary(t, EMBED_MAX_CHARS) for t in texts]
         estimated_tokens = _estimate_tokens(truncated)
         self._rate_limiter.wait_if_needed(estimated_tokens)
-        try:
-            resp = self._client.embeddings.create(model=self.model, input=truncated)
-            items = sorted(resp.data, key=lambda x: x.index)
-            logger.debug("Successfully embedded {} texts", len(items))
-            return [item.embedding for item in items]
-        except AuthenticationError as exc:
-            raise EmbeddingError(f"Embedding API 认证失败: {exc}") from exc
-        except BadRequestError as exc:
-            raise EmbeddingError(f"Embedding API 请求参数错误: {exc}") from exc
-        except (APIError, InternalServerError) as exc:
-            raise EmbeddingError(f"Embedding API 服务端错误: {exc}") from exc
-        except (httpx.RequestError, OSError, RuntimeError) as exc:
-            raise EmbeddingError(f"Embedding API 调用失败: {exc}") from exc
+
+        def _call() -> list[list[float]]:
+            try:
+                resp = self._client.embeddings.create(model=self.model, input=truncated)
+                items = sorted(resp.data, key=lambda x: x.index)
+                logger.debug("Successfully embedded {} texts", len(items))
+                return [item.embedding for item in items]
+            except AuthenticationError as exc:
+                raise EmbeddingError(f"Embedding API 认证失败: {exc}") from exc
+            except BadRequestError as exc:
+                raise EmbeddingError(f"Embedding API 请求参数错误: {exc}") from exc
+            except (APIError, InternalServerError) as exc:
+                raise EmbeddingError(f"Embedding API 服务端错误: {exc}") from exc
+
+        # 可重试：网络层错误 + 限流；非瞬时错误（鉴权/请求格式）由上面 _call 内直接抛
+        return retry_with_backoff(
+            _call,
+            max_retries=self._max_retries,
+            retry_on=(APIConnectionError, APITimeoutError, RateLimitError, httpx.RequestError, OSError),
+            raises=EmbeddingError,
+            raises_msg="Embedding API 调用失败",
+        )
 
 
 class LocalEmbeddingProvider(EmbeddingProvider):
@@ -148,6 +169,7 @@ def create_embedding_provider(
     proxy: str | None = None,
     max_rpm: int = 0,
     max_tpm: int = 0,
+    max_retries: int = 3,
 ) -> EmbeddingProvider:
     """工厂函数，创建嵌入提供者实例。"""
     if provider == "openai":
@@ -158,6 +180,7 @@ def create_embedding_provider(
             proxy=proxy,
             max_rpm=max_rpm,
             max_tpm=max_tpm,
+            max_retries=max_retries,
         )
     if provider == "local":
         return LocalEmbeddingProvider(model_name=model or DEFAULT_LOCAL_EMBED_MODEL)

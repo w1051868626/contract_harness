@@ -132,3 +132,4 @@ harness serve                              # 启动 Web 界面
 - 2026-07-06: `eval_rag/generator.py` 删除本轮 token 累计汇总日志 + `generate()` 重构——统计值修正（交集）、新增 `seed` 参数（可复现采样）、抽取 `_process_chunk()`、`chunk: object` → `chunk: Chunk`；`harness/cli/main.py` 新增 `--seed` CLI 选项。
 - 2026-07-06: YAML 自动执行修复——`run.arguments` 自动区分 Option（`--key=value`）与位置参数（直接追加值）；`RagEvalRunner.run()` 新增 `expansion_threshold` 参数；`kb eval run` 新增 `--expansion-threshold` 选项。
 - 2026-07-06: Reranker 速率限制——`RateLimiter` 抽到 `harness/rag/rate_limit.py`；`OpenAIReranker` 集成 RPM+TPM 滑动窗口限速；`EmbeddingConfig` 新增 `rerank_max_rpm`/`rerank_max_tpm` + `RERANK_MAX_RPM`/`RERANK_MAX_TPM` 环境变量。
+- 2026-07-06: Embedding/Reranker 重试机制——`retry_with_backoff` 抽到 `harness/rag/retry.py`；Embedding 对网络层错误重试，鉴权/请求格式错误不重试；Reranker 对网络错误 + 5xx 重试，4xx 直接降级返回原始排序；新增 `max_retries` 参数（默认 3）。
