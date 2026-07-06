@@ -252,7 +252,9 @@ class HarnessConfig:
         llm_data = data.pop("llm", {})
         embedding_data = data.pop("embedding", {})
 
-        llm = LLMConfig(**{k: v for k, v in llm_data.items() if k in LLMConfig.__dataclass_fields__})
+        llm = LLMConfig(
+            **{k: v for k, v in llm_data.items() if k in LLMConfig.__dataclass_fields__}
+        )
         embedding = EmbeddingConfig(
             **{k: v for k, v in embedding_data.items() if k in EmbeddingConfig.__dataclass_fields__}
         )

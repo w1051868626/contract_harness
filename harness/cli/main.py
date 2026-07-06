@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import shlex
-import sys
 from pathlib import Path
 
 import click
@@ -96,7 +95,7 @@ def cli(ctx: click.Context, verbose: bool, config: str) -> None:
         args_dict = yaml_run.get("arguments", {}) or {}
 
         # 遍历命令树找到目标命令，区分 Option（--key=value）和 Argument（位置参数）
-        target: click.BaseCommand | None = cli
+        target: click.BaseCommand | None = cli  # type: ignore[assignment]
         for part in cmd_parts:
             if isinstance(target, click.Group):
                 target = target.get_command(ctx, part)
@@ -470,11 +469,22 @@ def kb_eval() -> None:
 
 @kb_eval.command()
 @click.option("--queries-per-chunk", default=2, help="每个 chunk 生成的问题数")
-@click.option("--sample", default=100.0, type=float, help="chunk 采样百分比（0-100），小于 100 则随机采样快速生成小测试集")
+@click.option(
+    "--sample",
+    default=100.0,
+    type=float,
+    help="chunk 采样百分比（0-100），小于 100 则随机采样快速生成小测试集",
+)
 @click.option("--seed", default=None, type=int, help="随机种子，相同 seed 保证采样可复现")
 @click.option("--output", default=None, help="输出数据集路径（启用断点续增）")
 @click.pass_context
-def generate(ctx: click.Context, queries_per_chunk: int, sample: float, seed: int | None, output: str | None) -> None:
+def generate(
+    ctx: click.Context,
+    queries_per_chunk: int,
+    sample: float,
+    seed: int | None,
+    output: str | None,
+) -> None:
     """从知识库 chunk 自动生成评估数据集。
     支持断点继续：重复执行同一 --output 会自动跳过已处理 chunk。"""
     config = _get_config(ctx)
@@ -497,9 +507,19 @@ def generate(ctx: click.Context, queries_per_chunk: int, sample: float, seed: in
 @kb_eval.command(name="run")
 @click.argument("dataset", type=click.Path(exists=True))
 @click.option("--top-ks", default="1,3,5", help="评估的 K 值，逗号分隔")
-@click.option("--expansion-threshold", default=0.6, type=float, help="AI 扩展阈值（低于此值用 LLM 扩展同义查询，设 0 禁用扩展）")
+@click.option(
+    "--expansion-threshold",
+    default=0.6,
+    type=float,
+    help="AI 扩展阈值（低于此值用 LLM 扩展同义查询，设 0 禁用扩展）",
+)
 @click.pass_context
-def eval_run(ctx: click.Context, dataset: str, top_ks: str, expansion_threshold: float) -> None:
+def eval_run(
+    ctx: click.Context,
+    dataset: str,
+    top_ks: str,
+    expansion_threshold: float,
+) -> None:
     """执行 RAG 检索质量评估。"""
     kb_instance = _get_kb(ctx)
     from harness.eval_rag.dataset import load_jsonl

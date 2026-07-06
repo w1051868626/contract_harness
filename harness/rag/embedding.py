@@ -14,8 +14,8 @@ from openai import (
     AuthenticationError,
     BadRequestError,
     InternalServerError,
-    RateLimitError,
     OpenAI,
+    RateLimitError,
 )
 
 from harness.core.exceptions import EmbeddingError
@@ -115,10 +115,17 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
                 raise EmbeddingError(f"Embedding API 服务端错误: {exc}") from exc
 
         # 可重试：网络层错误 + 限流；非瞬时错误（鉴权/请求格式）由上面 _call 内直接抛
+        retry_on = (
+            APIConnectionError,
+            APITimeoutError,
+            RateLimitError,
+            httpx.RequestError,
+            OSError,
+        )
         return retry_with_backoff(
             _call,
             max_retries=self._max_retries,
-            retry_on=(APIConnectionError, APITimeoutError, RateLimitError, httpx.RequestError, OSError),
+            retry_on=retry_on,
             raises=EmbeddingError,
             raises_msg="Embedding API 调用失败",
         )
