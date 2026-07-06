@@ -69,3 +69,7 @@ laws_*.json
 
 # AtomCode — 仅忽略本地机器特定配置
 .atomcode/local/
+
+# YAML 配置文件（已跟踪的 config.template.yaml / environment.yml 不受影响）
+*.yaml
+*.yml
