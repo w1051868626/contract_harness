@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from docling.document_converter import (
-        DocumentConverter,  # pyright: ignore[reportMissingImports]
+    from docling.document_converter import (  # pyright: ignore[reportMissingImports]
+        DocumentConverter,
     )
 
 from harness.utils.log import logger
