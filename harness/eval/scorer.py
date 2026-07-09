@@ -7,8 +7,8 @@ from typing import Any
 
 from harness.agent.contract_agent import ContractAgent
 from harness.agent.memory import MemoryStore
-from harness.core.types import EvalResult, ExpectedMetrics
-from harness.eval.dataset import EvalDataset
+from harness.core.types import EvalResult, ExpectedMetrics, ReviewReport
+from harness.eval.dataset import EvalDataset, EvalItem
 from harness.eval.metrics import MetricsCalculator
 from harness.utils.io import now_iso
 from harness.utils.log import logger
@@ -70,7 +70,7 @@ class EvalScorer:
         logger.info("Scoring completed: {} results", len(results))
         return results
 
-    def _feed_corrections(self, report: Any, item: Any) -> None:
+    def _feed_corrections(self, report: ReviewReport, item: EvalItem) -> None:
         """根据评测期望结果，将修正信号注入记忆。
 
         匹配策略：expected_risks / expected_compliance 优先用 ``clause_index``

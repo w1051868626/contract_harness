@@ -56,7 +56,7 @@ class WorkerAgent:
         messages.append({"role": "user", "content": content})
 
         resp = self._llm.chat(messages)
-        structured: Any = None
+        structured: list[dict[str, Any]] | None = None
         # 仅在首次执行（无 peer_results）时解析结构化输出，
         # 交叉验证场景下 LLM 输出是审阅意见而非结构化数据，不应解析。
         if not peer_results:

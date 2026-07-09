@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 from rank_bm25 import BM25Okapi
 
@@ -80,7 +78,7 @@ class SparseRetriever:
             logger.debug("BM25 索引为空，返回空结果")
             return []
         tokenized = self._tokenize(query)
-        scores: Any = self._bm25.get_scores(tokenized)
+        scores: np.ndarray = self._bm25.get_scores(tokenized)
         top_indices = np.argsort(scores)[::-1][:top_k]
         results: list[Chunk] = []
         for idx in top_indices:
