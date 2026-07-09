@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from sentence_transformers import CrossEncoder  # pyright: ignore[reportMissingImports]
 
 import httpx
 
@@ -68,7 +71,7 @@ class OpenAIReranker(Reranker):
             return []
         self._rate_limiter.wait_if_needed(_estimate_rerank_tokens(query, candidates))
 
-        def _call() -> Any:
+        def _call() -> dict[str, Any] | list[Chunk]:
             resp = self._http_client.post(
                 f"{self.api_base}/rerank",
                 json={
@@ -117,7 +120,7 @@ class LocalReranker(Reranker):
 
     def __init__(self, model_name: str = DEFAULT_LOCAL_RERANK_MODEL):
         self.model_name = model_name
-        self._model: Any = None
+        self._model: CrossEncoder | None = None
 
     def _load(self) -> None:
         if self._model is not None:

@@ -141,7 +141,7 @@ class ToolCall:
 
     tool_name: str
     input: dict[str, Any]
-    output: Any = None
+    output: str | list[dict[str, Any]] | None = None
     started_at: str = ""
     finished_at: str = ""
     duration_ms: float = 0.0
@@ -208,7 +208,7 @@ class WorkerTask:
 
     worker_role: str
     prompt: str
-    input_data: Any
+    input_data: str
     context: dict[str, Any] = field(default_factory=dict)
 
 
@@ -218,7 +218,7 @@ class WorkerOutput:
 
     worker_role: str
     content: str
-    structured: Any = None
+    structured: list[dict[str, Any]] | None = None
     confidence: float = 1.0
 
 
@@ -228,7 +228,7 @@ class Disagreement:
 
     item_id: str
     field: str
-    value_a: Any
-    value_b: Any
+    value_a: object
+    value_b: object
     worker_a: str
     worker_b: str

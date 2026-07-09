@@ -6,7 +6,6 @@ import json
 import os
 import shlex
 from pathlib import Path
-from typing import Any
 
 import click
 import uvicorn
@@ -96,7 +95,7 @@ def cli(ctx: click.Context, verbose: bool, config: str) -> None:
         args_dict = yaml_run.get("arguments", {}) or {}
 
         # 遍历命令树找到目标命令，区分 Option（--key=value）和 Argument（位置参数）
-        target: Any = cli
+        target: click.Command | click.Group | None = cli
         for part in cmd_parts:
             if isinstance(target, click.Group):
                 target = target.get_command(ctx, part)

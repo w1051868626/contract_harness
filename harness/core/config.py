@@ -6,9 +6,11 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from harness.core.types import AgentMode
+
+T = TypeVar("T")
 
 
 def _default_data_root() -> Path:
@@ -17,7 +19,7 @@ def _default_data_root() -> Path:
     return start / ".harness"
 
 
-def _resolve_env_refs(value: Any) -> Any:
+def _resolve_env_refs(value: T) -> T:
     """递归展开 YAML 值中的 ``${VAR_NAME}`` / ``${VAR_NAME:-default}`` 环境变量引用。
 
     支持的语法：

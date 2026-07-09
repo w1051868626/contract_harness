@@ -13,7 +13,12 @@ Docling 能解析 PDF/DOCX/PPTX/图片等格式，输出保留标题层级、表
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from docling.document_converter import (
+        DocumentConverter,  # pyright: ignore[reportMissingImports]
+    )
 
 from harness.utils.log import logger
 
@@ -44,7 +49,7 @@ class DoclingParser:
     """
 
     def __init__(self) -> None:
-        self._converter: Any = None
+        self._converter: DocumentConverter | None = None
         self._available = False
         self._init_docling()
 
@@ -78,6 +83,7 @@ class DoclingParser:
         if not self._available:
             raise RuntimeError(DOCLING_NOT_AVAILABLE)
         logger.debug("Docling 解析为 Markdown: path={}", path)
+        assert self._converter is not None
         result = self._converter.convert(str(path))
         return result.document.export_to_markdown()
 
@@ -86,5 +92,6 @@ class DoclingParser:
         if not self._available:
             raise RuntimeError(DOCLING_NOT_AVAILABLE)
         logger.debug("Docling 解析为纯文本: path={}", path)
+        assert self._converter is not None
         result = self._converter.convert(str(path))
         return result.document.text

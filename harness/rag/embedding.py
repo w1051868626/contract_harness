@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer  # pyright: ignore[reportMissingImports]
 
 import httpx
 from openai import (
@@ -137,7 +140,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
     def __init__(self, model_name: str = "BAAI/bge-small-zh-v1.5"):
         """初始化本地嵌入模型名称。"""
         self.model_name = model_name
-        self._model: Any = None
+        self._model: SentenceTransformer | None = None
         self._loaded = False
 
     def _load(self) -> None:
