@@ -518,7 +518,9 @@ def generate(
     type=click.Path(),
     default=None,
     help="断点续跑文件路径（JSONL，每行一条 query→retrieved 记录）；"
-    "提供时跳过已完成的 query，新结果增量追加",
+    "提供时跳过已完成的 query，新结果增量追加；"
+    "不提供时默认 {eval_dir}/checkpoints/<dataset>.ckpt.jsonl，"
+    "传空串禁用断点续跑",
 )
 @click.pass_context
 def eval_run(
@@ -530,9 +532,17 @@ def eval_run(
 ) -> None:
     """执行 RAG 检索质量评估。"""
     kb_instance = _get_kb(ctx)
+    config = _get_config(ctx)
     from harness.eval_rag.dataset import load_jsonl
     from harness.eval_rag.reporter import RagEvalReporter
     from harness.eval_rag.runner import RagEvalRunner
+
+    # 默认 checkpoint 路径：{eval_dir}/checkpoints/<dataset_stem>.ckpt.jsonl
+    # 传空串 "" 显式禁用断点续跑
+    if checkpoint is None:
+        ckpt_dir = Path(config.eval_dir) / "checkpoints"
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint = str(ckpt_dir / f"{Path(dataset).stem}.ckpt.jsonl")
 
     items = load_jsonl(dataset)
     top_ks_list = [int(k.strip()) for k in top_ks.split(",")]
@@ -543,7 +553,7 @@ def eval_run(
         top_ks=top_ks_list,
         dataset_name=Path(dataset).stem,
         expansion_threshold=expansion_threshold,
-        checkpoint_path=checkpoint,
+        checkpoint_path=checkpoint if checkpoint else None,
     )
     reporter = RagEvalReporter()
     logger.info("RAG 评测结果:\n{}", reporter.to_markdown(result))

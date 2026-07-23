@@ -450,3 +450,86 @@ run:
         r2 = runner.invoke(cli, ["-c", str(yaml_path)])
         assert r2.exit_code == 0, r2.output
         assert kb_holder.queries == []
+
+    def test_kb_eval_run_default_checkpoint(self, tmp_path, monkeypatch):
+        """默认 checkpoint：不传 --checkpoint 时自动落到
+        {eval_dir}/checkpoints/<dataset_stem>.ckpt.jsonl，第二轮命中缓存。
+        """
+        import harness.cli.main as cli_mod
+
+        # 隔离数据目录，让默认 checkpoint 落到 tmp_path 下
+        monkeypatch.setenv("HARNESS_DATA_DIR", str(tmp_path))
+
+        class CountingKB:
+            def __init__(self):
+                self.queries: list[str] = []
+
+            def query(self, query, top_k=5, **kwargs):
+                self.queries.append(query)
+                return [Chunk(id="c1", document_id="d1", content="t", chunk_index=0, score=0.9)]
+
+        kb_holder = CountingKB()
+        monkeypatch.setattr(cli_mod, "_get_kb", lambda ctx: kb_holder)
+
+        dataset = tmp_path / "my_ds.jsonl"
+        save_jsonl(
+            str(dataset),
+            [
+                EvalRagItem(query="q1", expected_chunk_ids=["c1"]),
+                EvalRagItem(query="q2", expected_chunk_ids=["c1"]),
+            ],
+        )
+
+        # 默认路径：{HARNESS_DATA_DIR}/evals/checkpoints/my_ds.ckpt.jsonl
+        default_ckpt = tmp_path / "evals" / "checkpoints" / "my_ds.ckpt.jsonl"
+
+        runner = CliRunner()
+        # 不传 --checkpoint，应自动用默认路径
+        r1 = runner.invoke(cli, ["kb", "eval", "run", str(dataset)])
+        assert r1.exit_code == 0, r1.output
+        assert len(kb_holder.queries) == 2
+        assert default_ckpt.exists()
+        with open(default_ckpt, encoding="utf-8") as f:
+            assert sum(1 for _ in f) == 2
+
+        # 第二轮：默认 checkpoint 命中缓存
+        kb_holder.queries.clear()
+        r2 = runner.invoke(cli, ["kb", "eval", "run", str(dataset)])
+        assert r2.exit_code == 0, r2.output
+        assert kb_holder.queries == []
+
+    def test_kb_eval_run_checkpoint_disabled(self, tmp_path, monkeypatch):
+        """传空串 --checkpoint="" 显式禁用断点续跑，每次全跑。"""
+        import harness.cli.main as cli_mod
+
+        class CountingKB:
+            def __init__(self):
+                self.queries: list[str] = []
+
+            def query(self, query, top_k=5, **kwargs):
+                self.queries.append(query)
+                return [Chunk(id="c1", document_id="d1", content="t", chunk_index=0, score=0.9)]
+
+        kb_holder = CountingKB()
+        monkeypatch.setattr(cli_mod, "_get_kb", lambda ctx: kb_holder)
+
+        dataset = tmp_path / "ds.jsonl"
+        save_jsonl(
+            str(dataset),
+            [
+                EvalRagItem(query="q1", expected_chunk_ids=["c1"]),
+                EvalRagItem(query="q2", expected_chunk_ids=["c1"]),
+            ],
+        )
+
+        runner = CliRunner()
+        # 传空串禁用断点续跑，不写 checkpoint 文件
+        r1 = runner.invoke(cli, ["kb", "eval", "run", str(dataset), "--checkpoint", ""])
+        assert r1.exit_code == 0, r1.output
+        assert len(kb_holder.queries) == 2
+
+        # 第二轮同样禁用，应再次全跑（不命中任何缓存）
+        kb_holder.queries.clear()
+        r2 = runner.invoke(cli, ["kb", "eval", "run", str(dataset), "--checkpoint", ""])
+        assert r2.exit_code == 0, r2.output
+        assert len(kb_holder.queries) == 2
