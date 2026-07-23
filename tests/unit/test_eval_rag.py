@@ -342,3 +342,54 @@ class TestRagEvalCLI:
         assert result.exit_code != 0
         assert result.exception is not None
         assert "Missing" in str(result.exception)
+
+    def test_kb_eval_run_checkpoint_cli(self, tmp_path, monkeypatch):
+        """CLI 冒烟：--checkpoint 透传到 runner，第二轮命中缓存不再查 KB。
+
+        mock 掉 ``harness.cli.main._get_kb`` 返回一个计数 KB，避免真打
+        embedding/向量库。dataset 用临时 JSONL。
+        """
+        import harness.cli.main as cli_mod
+
+        class CountingKB:
+            def __init__(self):
+                self.queries: list[str] = []
+
+            def query(self, query, top_k=5, **kwargs):
+                self.queries.append(query)
+                return [Chunk(id="c1", document_id="d1", content="t", chunk_index=0, score=0.9)]
+
+        kb_holder = CountingKB()
+        monkeypatch.setattr(cli_mod, "_get_kb", lambda ctx: kb_holder)
+
+        dataset = tmp_path / "ds.jsonl"
+        save_jsonl(
+            str(dataset),
+            [
+                EvalRagItem(query="q1", expected_chunk_ids=["c1"]),
+                EvalRagItem(query="q2", expected_chunk_ids=["c1"]),
+                EvalRagItem(query="q3", expected_chunk_ids=["c1"]),
+            ],
+        )
+        ckpt = tmp_path / "ckpt.jsonl"
+
+        runner = CliRunner()
+        # 第一轮：3 条 query 全跑，checkpoint 写 3 行
+        r1 = runner.invoke(
+            cli,
+            ["kb", "eval", "run", str(dataset), "--checkpoint", str(ckpt)],
+        )
+        assert r1.exit_code == 0, r1.output
+        assert len(kb_holder.queries) == 3
+        assert ckpt.exists()
+        with open(ckpt, encoding="utf-8") as f:
+            assert sum(1 for _ in f) == 3
+
+        # 第二轮：同一 checkpoint，全部命中缓存，kb.query 不再被调
+        kb_holder.queries.clear()
+        r2 = runner.invoke(
+            cli,
+            ["kb", "eval", "run", str(dataset), "--checkpoint", str(ckpt)],
+        )
+        assert r2.exit_code == 0, r2.output
+        assert kb_holder.queries == []
