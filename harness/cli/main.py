@@ -513,12 +513,20 @@ def generate(
     type=float,
     help="AI 扩展阈值（低于此值用 LLM 扩展同义查询，设 0 禁用扩展）",
 )
+@click.option(
+    "--checkpoint",
+    type=click.Path(),
+    default=None,
+    help="断点续跑文件路径（JSONL，每行一条 query→retrieved 记录）；"
+    "提供时跳过已完成的 query，新结果增量追加",
+)
 @click.pass_context
 def eval_run(
     ctx: click.Context,
     dataset: str,
     top_ks: str,
     expansion_threshold: float,
+    checkpoint: str | None,
 ) -> None:
     """执行 RAG 检索质量评估。"""
     kb_instance = _get_kb(ctx)
@@ -535,6 +543,7 @@ def eval_run(
         top_ks=top_ks_list,
         dataset_name=Path(dataset).stem,
         expansion_threshold=expansion_threshold,
+        checkpoint_path=checkpoint,
     )
     reporter = RagEvalReporter()
     logger.info("RAG 评测结果:\n{}", reporter.to_markdown(result))

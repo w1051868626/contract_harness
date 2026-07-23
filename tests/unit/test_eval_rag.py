@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 
@@ -108,6 +109,74 @@ class TestRagEvalRunner:
         result = runner.run(MockKB(), items, top_ks=[1, 3])
         assert isinstance(result, EvalRagResult)
         assert result.hit_rates[1] == 1.0
+
+    def test_run_checkpoint_resume(self):
+        """断点续跑：第二次 run 跳过 checkpoint 中已完成的 query。"""
+
+        class CountingKB:
+            """记录 query 调用次数，模拟「已跑过的不再跑」。"""
+
+            def __init__(self):
+                self.queries: list[str] = []
+
+            def query(self, query, top_k=5, **kwargs):
+                self.queries.append(query)
+                return [Chunk(id="c1", document_id="d1", content="t", chunk_index=0, score=0.9)]
+
+        items = [
+            EvalRagItem(query="q1", expected_chunk_ids=["c1"]),
+            EvalRagItem(query="q2", expected_chunk_ids=["c1"]),
+            EvalRagItem(query="q3", expected_chunk_ids=["c1"]),
+        ]
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            ckpt = f.name
+        try:
+            # 第一轮：跑完 3 条，checkpoint 写 3 行
+            kb1 = CountingKB()
+            runner = RagEvalRunner()
+            runner.run(kb1, items, top_ks=[1], checkpoint_path=ckpt)
+            assert len(kb1.queries) == 3
+            with open(ckpt, encoding="utf-8") as f:
+                assert sum(1 for _ in f) == 3
+
+            # 第二轮：同样 3 条 items + 同一 checkpoint，应全部命中缓存、不再调 kb.query
+            kb2 = CountingKB()
+            runner2 = RagEvalRunner()
+            result = runner2.run(kb2, items, top_ks=[1], checkpoint_path=ckpt)
+            assert kb2.queries == []  # 全部从 checkpoint 恢复
+            assert result.hit_rates[1] == 1.0  # 结果与第一轮一致
+        finally:
+            os.unlink(ckpt)
+
+    def test_run_checkpoint_partial_resume(self):
+        """断点续跑：checkpoint 只含部分 query 时，跳过已完成的、补跑剩余的。"""
+
+        class CountingKB:
+            def __init__(self):
+                self.queries: list[str] = []
+
+            def query(self, query, top_k=5, **kwargs):
+                self.queries.append(query)
+                return [Chunk(id="c_new", document_id="d1", content="t", chunk_index=0, score=0.9)]
+
+        items = [
+            EvalRagItem(query="done_q", expected_chunk_ids=["c1"]),
+            EvalRagItem(query="new_q", expected_chunk_ids=["c_new"]),
+        ]
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            f.write(json.dumps({"query": "done_q", "retrieved": ["c1"]}, ensure_ascii=False) + "\n")
+            ckpt = f.name
+        try:
+            kb = CountingKB()
+            runner = RagEvalRunner()
+            result = runner.run(kb, items, top_ks=[1], checkpoint_path=ckpt)
+            # done_q 命中缓存，只 new_q 实际调用 kb.query
+            assert kb.queries == ["new_q"]
+            assert result.hit_rates[1] == 1.0
+        finally:
+            os.unlink(ckpt)
 
 
 class TestRagEvalReporter:
