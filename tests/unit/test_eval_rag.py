@@ -393,3 +393,60 @@ class TestRagEvalCLI:
         )
         assert r2.exit_code == 0, r2.output
         assert kb_holder.queries == []
+
+    def test_kb_eval_run_checkpoint_yaml(self, tmp_path, monkeypatch):
+        """YAML run 冒烟：arguments.checkpoint 透传到 runner，第二轮命中缓存。
+
+        构造一个 YAML 配置文件（含 run.command + run.arguments.checkpoint），
+        用 ``harness -c <yaml>`` 触发自动执行路径，验证 --checkpoint 从
+        YAML → CLI 选项 → runner.run(checkpoint_path=...) 这条链路。
+        """
+        import harness.cli.main as cli_mod
+
+        class CountingKB:
+            def __init__(self):
+                self.queries: list[str] = []
+
+            def query(self, query, top_k=5, **kwargs):
+                self.queries.append(query)
+                return [Chunk(id="c1", document_id="d1", content="t", chunk_index=0, score=0.9)]
+
+        kb_holder = CountingKB()
+        monkeypatch.setattr(cli_mod, "_get_kb", lambda ctx: kb_holder)
+
+        dataset = tmp_path / "ds.jsonl"
+        save_jsonl(
+            str(dataset),
+            [
+                EvalRagItem(query="q1", expected_chunk_ids=["c1"]),
+                EvalRagItem(query="q2", expected_chunk_ids=["c1"]),
+                EvalRagItem(query="q3", expected_chunk_ids=["c1"]),
+            ],
+        )
+        ckpt = tmp_path / "ckpt.jsonl"
+
+        yaml_content = f"""
+run:
+  command: kb eval run
+  arguments:
+    dataset: {dataset}
+    checkpoint: {ckpt}
+    top-ks: "1,3,5"
+"""
+        yaml_path = tmp_path / "run.yaml"
+        yaml_path.write_text(yaml_content, encoding="utf-8")
+
+        runner = CliRunner()
+        # 第一轮：YAML 自动执行，3 条 query 全跑，checkpoint 写 3 行
+        r1 = runner.invoke(cli, ["-c", str(yaml_path)])
+        assert r1.exit_code == 0, r1.output
+        assert len(kb_holder.queries) == 3
+        assert ckpt.exists()
+        with open(ckpt, encoding="utf-8") as f:
+            assert sum(1 for _ in f) == 3
+
+        # 第二轮：同一 checkpoint，全部命中缓存，kb.query 不再被调
+        kb_holder.queries.clear()
+        r2 = runner.invoke(cli, ["-c", str(yaml_path)])
+        assert r2.exit_code == 0, r2.output
+        assert kb_holder.queries == []
