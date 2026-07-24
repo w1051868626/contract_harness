@@ -71,6 +71,12 @@ const rules = [
       /^(environment\.yml|pyproject\.toml|requirements\.txt)$/.test(p),
     hint: "AGENTS.md 规定 environment.yml / pyproject.toml / requirements.txt 必须同步修改。请使用 /sync-deps 命令或在一次变更里同时更新三者。",
   },
+  {
+    name: "锁文件单独修改",
+    test: (p) =>
+      /^(environment\.yml\.lock|requirements\.txt\.lock|poetry\.lock|pdm\.lock|uv\.lock|package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|go\.sum|composer\.lock|Gemfile\.lock)$/.test(p),
+    hint: "锁文件禁止手工编辑。请用对应包管理器重新生成（pip-compile / poetry lock / npm install 等）。",
+  },
 ];
 
 for (const r of rules) {

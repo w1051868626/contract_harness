@@ -25,6 +25,10 @@
           {
             "type": "command",
             "command": "cd \"$CLAUDE_PROJECT_DIR\" && pyright harness/ >/dev/null 2>&1; true"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && python -m pytest tests/ -x -q --no-header >/dev/null 2>&1; true"
           }
         ]
       }
