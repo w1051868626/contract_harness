@@ -209,6 +209,112 @@ class TestRagEvalReporter:
         js = reporter.to_json(result)
         assert '"hit_rates"' in js
 
+    def test_to_summary_csv(self):
+        result = EvalRagResult(
+            dataset_name="test",
+            top_ks=[1, 3],
+            hit_rates={1: 0.5, 3: 0.8},
+            mrr={1: 0.5, 3: 0.6},
+            precisions={1: 0.5, 3: 0.3},
+            recalls={1: 0.4, 3: 0.7},
+            details=[],
+        )
+        reporter = RagEvalReporter()
+        csv_text = reporter.to_summary_csv(result)
+        lines = csv_text.strip().splitlines()
+        # 1 header + 4 metrics * 2 ks = 9 rows
+        assert len(lines) == 9
+        assert lines[0] == "dataset,metric,top_k,value"
+        assert "test,hit_rate,1,0.5" in lines
+
+    def test_to_details_csv(self):
+        details = [
+            {
+                "query": "违约金上限?",
+                "expected": ["c1"],
+                "retrieved": ["c1", "c2", "c3"],
+                "hit@1": True,
+                "hit@3": True,
+                "hit@5": True,
+            },
+            {
+                "query": "保密期限?",
+                "expected": ["c4"],
+                "retrieved": ["c9", "c4"],
+                "hit@1": False,
+                "hit@3": True,
+                "hit@5": True,
+            },
+        ]
+        result = EvalRagResult(
+            dataset_name="test",
+            top_ks=[1, 3, 5],
+            hit_rates={1: 0.5},
+            mrr={1: 0.5},
+            precisions={1: 0.5},
+            recalls={1: 0.5},
+            details=details,
+        )
+        reporter = RagEvalReporter()
+        csv_text = reporter.to_details_csv(result)
+        lines = csv_text.strip().splitlines()
+        # 1 header + 2 details = 3 rows
+        assert len(lines) == 3
+        assert lines[0] == "query,hit@1,hit@3,hit@5,expected,retrieved"
+        # 第一行命中
+        assert lines[1].startswith("违约金上限?,1,1,1,c1,")
+        # 第二行 @1 未命中
+        assert lines[2].startswith("保密期限?,0,1,1,c4,c9;c4")
+
+    def test_write_csv_split(self, tmp_path):
+        result = EvalRagResult(
+            dataset_name="test",
+            top_ks=[1, 3],
+            hit_rates={1: 0.5, 3: 0.8},
+            mrr={1: 0.5, 3: 0.6},
+            precisions={1: 0.5, 3: 0.3},
+            recalls={1: 0.4, 3: 0.7},
+            details=[
+                {
+                    "query": "q1",
+                    "expected": ["c1"],
+                    "retrieved": ["c1"],
+                    "hit@1": True,
+                    "hit@3": True,
+                }
+            ],
+        )
+        reporter = RagEvalReporter()
+        prefix = tmp_path / "rag_eval"
+        paths = reporter.write_csv(result, prefix, split=True)
+        assert len(paths) == 2
+        summary_path, details_path = paths
+        assert summary_path.name == "rag_eval.summary.csv"
+        assert details_path.name == "rag_eval.details.csv"
+        # 汇总文件包含 hit_rate 行
+        assert "hit_rate" in summary_path.read_text(encoding="utf-8-sig")
+        # 明细文件包含 query 行
+        assert "q1" in details_path.read_text(encoding="utf-8-sig")
+
+    def test_write_csv_single(self, tmp_path):
+        result = EvalRagResult(
+            dataset_name="test",
+            top_ks=[1],
+            hit_rates={1: 1.0},
+            mrr={1: 1.0},
+            precisions={1: 1.0},
+            recalls={1: 1.0},
+            details=[],
+        )
+        reporter = RagEvalReporter()
+        out = tmp_path / "report.csv"
+        paths = reporter.write_csv(result, out, split=False)
+        assert paths == [out]
+        content = out.read_text(encoding="utf-8-sig")
+        assert "# summary" in content
+        assert "# details" in content
+        assert "hit_rate" in content
+
 
 class TestRagDatasetGenerator:
     def test_generate_returns_items(self):

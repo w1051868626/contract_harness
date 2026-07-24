@@ -522,6 +522,18 @@ def generate(
     "不提供时默认 {eval_dir}/checkpoints/<dataset>.ckpt.jsonl，"
     "传空串禁用断点续跑",
 )
+@click.option(
+    "--csv",
+    is_flag=True,
+    default=False,
+    help="额外输出 CSV 报告（汇总+明细分两个文件）",
+)
+@click.option(
+    "--csv-prefix",
+    type=click.Path(),
+    default=None,
+    help="CSV 输出路径前缀；启用 --csv 时不提供则默认 {eval_dir}/reports/<dataset_stem>",
+)
 @click.pass_context
 def eval_run(
     ctx: click.Context,
@@ -529,6 +541,8 @@ def eval_run(
     top_ks: str,
     expansion_threshold: float,
     checkpoint: str | None,
+    csv: bool,
+    csv_prefix: str | None,
 ) -> None:
     """执行 RAG 检索质量评估。"""
     kb_instance = _get_kb(ctx)
@@ -557,3 +571,8 @@ def eval_run(
     )
     reporter = RagEvalReporter()
     logger.info("RAG 评测结果:\n{}", reporter.to_markdown(result))
+
+    if csv:
+        prefix = csv_prefix or str(Path(config.eval_dir) / "reports" / Path(dataset).stem)
+        summary_path, details_path = reporter.write_csv(result, prefix, split=True)
+        logger.info("CSV 报告已写入：\n  汇总: {}\n  明细: {}", summary_path, details_path)
