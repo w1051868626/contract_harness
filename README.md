@@ -94,6 +94,7 @@ harness kb eval generate           # 从 KB 自动生成评估数据集（LLM �
 harness kb eval generate --seed 42 --sample 50 --queries-per-chunk 3  # 可复现采样 50% 的 chunk
 harness kb eval run <dataset>      # 执行 RAG 检索质量评估（HitRate/MRR/Precision/Recall）
 harness kb eval run <dataset> --expansion-threshold 0  # 禁用 AI 查询扩展，纯向量检索评估
+harness kb eval run <dataset> --csv --csv-prefix /tmp/rag_eval  # 额外输出 CSV 报告（汇总+明细分两文件）
 ```
 
 ## 架构
@@ -328,6 +329,8 @@ run:
     dataset: ".harness/data/rag_eval_dataset.jsonl"
     top_ks: "1,3,5"
     expansion_threshold: 0
+    csv: true                       # 启用 CSV 报告输出
+    csv_prefix: ".harness/reports/rag_eval"  # 输出路径前缀（产出 .summary.csv + .details.csv）
 ```
 
 YAML 中支持 `${VAR_NAME}` 和 `${VAR_NAME:-default}` 环境变量引用语法。`run.arguments` 中 `click.Option` 参数自动转为 `--key=value`，`click.Argument`（如 `dataset`）自动作为位置参数追加。

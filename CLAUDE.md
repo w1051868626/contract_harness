@@ -53,6 +53,7 @@ harness kb import-file <file>              # 导入单个文件（支持 txt/md/
 harness kb search <query>                  # 检索知识库
 harness kb eval generate                   # 从 KB 自动生成评估数据集
 harness kb eval run <dataset>              # 执行 RAG 检索质量评估
+harness kb eval run <dataset> --csv --csv-prefix /tmp/rag_eval  # 额外输出 CSV 报告（汇总+明细分两文件）
 harness review <file>                      # 审查合同
 harness converse <session_id> <query>      # 继续对话
 harness replay <session_id>               # 回放会话
@@ -135,3 +136,4 @@ harness serve                              # 启动 Web 界面
 - 2026-07-06: Embedding/Reranker 重试机制——`retry_with_backoff` 抽到 `harness/rag/retry.py`；Embedding 对网络层错误重试，鉴权/请求格式错误不重试；Reranker 对网络错误 + 5xx 重试，4xx 直接降级返回原始排序；新增 `max_retries` 参数（默认 3）。
 - 2026-07-07: AtomCode 自动化扩充——`.atomcode/skills/` 新增 `pytest-coverage`/`ruff-recursive-fix`（在线）+ `eval-dataset-reviewer`/`rag-retrieval-reviewer`（本地 subagent）；`/sync-baseline` 命令固化回归基线；`.atomcode/settings.json` PostToolUse 追加 pyright。
 - 2026-07-07: GitHub MCP + 密钥安全——`.mcp.json` 加 github server（旧 deprecated 版，待装 Docker 升级官方）；`.mcp.json` 进 `.gitignore` + `git rm --cached` 脱跟踪；PAT 改读 `.env` 的 `GITHUB_PAT` 环境变量（`.mcp.json` 用 `${GITHUB_PAT}` 占位）；`.env.example` 同步加示例；历史审计确认 PAT 从未入库。
+- 2026-07-25: RAG 评估报告支持 CSV 输出——`RagEvalReporter` 新增 `to_summary_csv`/`to_details_csv`/`to_csv`/`write_csv` 四个方法，CSV 用 `csv.writer` 正确转义、`utf-8-sig` 编码 Excel 双击不乱码；CLI `kb eval run` 新增 `--csv`/`--csv-prefix` 选项，YAML `run.arguments` 中 `csv: true` 同样生效；新增 5 个测试用例，累计 239 个。
