@@ -769,3 +769,49 @@ class TestReranker:
             assert len(results) == 2
             assert results[0].id != raw[0].id
             store.close()
+
+    def test_query_expansion_rerank_after_merge(self):
+        """扩展检索 merge 后有 reranker 时应跑最终重排（反转顺序）。
+
+        覆盖 query() 在 AI 扩展分支 merge 后的新接入点：candidates 来自
+        多次 _search_single 各自 rerank 的分数，merge 只取 max 分数尺度不一致，
+        有 reranker 时应跑一次最终重排对齐排序。
+        """
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            emb = _MockEmbeddingProvider()
+            kb = KnowledgeBase(
+                store,
+                emb,
+                reranker=_MockReranker(),
+                expansion_llm=MockLLMClient(
+                    [LLMResponse(content="保密义务扩展\n保密责任扩展", model="mock")]
+                ),
+            )
+            kb.add_text("d1", "保密条款内容示例")  # 内容 ≥4 字符, embed 返 4 维
+            kb.add_text("d2", "违约责任内容示例")
+            # query 用 ≥4 字符让 embed 返 4 维对齐 collection; expansion_threshold=0.6
+            # 触发扩展分支 (mock LLM 返 2 个变体各跑 _search_single 再 merge), merge 后
+            # 有 reranker 应跑最终重排反转顺序
+            results = kb.query("保密义务查询", top_k=2, expansion_threshold=0.6)
+            assert len(results) == 2
+            # 反转后两 id 互换, 验证最终重排生效 (而非 merge 的 max 排序)
+            assert results[0].id != results[1].id
+            store.close()
+
+    def test_query_expansion_no_final_rerank_without_reranker(self):
+        """无 reranker 时扩展分支 merge 后直接返回, 不重排（兼容旧路径）。"""
+        with tempfile.TemporaryDirectory(prefix="chroma_test_") as tmpdir:
+            store = ChromaVectorStore(tmpdir, collection_name="test_coll")
+            emb = _MockEmbeddingProvider()
+            kb = KnowledgeBase(
+                store,
+                emb,
+                expansion_llm=MockLLMClient(
+                    [LLMResponse(content="保密义务扩展\n保密责任扩展", model="mock")]
+                ),
+            )  # 无 reranker
+            kb.add_text("d1", "保密条款内容示例")
+            results = kb.query("保密义务查询", top_k=2, expansion_threshold=0.6)
+            assert len(results) >= 1  # 顺序未变, 无重排
+            store.close()

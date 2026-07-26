@@ -190,7 +190,7 @@ agent = ContractAgent(llm, knowledge_base=kb)
 - **Embedding 速率限制**：支持 `EMBEDDING_MAX_RPM` / `EMBEDDING_MAX_TPM` 配置，滑动窗口自动限速，避免 API 429
 - **分块策略**：AI 智能分块（可选 LLM 驱动）→ 逐条法律分块 → 段落级 → 句子级 → 字符回退
 - **检索策略**：默认稠密向量 ANN 检索；可启用**混合检索**（稠密 + BM25 稀疏 + RRF 融合），提升法律术语精确匹配
-- **重排序**：支持 Reranker 精排，在向量检索后对候选结果重新打分排序（OpenAI API / local cross-encoder）
+- **重排序**：支持 Reranker 精排，在向量检索后对候选结果重新打分排序（OpenAI API / local cross-encoder）；AI 扩展检索词分支 merge 后追加最终重排对齐排序（candidates 来自多次 _search_single 各自 rerank 的分数尺度不一致）
 - **种子数据**：内置 7 部常用法律条文（民法典合同编、劳动合同法、数据安全法、个人信息保护法、反垄断法、公司法、商标法），`harness kb seed` 一键导入
 
 ## 持久化记忆与自演进

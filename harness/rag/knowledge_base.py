@@ -317,6 +317,10 @@ class KnowledgeBase:
                     extra = self._search_single(q, top_k)
                     candidates = self._merge_results(candidates, extra, top_k)
                 logger.debug("扩展检索完成: results={}", len(candidates))
+                # merge 后 candidates 来自多次 _search_single 各自 rerank 的分数，
+                # 分数尺度不一致且 merge 只取 max；有 reranker 时跑一次最终重排对齐排序。
+                if self._reranker and len(candidates) > 1:
+                    candidates = self._reranker.rerank(text, candidates, top_k=top_k)
         return candidates[:top_k]
 
     def _search_single(self, text: str, top_k: int) -> list[Chunk]:
