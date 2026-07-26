@@ -79,3 +79,30 @@
   - `rag_eval_charts.html` —— pyecharts 交互式图表
   - `rag_eval_analysis_summary.md` —— Markdown 摘要
 - 旧 baseline 报告: `.harness/evals/reports/`（对比基准）
+
+## 7. 后续优化实验记录
+
+### 7.1 Reranker `top_n` 扩大实验（2026-07-26 19:10）
+
+**改动**: `OpenAIReranker.rerank` 的 `/rerank` API `top_n` 从 `top_k` 改为 `len(candidates)`，让 API 对全 pool 候选打分，客户端按 `relevance_score` 降序后截 top_k。原 `top_n=top_k` 会截断打分阶段，正确 chunk 在 pool 内但分未排进 top_k 时直接丢失。
+
+**验证**: 用 `scripts/compare_rerank_pool.py` 在新 eval 的 7,639 条「差 1 位」query 中抽 200 条样本对比（策略 A 旧 `pool=top_k*2` vs 策略 B 新 `pool=max(20, top_k*4)`，两者现在都用新 `top_n=len(candidates)` 打分）：
+
+| metric | 策略 A (pool=10) | 策略 B (pool=20) | delta |
+|---|---|---|---|
+| hit@1 | 0.265 | 0.270 | +0.5pp |
+| hit@3 | 0.965 | 0.995 | +3.0pp |
+| hit@5 | 0.990 | 1.000 | +1.0pp |
+
+**结论**: `top_n` 扩大主要改善 top-3/top-5 召回（+3pp / +1pp），**top-1 判别能力仅 +0.5pp**，不显著。说明 top-1 瓶颈不是「打分阶段被截断」而是 reranker 模型本身的判别上限——`bge-reranker-v2-m3` 对「正确 chunk vs 字面更相似的干扰 chunk」的二选一判别已到瓶颈。
+
+### 7.2 下一步优化方向（待验证）
+
+| 方向 | 预期 top-1 收益 | 代价 | 优先级 |
+|---|---|---|---|
+| 换更强 rerank 模型（如 `bge-reranker-v2-gemma` / `jina-reranker-v2`） | +3~8pp | 模型下载 + 推理延迟 | 高 |
+| query 同义改写 + 多 query 加权 rerank | +3~5pp | LLM 调用 + 多轮 rerank | 中 |
+| chunk 文本注入法条标题前缀（如「【第五十二条】」）给 reranker 额外结构信号 | +1~3pp | 改 chunk content 影响其他调用方 | 中 |
+| 候选池进一步扩大（pool=30/40） | <1pp（边际递减） | API token 成本 | 低 |
+
+首选方向: 换更强 rerank 模型，ROI 最高。

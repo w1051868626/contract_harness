@@ -30,7 +30,10 @@ from harness.rag.vector_store import Chunk  # noqa: E402
 
 SAMPLE_N = 200
 TOP_K = 5
-RANK2_CSV = ROOT / ".harness/evals/reports/analysis/hit1_miss_rank2.csv"
+# 优先用新一轮 eval 产物（.harness/reports/），回退到旧产物（.harness/evals/reports/）
+_NEW = ROOT / ".harness" / "reports" / "analysis" / "hit1_miss_hit3_hit.csv"
+_OLD = ROOT / ".harness" / "evals" / "reports" / "analysis" / "hit1_miss_rank2.csv"
+RANK2_CSV = _NEW if _NEW.exists() else _OLD
 
 
 def load_rank2_samples(n: int) -> list[dict]:
