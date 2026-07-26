@@ -194,6 +194,7 @@ agent = ContractAgent(llm, knowledge_base=kb)
 - **检索策略**：默认稠密向量 ANN 检索；可启用**混合检索**（稠密 + BM25 稀疏 + RRF 融合），提升法律术语精确匹配
 - **重排序**：支持 Reranker 精排，在向量检索后对候选结果重新打分排序（OpenAI API / local cross-encoder）；AI 扩展检索词分支 merge 后追加最终重排对齐排序（candidates 来自多次 _search_single 各自 rerank 的分数尺度不一致）
 - **候选池扩大**：`_search_single` 在有 reranker/sparse 时把 dense 候选池从 `top_k*2` 扩到 `max(20, top_k*4)`，rrf_fuse 保留 pool 个候选给精排，避免正确 chunk 在 dense 阶段被截掉；200 条「差 1 位」query 样本上 top-1 hit_rate 提升 +5pp（35.5% → 40.5%）
+- **Reranker 标题前缀注入**：`OpenAIReranker.rerank` 喂给 `/rerank` API 的 `documents` 从裸 `chunk.content` 改为 `【{law_name}·{articles}】{chunk.content}`（注入法条标题前缀），给 cross-encoder 额外结构信号；**不动 `chunk.content`**（其他调用方不受影响）；200 样本 A/B 对照 top-1 hit_rate 提升 **+9.5pp**（0.265 → 0.360），换不了模型路径下的 top-1 瓶颈突破口
 - **tqdm 进度条**：`RagEvalRunner.run` 主循环用 tqdm 包装显示 N/total、ETA、query/s；对比脚本 `run_eval` 用 `set_postfix(h1, h3, h5)` 实时显示命中指标
 - **种子数据**：内置 7 部常用法律条文（民法典合同编、劳动合同法、数据安全法、个人信息保护法、反垄断法、公司法、商标法），`harness kb seed` 一键导入
 

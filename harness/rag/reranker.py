@@ -1,4 +1,18 @@
-"""重排序模块，对粗排结果进行精排，提升检索准确率。"""
+"""重排序模块，对粗排结果进行精排，提升检索准确率。
+
+## 优化策略（2026-07-26）
+
+在「API 域唯一可用 rerank 曾型 = BAAI/bge-reranker-v2-m3，无法更换」约束下，
+沿调用侧做三步优化（详见 `specs/reranker.md` 与 `docs/optimization_notes.md`）：
+
+1. **候选池扩大** —— `_search_single` dense/sparse 候选池 `top_k*2` → `max(20, top_k*4)`，
+   给 Reranker 更大判别空间。
+2. **`top_n` 扩大** —— `/rerank` API `top_n` 从 `top_k` 改为 `len(candidates)`，让 API 对
+   全 pool �候选打分，客户端按 `relevance_score` 截 top_k。
+3. **标题前缀注入**（核心突破）—— `OpenAIReranker._format_for_rerank(chunk)` 给喂给 API
+   的 documents 注入 `【{law_name}·{articles}】` 前缀，给 cross-encoder 额外结构信号；
+   **不动 `chunk.content`**（其他调用方不受影响），200 样本 A/B top-1 hit_rate +9.5pp。
+"""
 
 from __future__ import annotations
 
