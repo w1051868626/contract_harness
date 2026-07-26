@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from sentence_transformers import CrossEncoder  # pyright: ignore[reportMissingImports]
@@ -106,8 +106,9 @@ class OpenAIReranker(Reranker):
         if isinstance(data, list):
             return data
 
+        # retry_with_backoff 的 _T 推断会受其他调用点污染，显式 cast 锁定类型
         results: list[Chunk] = []
-        for item in data.get("results", []):
+        for item in cast("dict[str, Any]", data).get("results", []):
             idx = item["index"]
             candidates[idx].score = item.get("relevance_score", 0.0)
             results.append(candidates[idx])
