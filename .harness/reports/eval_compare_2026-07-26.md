@@ -96,13 +96,28 @@
 
 **结论**: `top_n` 扩大主要改善 top-3/top-5 召回（+3pp / +1pp），**top-1 判别能力仅 +0.5pp**，不显著。说明 top-1 瓶颈不是「打分阶段被截断」而是 reranker 模型本身的判别上限——`bge-reranker-v2-m3` 对「正确 chunk vs 字面更相似的干扰 chunk」的二选一判别已到瓶颈。
 
-### 7.2 下一步优化方向（待验证）
+### 7.2 reranker 输入注入法条标题前缀实验（2026-07-26 20:08）
+
+**改动**: `OpenAIReranker.rerank` 喂给 `/rerank` API 的 `documents` 从裸 `chunk.content` 改为 `【{law_name}·{articles}】{chunk.content}`（注入法条标题前缀），**不动 `chunk.content`**（其他调用方不受影响）。新增 `_format_for_rerank(chunk)` 静态方法，无 metadata 或缺 `articles`/`law_name` 时降级为裸 content。metadata 字段来自 ChromaDB 的 chunk 元数据（`law_name` / `articles` / `chapter` 等）。
+
+**原理**: 给 reranker 额外结构信号——「【中华人民共和国放射性污染防治法·第一条】正文」比裸正文更易让 cross-encoder 判别 chunk 的法条归属，尤其当 query 字面与正确 chunk 不贴但语义指向同一法条时。
+
+**验证**: `scripts/compare_rerank_pool.py` 在新 eval 的 7,639 条「差 1 位」query 中抽 200 条样本，A/B 对照（pool 均为 20，仅差是否注入前缀）：
+
+| metric | A 裸 content（基线） | B 注入前缀 | delta |
+|---|---|---|---|
+| **hit@1** | 0.265 | **0.360** | **+9.5pp** |
+| hit@3 | 0.995 | 0.980 | -1.5pp |
+| hit@5 | 1.000 | 0.995 | -0.5pp |
+
+**结论**: 标题前缀注入是 top-1 瓶颈的有效突破口——**top-1 hit_rate 提升 +9.5pp**（0.265 → 0.360），效果显著。代价几乎为零（仅多几字符 token，无新增 API 调用）。hit@3/hit@5 微降 1.5pp/0.5pp 在统计噪声范围内（200 样本 ±2pp 波动），且 hit@3 仍 98%、hit@5 仍 99.5%。
+
+外推全量 7,639 条「差 1 位」query：新策略预计能救回 ~725 条到 hit@1（7239 × 0.095），全量 top-1 hit_rate 从 0.5316 提到 ~0.567（+3.5pp）。
+
+### 7.3 下一步优化方向（待验证）
 
 | 方向 | 预期 top-1 收益 | 代价 | 优先级 |
 |---|---|---|---|
-| 换更强 rerank 模型（如 `bge-reranker-v2-gemma` / `jina-reranker-v2`） | +3~8pp | 模型下载 + 推理延迟 | 高 |
 | query 同义改写 + 多 query 加权 rerank | +3~5pp | LLM 调用 + 多轮 rerank | 中 |
-| chunk 文本注入法条标题前缀（如「【第五十二条】」）给 reranker 额外结构信号 | +1~3pp | 改 chunk content 影响其他调用方 | 中 |
+| rerank 后对 top-3 做二次精排（同模型再跑一遍，输入拼 query+候选全文） | +1~3pp | 同模型但给 top-3 更长上下文 | 中 |
 | 候选池进一步扩大（pool=30/40） | <1pp（边际递减） | API token 成本 | 低 |
-
-首选方向: 换更强 rerank 模型，ROI 最高。

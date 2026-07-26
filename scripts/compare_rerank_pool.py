@@ -46,13 +46,21 @@ def load_rank2_samples(n: int) -> list[dict]:
     return rows[:n]
 
 
-def make_search_single(kb: KnowledgeBase, pool_fn) -> None:
-    """Monkeypatch kb._search_single 用 pool_fn(top_k) 计算候选池大小。"""
+def make_search_single(kb: KnowledgeBase, pool_fn, inject_prefix: bool = True) -> None:
+    """Monkeypatch kb._search_single 用 pool_fn(top_k) 计算候选池大小。
+
+    inject_prefix: True 用 reranker 的标题前缀注入（新实现），
+                   False monkeypatch _format_for_rerank 返裸 content（对照基线）。
+    """
     embedding = kb._embedding
     store = kb._store
     sparse = kb._sparse_retriever
     rrf_k = kb._rrf_k
     reranker = kb._reranker
+
+    # 对照组：让 reranker 喂裸 content，覆盖 _format_for_rerank
+    if not inject_prefix and reranker is not None and hasattr(reranker, "_format_for_rerank"):
+        reranker._format_for_rerank = staticmethod(lambda c: c.content)  # type: ignore
 
     def _search_single(text: str, top_k: int) -> list[Chunk]:
         pool = pool_fn(top_k)
@@ -116,25 +124,25 @@ def main() -> None:
 
     cfg = HarnessConfig()
 
-    # 策略 A: 旧 (pool = top_k*2 = 10)
+    # 策略 A: 旧 (pool=20 + 裸 content，对照基线)
     print("=" * 70)
-    print("策略 A (旧): 候选池 top_k*2 = 10")
+    print("策略 A (旧): 候选池 max(20, top_k*4) + 裸 content（无标题前缀）")
     print("=" * 70)
     kb_old = KnowledgeBase.from_config(cfg)
-    make_search_single(kb_old, lambda tk: tk * 2)
-    res_old = run_eval(kb_old, samples)
+    make_search_single(kb_old, lambda tk: max(20, tk * 4), inject_prefix=False)
+    res_old = run_eval(kb_old, samples, label="A-baseline")
     print()
     print(f"A 结果: hit@1={res_old['hit1']}/{res_old['n']} = {res_old['hit1_rate']:.3f}")
     print(f"        hit@3={res_old['hit3']}  hit@5={res_old['hit5']}")
     print()
 
-    # 策略 B: 新 (pool = max(20, top_k*4) = 20)
+    # 策略 B: 新 (pool=20 + 注入法条标题前缀)
     print("=" * 70)
-    print("策略 B (新): 候选池 max(20, top_k*4) = 20")
+    print("策略 B (新): 候选池 max(20, top_k*4) + 注入【法律名·第X条】前缀")
     print("=" * 70)
     kb_new = KnowledgeBase.from_config(cfg)
-    make_search_single(kb_new, lambda tk: max(20, tk * 4))
-    res_new = run_eval(kb_new, samples)
+    make_search_single(kb_new, lambda tk: max(20, tk * 4), inject_prefix=True)
+    res_new = run_eval(kb_new, samples, label="B-prefix")
     print()
     print(f"B 结果: hit@1={res_new['hit1']}/{res_new['n']} = {res_new['hit1_rate']:.3f}")
     print(f"        hit@3={res_new['hit3']}  hit@5={res_new['hit5']}")
@@ -143,7 +151,7 @@ def main() -> None:
     print("=" * 70)
     print("对比")
     print("=" * 70)
-    print(f"{'metric':<12} {'旧 (pool=10)':<18} {'新 (pool=20)':<18} {'delta':<12}")
+    print(f"{'metric':<12} {'A 裸content':<18} {'B 注入前缀':<18} {'delta':<12}")
     print("-" * 60)
     for k, label in [("hit1_rate", "hit@1"), ("hit3_rate", "hit@3"), ("hit5_rate", "hit@5")]:
         old_v = res_old[k]

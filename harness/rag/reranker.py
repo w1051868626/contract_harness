@@ -71,13 +71,18 @@ class OpenAIReranker(Reranker):
             return []
         self._rate_limiter.wait_if_needed(_estimate_rerank_tokens(query, candidates))
 
+        # 给 reranker 额外结构信号：注入法条标题前缀（【法律名·第X条】），仅改喂给
+        # API 的 documents 文本，不动 chunk.content（其他调用方不受影响）。无 metadata
+        # 时降级为裸 content。
+        documents = [self._format_for_rerank(c) for c in candidates]
+
         def _call() -> dict[str, Any] | list[Chunk]:
             resp = self._http_client.post(
                 f"{self.api_base}/rerank",
                 json={
                     "model": self.model,
                     "query": query,
-                    "documents": [c.content for c in candidates],
+                    "documents": documents,
                     # 让 API 对全部 pool 候选打分（top_n=pool 大小），客户端再按
                     # relevance_score 截 top_k，给 top-1 判别更大参考面
                     "top_n": len(candidates),
@@ -120,6 +125,22 @@ class OpenAIReranker(Reranker):
         results = [candidates[idx] for idx, _ in scored[:top_k]]
         logger.debug("Reranking returned {} results", len(results))
         return results
+
+    @staticmethod
+    def _format_for_rerank(chunk: Chunk) -> str:
+        """给 reranker 喂的候选文本：注入法条标题前缀（【法律名·第X条】正文）。
+
+        仅改喂给 API 的文本，不动 chunk.content，其他调用方不受影响。
+        无 metadata 或缺 articles/law_name 时降级为裸 content。
+        """
+        meta = chunk.metadata or {}
+        law = meta.get("law_name")
+        articles = meta.get("articles")
+        if law and articles:
+            return f"【{law}·{articles}】{chunk.content}"
+        if articles:
+            return f"【{articles}】{chunk.content}"
+        return chunk.content
 
 
 class LocalReranker(Reranker):
