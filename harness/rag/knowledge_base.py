@@ -324,17 +324,22 @@ class KnowledgeBase:
         return candidates[:top_k]
 
     def _search_single(self, text: str, top_k: int) -> list[Chunk]:
-        """单次检索（稠密 + 可选 BM25 稀疏 + RRF 融合，含可选 rerank）。"""
+        """单次检索（稠密 + 可选 BM25 稀疏 + RRF 融合，含可选 rerank）。
+
+        候选池策略：有 reranker 或 sparse 时扩大 dense 检索范围到 max(20, top_k*4)，
+        给 Reranker 更大判别空间，避免正确 chunk 在 dense 阶段被截掉。
+        """
         query_emb = self._embedding.embed(text)
-        dense_candidates = self._store.search(
-            query_emb, top_k=top_k * 2 if (self._reranker or self._sparse_retriever) else top_k
-        )
+        pool = max(20, top_k * 4) if (self._reranker or self._sparse_retriever) else top_k
+        dense_candidates = self._store.search(query_emb, top_k=pool)
 
         if self._sparse_retriever is not None:
-            sparse_candidates = self._sparse_retriever.search(text, top_k=top_k * 2)
-            candidates = rrf_fuse(dense_candidates, sparse_candidates, top_k, k=self._rrf_k)
+            sparse_candidates = self._sparse_retriever.search(text, top_k=pool)
+            # 有 reranker 时保留 pool 个候选给精排，无 reranker 时截到 top_k
+            fuse_k = pool if self._reranker else top_k
+            candidates = rrf_fuse(dense_candidates, sparse_candidates, fuse_k, k=self._rrf_k)
         else:
-            candidates = dense_candidates[:top_k]
+            candidates = dense_candidates[:pool] if self._reranker else dense_candidates[:top_k]
 
         if self._reranker and len(candidates) > 1:
             return self._reranker.rerank(text, candidates, top_k=top_k)
