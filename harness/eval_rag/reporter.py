@@ -95,22 +95,16 @@ class RagEvalReporter:
         path: str | Path,
         split: bool = False,
     ) -> list[Path]:
-        """
-        把 RAG 评估结果写成 CSV。
-
-        Args:
-            result: 评估结果。
-            path: 输出路径。
-                - split=False：写单个 CSV（汇总+明细分块）。
-                - split=True：path 视为前缀，写出 <path>.summary.csv 与 <path>.details.csv。
-        """
+        """把 RAG 评估结果写成 CSV。"""
         out = Path(path)
-        out.parent.mkdir(parents=True, exist_ok=True)
+        out.parent.mkdir(parents=True, exist_ok=True)  # 确保输出目录存在
         if split:
+            # 拆分为汇总 + 明细两个文件
             summary_path = out.with_suffix(".summary.csv")
             details_path = out.with_suffix(".details.csv")
             summary_path.write_text(self.to_summary_csv(result), encoding="utf-8-sig", newline="")
             details_path.write_text(self.to_details_csv(result), encoding="utf-8-sig", newline="")
             return [summary_path, details_path]
+        # 合并为单个 CSV（先汇总区块，再明细区块）
         out.write_text(self.to_csv(result), encoding="utf-8-sig", newline="")
         return [out]
