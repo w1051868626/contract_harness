@@ -580,6 +580,10 @@ def eval_run(
     reporter = RagEvalReporter()
     logger.info("RAG 评测结果:\n{}", reporter.to_markdown(result))
 
+    # summary.csv / details.csv 路径：启用 --csv 或 --analyze 时写出
+    summary_path: Path | None = None
+    details_path: Path | None = None
+
     if csv:
         prefix = csv_prefix or str(Path(config.eval_dir) / "reports" / Path(dataset).stem)
         summary_path, details_path = reporter.write_csv(result, prefix, split=True)
@@ -589,13 +593,14 @@ def eval_run(
         # 三项分析需要 summary.csv / details.csv；未启用 --csv 时先写出
         from harness.eval_rag.analyzer import run_analysis
 
-        if not csv:
+        if summary_path is None or details_path is None:
             prefix = csv_prefix or str(Path(config.eval_dir) / "reports" / Path(dataset).stem)
             summary_path, details_path = reporter.write_csv(result, prefix, split=True)
             logger.info(
                 "为 --analyze 写出 CSV：\n  汇总: {}\n  明细: {}", summary_path, details_path
             )
 
+        assert summary_path is not None and details_path is not None
         analysis_dir = summary_path.parent / "analysis"
         analysis_res = run_analysis(summary_path, details_path, analysis_dir)
         logger.info(
