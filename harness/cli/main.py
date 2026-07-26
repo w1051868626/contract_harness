@@ -534,6 +534,13 @@ def generate(
     default=None,
     help="CSV 输出路径前缀；启用 --csv 时不提供则默认 {eval_dir}/reports/<dataset_stem>",
 )
+@click.option(
+    "--analyze",
+    is_flag=True,
+    default=False,
+    help="跑完 eval 后自动生成三项分析（排序改进空间 / chunk 维度分布 / 图表 + Markdown 摘要）；"
+    "需要先启用 --csv 或提供既有 summary.csv/details.csv",
+)
 @click.pass_context
 def eval_run(
     ctx: click.Context,
@@ -543,6 +550,7 @@ def eval_run(
     checkpoint: str | None,
     csv: bool,
     csv_prefix: str | None,
+    analyze: bool,
 ) -> None:
     """执行 RAG 检索质量评估。"""
     kb_instance = _get_kb(ctx)
@@ -576,3 +584,24 @@ def eval_run(
         prefix = csv_prefix or str(Path(config.eval_dir) / "reports" / Path(dataset).stem)
         summary_path, details_path = reporter.write_csv(result, prefix, split=True)
         logger.info("CSV 报告已写入：\n  汇总: {}\n  明细: {}", summary_path, details_path)
+
+    if analyze:
+        # 三项分析需要 summary.csv / details.csv；未启用 --csv 时先写出
+        from harness.eval_rag.analyzer import run_analysis
+
+        if not csv:
+            prefix = csv_prefix or str(Path(config.eval_dir) / "reports" / Path(dataset).stem)
+            summary_path, details_path = reporter.write_csv(result, prefix, split=True)
+            logger.info(
+                "为 --analyze 写出 CSV：\n  汇总: {}\n  明细: {}", summary_path, details_path
+            )
+
+        analysis_dir = summary_path.parent / "analysis"
+        analysis_res = run_analysis(summary_path, details_path, analysis_dir)
+        logger.info(
+            "三项分析完成: rank_improve={} / chunks={} / systematic_miss={} -> {}",
+            analysis_res["rank_improve"],
+            analysis_res["chunks"],
+            analysis_res["systematic_miss"],
+            analysis_res["summary_md"],
+        )

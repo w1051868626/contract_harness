@@ -95,9 +95,11 @@ harness kb eval generate --seed 42 --sample 50 --queries-per-chunk 3  # 可复�
 harness kb eval run <dataset>      # 执行 RAG 检索质量评估（HitRate/MRR/Precision/Recall）
 harness kb eval run <dataset> --expansion-threshold 0  # 禁用 AI 查询扩展，纯向量检索评估
 harness kb eval run <dataset> --csv --csv-prefix /tmp/rag_eval  # 额外输出 CSV 报告（汇总+明细分两文件）
+harness kb eval run <dataset> --analyze  # eval 跑完自动派生三项分析（排序改进空间/chunk 分布/图表 + 摘要）
 
 # RAG eval 报告三项分析（基于已产出的 summary.csv + details.csv）
 conda run -n contract-harness python scripts/analyze_rag_eval.py
+# 或在 kb eval run 加 --analyze 一步到位
 # 产出 .harness/evals/reports/analysis/ 下:
 #   hit1_miss_hit3_hit.csv       — hit@1=0 但 hit@3=1 的 query（排序改进空间）
 #   chunk_hit_distribution.csv   — 按 expected chunk 维度的命中率（全量）
