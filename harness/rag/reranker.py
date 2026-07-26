@@ -78,7 +78,9 @@ class OpenAIReranker(Reranker):
                     "model": self.model,
                     "query": query,
                     "documents": [c.content for c in candidates],
-                    "top_n": top_k,
+                    # 让 API 对全部 pool 候选打分（top_n=pool 大小），客户端再按
+                    # relevance_score 截 top_k，给 top-1 判别更大参考面
+                    "top_n": len(candidates),
                 },
                 headers={"Authorization": f"Bearer {self.api_key}"},
             )
@@ -107,11 +109,15 @@ class OpenAIReranker(Reranker):
             return data
 
         # retry_with_backoff 的 _T 推断会受其他调用点污染，显式 cast 锁定类型
-        results: list[Chunk] = []
+        # API 返回全 pool 打分，按 relevance_score 降序后截 top_k
+        scored: list[tuple[int, float]] = []
         for item in cast("dict[str, Any]", data).get("results", []):
             idx = item["index"]
-            candidates[idx].score = item.get("relevance_score", 0.0)
-            results.append(candidates[idx])
+            score = item.get("relevance_score", 0.0)
+            candidates[idx].score = score
+            scored.append((idx, score))
+        scored.sort(key=lambda x: x[1], reverse=True)
+        results = [candidates[idx] for idx, _ in scored[:top_k]]
         logger.debug("Reranking returned {} results", len(results))
         return results
 
