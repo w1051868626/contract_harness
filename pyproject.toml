@@ -9,6 +9,7 @@ description = "可回放、可评测、可回归的合同审查 Agent 系统"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "click>=8.1",
+    "tqdm>=4.65",
     "pydantic>=2.0",
     "httpx>=0.27",
     "openai>=1.0",

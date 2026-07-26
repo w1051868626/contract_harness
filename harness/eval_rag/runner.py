@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from tqdm import tqdm
+
 from harness.eval_rag.dataset import EvalRagItem, EvalRagResult
 from harness.eval_rag.metrics import RagMetricsCalculator
 from harness.rag.knowledge_base import KnowledgeBase
@@ -47,7 +49,7 @@ class RagEvalRunner:
 
         checkpoint_file = open(checkpoint_path, "a", encoding="utf-8") if checkpoint_path else None
         try:
-            for item in items:
+            for item in tqdm(items, desc="RAG eval", unit="query"):
                 if item.query in completed:
                     retrieved = completed[item.query]
                 else:

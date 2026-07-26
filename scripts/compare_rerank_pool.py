@@ -14,10 +14,12 @@ import random
 import sys
 from pathlib import Path
 
+from tqdm import tqdm
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from harness.utils.io import load_dotenv  # type: ignore
+from harness.utils.io import load_dotenv  # type: ignore  # noqa: E402
 
 load_dotenv()
 
@@ -25,7 +27,6 @@ from harness.core.config import HarnessConfig  # noqa: E402
 from harness.rag.knowledge_base import KnowledgeBase  # noqa: E402
 from harness.rag.sparse import rrf_fuse  # noqa: E402
 from harness.rag.vector_store import Chunk  # noqa: E402
-
 
 SAMPLE_N = 200
 TOP_K = 5
@@ -67,15 +68,17 @@ def make_search_single(kb: KnowledgeBase, pool_fn) -> None:
     kb._search_single = _search_single  # type: ignore
 
 
-def run_eval(kb: KnowledgeBase, samples: list[dict]) -> dict:
+def run_eval(kb: KnowledgeBase, samples: list[dict], label: str = "") -> dict:
     hit1 = hit3 = hit5 = 0
     total = len(samples)
-    for i, s in enumerate(samples):
+    desc = f"{label} eval" if label else "eval"
+    pbar = tqdm(samples, desc=desc, unit="query")
+    for s in pbar:
         try:
             results = kb.query(s["query"], top_k=TOP_K, expansion_threshold=0)
             retrieved = [r.id for r in results]
         except Exception as e:
-            print(f"[{i+1}/{total}] ERROR: {e}")
+            tqdm.write(f"ERROR: {e}")
             continue
         expected = s["expected"]
         if len(retrieved) > 0 and retrieved[0] == expected:
@@ -84,11 +87,13 @@ def run_eval(kb: KnowledgeBase, samples: list[dict]) -> dict:
             hit3 += 1
         if expected in retrieved[:5]:
             hit5 += 1
-        if (i + 1) % 20 == 0:
-            print(
-                f"[{i+1}/{total}] hit@1={hit1}/{i+1}={hit1/(i+1):.3f}  "
-                f"hit@3={hit3}  hit@5={hit5}"
-            )
+        done = pbar.n
+        pbar.set_postfix(
+            h1=f"{hit1}/{done}={hit1 / done:.3f}" if done else "h1=0",
+            h3=hit3,
+            h5=hit5,
+        )
+    pbar.close()
     return {
         "n": total,
         "hit1": hit1,
@@ -103,7 +108,7 @@ def run_eval(kb: KnowledgeBase, samples: list[dict]) -> dict:
 def main() -> None:
     samples = load_rank2_samples(SAMPLE_N)
     print(f"样本: {len(samples)} 条 (来自 hit1_miss_rank2.csv)")
-    print(f"这些 query 原本都是 hit@1=0 但 hit@3=1，正确 chunk 在第 2 位")
+    print("这些 query 原本都是 hit@1=0 但 hit@3=1，正确 chunk 在第 2 位")
     print()
 
     cfg = HarnessConfig()
