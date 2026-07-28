@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from sentence_transformers import CrossEncoder  # pyright: ignore[reportMissingImports]
 
+import copy
+
 import httpx
 
 from harness.rag.constants import (
@@ -51,6 +53,56 @@ class Reranker(ABC):
     @abstractmethod
     def rerank(self, query: str, candidates: list[Chunk], top_k: int = 5) -> list[Chunk]:
         """对候选列表按相关性重新排序，返回 top_k 个结果。"""
+
+    def rerank_multi(
+        self,
+        queries: list[str],
+        candidates: list[Chunk],
+        weights: list[float] | None = None,
+        top_k: int = 5,
+    ) -> list[Chunk]:
+        """多 query 加权重排：对每个 query 各跑一次 rerank，按权重融合 relevance_score。
+
+        Args:
+            queries: 多个查询视角（如原始 query + 同义改写）。
+            candidates: 候选列表（同一份，每次 rerank 都基于它打分）。
+            weights: 每个 query 的融合权重，长度需等于 ``queries``；缺省均权。
+            top_k: 返回结果数量。
+
+        默认实现循环调用 ``rerank`` 收集每个候选的加权分数；子类可覆盖以
+        批量调用 API（少 N-1 次 round-trip）。
+        """
+        if not candidates or not queries:
+            return candidates[:top_k]
+        if weights is None:
+            weights = [1.0 / len(queries)] * len(queries)
+        if len(weights) != len(queries):
+            msg = f"weights 长度 {len(weights)} 与 queries 长度 {len(queries)} 不一致"
+            raise ValueError(msg)
+        total_w = sum(weights)
+        if total_w <= 0:
+            msg = "weights 之和必须为正"
+            raise ValueError(msg)
+        weights = [w / total_w for w in weights]
+
+        # 对每个 query 各跑一次 rerank，收集每个候选的加权 relevance_score
+        # candidates 是同一份引用，rerank 会改写 score；用 snapshot 隔离避免污染
+        accumulated: dict[str, float] = {c.id: 0.0 for c in candidates}
+        for q, w in zip(queries, weights, strict=True):
+            # 浅拷贝每个 Chunk（dataclass），保留 id；rerank 内会改 score 但不影响原 candidates
+            snapshot = [copy.copy(c) for c in candidates]
+            ranked = self.rerank(q, snapshot, top_k=len(snapshot))
+            # rerank 可能因 4xx 降级返回 candidates[:top_k]，丢失的候选 score 记 0
+            seen_in_round: set[str] = set()
+            for c in ranked:
+                accumulated[c.id] += w * c.score
+                seen_in_round.add(c.id)
+
+        # 把加权 score 写回原 candidates 引用，按加权 score 降序截 top_k
+        for c in candidates:
+            c.score = accumulated.get(c.id, 0.0)
+        ranked = sorted(candidates, key=lambda c: c.score, reverse=True)
+        return ranked[:top_k]
 
 
 class OpenAIReranker(Reranker):

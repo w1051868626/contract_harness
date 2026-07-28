@@ -319,6 +319,8 @@ class KnowledgeBase:
                 logger.debug("扩展检索完成: results={}", len(candidates))
                 # merge 后 candidates 来自多次 _search_single 各自 rerank 的分数，
                 # 分数尺度不一致且 merge 只取 max；有 reranker 时跑一次最终重排对齐排序。
+                # 注：曾尝试用 rerank_multi（原始 + 改写加权融合），但 200 样本 A/B
+                # 仅 +3pp 且只 6/200 触发改写，信号弱不显著，故回滚保留单 query rerank。
                 if self._reranker and len(candidates) > 1:
                     candidates = self._reranker.rerank(text, candidates, top_k=top_k)
         return candidates[:top_k]

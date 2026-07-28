@@ -61,6 +61,44 @@
 | rerank 后对 top-3 做二次精排（同模型再跑一遍，输入拼 query+候选全文） | +1~3pp | 同模型但给 top-3 更长上下文 | 中 |
 | 候选池进一步扩大（pool=30/40） | <1pp（边际递减） | API token 成本 | 低 |
 
+## 2026-07-26 多 query 加权 rerank 实验（已回滚）
+
+### 设计
+
+在 RESUME.md 推荐的「query 同义改写 + 多 query 加权 rerank」方向上做了完整实现 + A/B：
+
+1. `Reranker.rerank_multi(queries, candidates, weights, top_k)` 默认实现：对每个 query 各跑一次 `rerank`，按 `weights` 加权融合 `relevance_score`，`copy.copy(chunk)` 隔离 score 污染。
+2. `KnowledgeBase.query` 改写分支用 `rerank_multi` 替代单 query `rerank`，权重 `[0.6, 0.4/N...]`（原始 0.6 + 改写平分 0.4）。
+3. `scripts/compare_rerank_pool.py` 扩展 `--mode multiquery` + `--phase A/B` 支持 200 样本 A/B 对照。
+
+### A/B 结果（200 样本「差 1 位」query）
+
+| 指标 | A 单query (阈0) | B 多query加权 (阈0.75) | delta |
+|---|---|---|---|
+| hit@1 | 69/200 = 0.345 | 75/200 = 0.375 | **+3.0pp** |
+| hit@3 | 196 | 197 | +0.5pp |
+| hit@5 | 199 | 199 | 0 |
+
+### 失败原因分析
+
+1. **触发率太低**：`expansion_threshold=0.75` 在 200 样本中只触发 6 次改写（3%），+3pp 完全来自这 6 个 query，信号弱、不显著，6 个 query 的随机噪声本身就可能有 ±3pp 波动。
+2. **dense top-1 score 普遍 >0.75**：200 样本 dense top-1 分数中位数高，说明「差 1 位」query 的 dense 召回没问题，瓶颈在 reranker 排序本身，而非「字面不贴导致 dense 漏召回」。
+3. **多 query 加权 rerank 信号被稀释**：即使触发改写，原始 query 权重 0.6 主导排序，改写 query 各 0.2 的权重难以翻转 reranker 对原始 query 的判别。
+
+### 决策
+
+**回滚 `KnowledgeBase.query` 到单 query rerank**，保留：
+- `Reranker.rerank_multi` 接口（无害、未来可用）
+- `scripts/compare_rerank_pool.py` `--mode multiquery` A/B 工具
+
+### 复用产物
+
+| 产物 | 路径 | 用途 |
+|---|---|---|
+| 多 query 加权接口 | `harness/rag/reranker.py:Reranker.rerank_multi` | 未来实验复用 |
+| A/B 对比脚本 | `scripts/compare_rerank_pool.py --mode multiquery` | 多 query 加权 rerank A/B |
+| A/B 日志 | `.harness/reports/multiquery_A_200.log` / `multiquery_B_200.log` | 200 样本原始数据 |
+
 ## 产物索引
 
 | 产物 | 路径 |
