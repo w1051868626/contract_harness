@@ -251,10 +251,11 @@ class ReActLoop:
         all_risks = state.get("risks", [])
         all_compliance: list[ComplianceCheck] = []
         # state["compliance"] 来自 ComplianceChecker.batch_check，恒为
-        # list[list[ComplianceCheck]]；用 assert 表达此契约，避免 isinstance
+        # list[list[ComplianceCheck]]；若违反此契约，显式抛错而非 isinstance
         # 防御性检查把「异常状态污染」静默跳过。
         nested_compliance = state.get("compliance", [])
-        assert all(isinstance(checks, list) for checks in nested_compliance)
+        if not all(isinstance(checks, list) for checks in nested_compliance):
+            raise RuntimeError("state['compliance'] 必须是 list[list[ComplianceCheck]]")
         for checks in nested_compliance:
             all_compliance.extend(checks)
 

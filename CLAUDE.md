@@ -60,6 +60,16 @@ harness replay <session_id>               # 回放会话
 harness eval run <dataset>                 # 评测
 harness regression run <dataset>           # 回归测试
 harness serve                              # 启动 Web 界面
+
+# scripts/ 实用脚本（独立入口，部分等价于 CLI 子命令）
+# RAG eval 报告三项分析（等价于 kb eval run --analyze）
+conda run -n contract-harness python scripts/analyze_rag_eval.py
+# Reranker 优化 A/B 对比（200 样本「差 1 位」query）
+conda run -n contract-harness python scripts/compare_rerank_pool.py --mode multiquery --n 200
+# Windows 后台跑 A/B（DETACHED_PROCESS 标志，绕过 MSYS bash 退出杀子进程）
+# 日志写 .harness/reports/multiquery_ab_200.log，PID 写 .pid 文件
+# Linux/macOS 直接 nohup compare_rerank_pool.py & 即可，无需此脚本
+conda run -n contract-harness python scripts/launch_ab_detached.py
 ```
 
 ## 环境变量

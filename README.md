@@ -106,6 +106,12 @@ conda run -n contract-harness python scripts/analyze_rag_eval.py
 #   chunk_systematic_miss.csv    — 系统性漏检条款（hit1_rate ≤ 0.3 且 query ≥ 3）
 #   rag_eval_charts.html         — 交互式图表（pyecharts，缩放/悬停 tooltip）
 #   rag_eval_analysis_summary.md — Markdown 摘要
+
+# Windows 后台跑 A/B 对比（绕过 MSYS bash 退出杀子进程的问题）
+conda run -n contract-harness python scripts/launch_ab_detached.py
+# 该脚本以 DETACHED_PROCESS 标志启动 scripts/compare_rerank_pool.py
+# 日志写 .harness/reports/multiquery_ab_200.log，PID 写 .pid 文件
+# 仅 Windows 用；Linux/macOS 直接 nohup compare_rerank_pool.py &
 ```
 
 ## 架构

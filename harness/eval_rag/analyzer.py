@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from harness.eval_rag.reporter import METRIC_LEGEND as _METRIC_LEGEND
 from harness.utils.log import logger
 
 
@@ -285,16 +286,26 @@ def task_charts(
         page.add(chart)
     html = out_dir / "rag_eval_charts.html"
     page.render(str(html))
-    # 在 <body> 后插入使用说明样式
+    # 在 <body> 后插入使用说明样式 + 指标含义折叠区块
     raw = html.read_text(encoding="utf-8")
+    legend_items = "".join(
+        f"<li><strong>{name}</strong>: {desc}</li>"
+        for name, desc in _METRIC_LEGEND
+    )
     note = (
         "<style>body{font-family:system-ui,Segoe UI,sans-serif;margin:20px;color:#222;"
         "max-width:1200px;margin-left:auto;margin-right:auto}"
         ".chart-container{margin:24px auto;padding:16px;border:1px solid #eee;"
         "border-radius:8px;display:flex;justify-content:center}"
-        ".note{color:#888;font-size:12px;margin:8px 0}</style>"
+        ".note{color:#888;font-size:12px;margin:8px 0}"
+        "details.legend{margin:12px 0;padding:8px 12px;border:1px solid #eee;"
+        "border-radius:6px;background:#fafafa}"
+        "details.legend summary{cursor:pointer;font-weight:600;color:#444}"
+        "details.legend ul{margin:8px 0 0 0;padding-left:22px;line-height:1.7}</style>"
         "<p class=note>鼠标悬停显示精确数值; 鼠标滚轮/拖拽可缩放 (dataZoom); "
         "双坐标轴可框选放大。</p>"
+        "<details class=legend open><summary>指标含义</summary>"
+        f"<ul>{legend_items}</ul></details>"
     )
     raw = raw.replace("<body>", "<body>" + note, 1).replace("<body >", "<body >" + note, 1)
     html.write_text(raw, encoding="utf-8")
@@ -341,6 +352,17 @@ def task_markdown_summary(
             row = f"| {m} | " + " | ".join(f"{summary[m][k]:.4f}" for k in (1, 3, 5)) + " |"
             rows.append(row)
     rows += [
+        "",
+        "### 指标含义",
+        "",
+        "- **hit_rate（命中率）**: 前 k 条结果中含至少一个正确 chunk 的 query 占比。"
+        "@1 越高排序越准。",
+        "- **mrr（平均倒数排名）**: 第一个正确 chunk 排位的倒数（1/rank）的均值。"
+        "1.0 表示全在首位。",
+        "- **precision（精确率）**: 前 k 条中正确 chunk 的比例均值。"
+        "越高代表前 k 条噪声越少。",
+        "- **recall（召回率）**: 前 k 条覆盖到的正确 chunk 占该 query 全部正确 chunk 的比例均值。"
+        "越高漏检越少。",
         "",
         "## 2. 排序改进空间",
         "",

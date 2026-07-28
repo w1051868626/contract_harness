@@ -13,6 +13,7 @@ import uvicorn
 from harness.agent.contract_agent import ContractAgent
 from harness.agent.llm import LLMClient
 from harness.core.config import HarnessConfig
+from harness.core.exceptions import EvalError
 from harness.core.types import ContractDocument
 from harness.eval.dataset import EvalDataset
 from harness.eval.reporters import EvalReporter
@@ -600,7 +601,8 @@ def eval_run(
                 "为 --analyze 写出 CSV：\n  汇总: {}\n  明细: {}", summary_path, details_path
             )
 
-        assert summary_path is not None and details_path is not None
+        if summary_path is None or details_path is None:
+            raise EvalError("三项分析需要 summary.csv / details.csv，但路径为空")
         analysis_dir = summary_path.parent / "analysis"
         analysis_res = run_analysis(summary_path, details_path, analysis_dir)
         logger.info(

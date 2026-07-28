@@ -82,8 +82,9 @@ class DoclingParser:
         """解析文档为 Markdown 格式，保留标题层级、表格、列表等结构。"""
         if not self._available:
             raise RuntimeError(DOCLING_NOT_AVAILABLE)
+        if self._converter is None:
+            raise RuntimeError("Docling 已标记可用但 converter 未初始化")
         logger.debug("Docling 解析为 Markdown: path={}", path)
-        assert self._converter is not None
         result = self._converter.convert(str(path))
         return result.document.export_to_markdown()
 
@@ -91,7 +92,8 @@ class DoclingParser:
         """解析文档为纯文本，失去结构化信息但内容更简洁。"""
         if not self._available:
             raise RuntimeError(DOCLING_NOT_AVAILABLE)
+        if self._converter is None:
+            raise RuntimeError("Docling 已标记可用但 converter 未初始化")
         logger.debug("Docling 解析为纯文本: path={}", path)
-        assert self._converter is not None
         result = self._converter.convert(str(path))
         return result.document.text

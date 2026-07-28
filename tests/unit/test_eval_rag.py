@@ -287,14 +287,17 @@ class TestRagEvalReporter:
         reporter = RagEvalReporter()
         prefix = tmp_path / "rag_eval"
         paths = reporter.write_csv(result, prefix, split=True)
-        assert len(paths) == 2
-        summary_path, details_path = paths
+        assert len(paths) == 3
+        summary_path, details_path, legend_path = paths
         assert summary_path.name == "rag_eval.summary.csv"
         assert details_path.name == "rag_eval.details.csv"
+        assert legend_path.name == "rag_eval.metrics_legend.md"
         # 汇总文件包含 hit_rate 行
         assert "hit_rate" in summary_path.read_text(encoding="utf-8-sig")
         # 明细文件包含 query 行
         assert "q1" in details_path.read_text(encoding="utf-8-sig")
+        # 配套说明文件包含 hit_rate 含义
+        assert "hit_rate" in legend_path.read_text(encoding="utf-8")
 
     def test_write_csv_single(self, tmp_path):
         result = EvalRagResult(
@@ -309,8 +312,9 @@ class TestRagEvalReporter:
         reporter = RagEvalReporter()
         out = tmp_path / "report.csv"
         paths = reporter.write_csv(result, out, split=False)
-        assert paths == [out]
+        assert paths == [out, out.with_suffix(".metrics_legend.md")]
         content = out.read_text(encoding="utf-8-sig")
+        assert "# metrics_legend" in content
         assert "# summary" in content
         assert "# details" in content
         assert "hit_rate" in content
