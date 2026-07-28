@@ -587,7 +587,7 @@ def eval_run(
 
     if csv:
         prefix = csv_prefix or str(Path(config.eval_dir) / "reports" / Path(dataset).stem)
-        summary_path, details_path = reporter.write_csv(result, prefix, split=True)
+        summary_path, details_path, _ = reporter.write_csv(result, prefix, split=True)
         logger.info("CSV 报告已写入：\n  汇总: {}\n  明细: {}", summary_path, details_path)
 
     if analyze:
@@ -596,7 +596,7 @@ def eval_run(
 
         if summary_path is None or details_path is None:
             prefix = csv_prefix or str(Path(config.eval_dir) / "reports" / Path(dataset).stem)
-            summary_path, details_path = reporter.write_csv(result, prefix, split=True)
+            summary_path, details_path, _ = reporter.write_csv(result, prefix, split=True)
             logger.info(
                 "为 --analyze 写出 CSV：\n  汇总: {}\n  明细: {}", summary_path, details_path
             )
